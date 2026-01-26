@@ -16,9 +16,9 @@ interface SignalCardProps {
 
 const getStatusColor = (status: SignalStatus) => {
     switch (status) {
-        case SignalStatus.ACTIVE: return 'bg-blue-500';
-        case SignalStatus.CLOSED: return 'bg-gray-500';
-        case SignalStatus.PENDING: return 'bg-yellow-500';
+        case SignalStatus.ACTIVE: return 'bg-gray-500 text-gray-200'; // Neutral for active (calm)
+        case SignalStatus.CLOSED: return 'bg-gray-700 text-gray-400'; // Darker for closed
+        case SignalStatus.PENDING: return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'; // Clear pending state
         default: return 'bg-gray-500';
     }
 }
@@ -67,7 +67,9 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
             return { label: 'Active for', value: mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m` };
         }
         if (signal.status === SignalStatus.CLOSED && signal.closedAt) {
-            return { label: 'Closed', value: new Date(signal.closedAt).toLocaleTimeString() };
+            const timeStr = new Date(signal.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const reason = signal.closeReason ? `(${signal.closeReason})` : '';
+            return { label: 'Closed', value: `${reason} at ${timeStr}` };
         }
         const diff = Date.now() - new Date(signal.timestamp).getTime();
         const mins = Math.floor(diff / 60000);
