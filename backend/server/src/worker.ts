@@ -4,16 +4,6 @@ import { startCryptoEngine, stopCryptoEngine, getCryptoEngineStatus } from './en
 
 dotenv.config();
 
-// Health Check Server (for Railway/Render/AWS)
-import express from 'express';
-const app = express();
-const PORT = process.env.PORT || 8080;
-
-app.get('/', (req, res) => res.status(200).send('Signal Engine Worker Running'));
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK' }));
-
-app.listen(PORT, () => console.log(`[Worker] HTTP Health Check running on port ${PORT}`));
-
 const HEARTBEAT_INTERVAL = 300000; // 5 minutes
 
 async function startWorker() {
