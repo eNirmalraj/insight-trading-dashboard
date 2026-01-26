@@ -1,0 +1,8 @@
+-- Add missing columns to price_alerts table
+ALTER TABLE public.price_alerts
+ADD COLUMN IF NOT EXISTS drawing_id TEXT,
+ADD COLUMN IF NOT EXISTS fib_level NUMERIC,
+ADD COLUMN IF NOT EXISTS message TEXT,
+ADD COLUMN IF NOT EXISTS notify_app BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS play_sound BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS trigger_frequency TEXT DEFAULT 'Only Once';

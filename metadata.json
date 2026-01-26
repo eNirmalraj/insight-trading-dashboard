@@ -1,0 +1,5 @@
+{
+  "name": "27. Copy of Insight Trading",
+  "description": "A comprehensive trading website integrated with an AI model strategy. It interacts with forex brokers and crypto exchanges to fetch real-time data and execute trades, offering a suite of tools for market analysis, signal tracking, and account management.",
+  "requestFramePermissions": []
+}
