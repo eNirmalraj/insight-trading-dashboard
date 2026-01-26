@@ -41,6 +41,19 @@ export class BinanceStreamManager {
     private baseUrl = 'wss://stream.binance.com:9443/stream?streams=';
 
     /**
+     * Set the region for Binance Stream (US or Global)
+     */
+    public setRegion(isUS: boolean): void {
+        if (isUS) {
+            this.baseUrl = 'wss://stream.binance.us:9443/stream?streams=';
+            console.log('[BinanceStream] Switched to Binance US WebSocket');
+        } else {
+            this.baseUrl = 'wss://stream.binance.com:9443/stream?streams=';
+            console.log('[BinanceStream] Switched to Binance Global WebSocket');
+        }
+    }
+
+    /**
      * Set the callback for candle close events
      */
     public onCandleClose(callback: CandleCloseCallback): void {

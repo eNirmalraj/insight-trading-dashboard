@@ -14,16 +14,41 @@ import { loadMonitoredSignals, initSignalMonitor } from './signalMonitor';
 const candleBuffer: Map<string, Candle[]> = new Map();
 const BUFFER_SIZE = 200; // Keep last 200 candles for indicator calculations
 
-// Binance exchange instance for fetching historical data
-const exchange = new ccxt.binance({ enableRateLimit: true });
+// Binance exchange instance (can switch to US)
+let exchange = new ccxt.binance({ enableRateLimit: true });
 
 /**
  * Fetch all USDT trading pairs from Binance
  */
 export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
     try {
+        console.log('[CryptoEngine] Connecting to Binance Global...');
         await exchange.loadMarkets();
+    } catch (error: any) {
+        // Handle Geo-Restriction (HTTP 451 or specific message)
+        if (error.message.includes('451') || error.message.includes('Service unavailable')) {
+            console.warn('[CryptoEngine] ⚠️ Geo-restriction detected (US IP). Switching to Binance US...');
 
+            // Switch to Binance US
+            exchange = new ccxt.binanceus({ enableRateLimit: true });
+
+            // Switch WebSocket Stream
+            binanceStream.setRegion(true);
+
+            try {
+                await exchange.loadMarkets();
+                console.log('[CryptoEngine] ✅ Connected to Binance US');
+            } catch (usError) {
+                console.error('[CryptoEngine] Failed to connect to Binance US:', usError);
+                return [];
+            }
+        } else {
+            console.error('[CryptoEngine] Error fetching symbols:', error);
+            return [];
+        }
+    }
+
+    try {
         const symbols = Object.keys(exchange.markets)
             .filter(symbol => {
                 const market = exchange.markets[symbol];
@@ -36,7 +61,7 @@ export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
         console.log(`[CryptoEngine] Found ${symbols.length} USDT/USD pairs`);
         return symbols;
     } catch (error) {
-        console.error('[CryptoEngine] Error fetching symbols:', error);
+        console.error('[CryptoEngine] Error processing markets:', error);
         return [];
     }
 };
