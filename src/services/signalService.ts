@@ -66,7 +66,9 @@ export const getSignals = async (): Promise<Signal[]> => {
         timeframe: d.timeframe,
         closeReason: d.close_reason,
         profitLoss: d.profit_loss,
-        isPinned: d.is_pinned || false
+        isPinned: d.is_pinned || false,
+        activatedAt: d.activated_at,
+        closedAt: d.closed_at
     }));
 };
 
@@ -313,7 +315,9 @@ export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]
         timestamp: d.created_at,
         timeframe: d.timeframe,
         closeReason: d.close_reason,
-        profitLoss: d.profit_loss
+        profitLoss: d.profit_loss,
+        activatedAt: d.activated_at,
+        closedAt: d.closed_at
 
     }));
 };

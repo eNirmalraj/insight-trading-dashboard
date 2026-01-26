@@ -212,7 +212,9 @@ const Signals: React.FC = () => {
                                 status: newRow.status,
                                 timestamp: newRow.created_at,
                                 timeframe: newRow.timeframe,
-                                isPinned: newRow.is_pinned || false
+                                isPinned: newRow.is_pinned || false,
+                                activatedAt: newRow.activated_at,
+                                closedAt: newRow.closed_at
                             };
 
                             // 3. Prepend to list (maintaining sort mostly, but new is usually top)
@@ -227,7 +229,9 @@ const Signals: React.FC = () => {
                                 // Only update fields that might change live
                                 isPinned: updatedRow.is_pinned !== undefined ? updatedRow.is_pinned : s.isPinned,
                                 profitLoss: updatedRow.profit_loss,
-                                closeReason: updatedRow.close_reason
+                                closeReason: updatedRow.close_reason,
+                                activatedAt: updatedRow.activated_at,
+                                closedAt: updatedRow.closed_at
                             } : s
                         ));
                     }

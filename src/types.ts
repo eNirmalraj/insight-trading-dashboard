@@ -46,6 +46,8 @@ export interface Signal {
   closeReason?: 'TP' | 'SL' | 'MANUAL' | 'TIMEOUT';
   profitLoss?: number;
   isPinned?: boolean;
+  activatedAt?: string;
+  closedAt?: string;
 }
 
 export interface Metric {

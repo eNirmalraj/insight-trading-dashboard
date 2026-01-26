@@ -46,6 +46,36 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
 
     const riskReward = Math.abs((signal.takeProfit - signal.entry) / (signal.entry - signal.stopLoss)).toFixed(2);
 
+    // Calculate Context Metrics
+    const getContextMetrics = () => {
+        if (!currentPrice || signal.status === SignalStatus.CLOSED) return null;
+
+        const distToEntry = ((currentPrice - signal.entry) / signal.entry) * 100;
+        const distToTP = ((signal.takeProfit - currentPrice) / currentPrice) * 100 * (isBuy ? 1 : -1);
+        const distToSL = ((currentPrice - signal.stopLoss) / currentPrice) * 100 * (isBuy ? -1 : 1);
+
+        return { distToEntry, distToTP, distToSL };
+    };
+
+    const context = getContextMetrics();
+
+    // Time Context
+    const getTimeContext = () => {
+        if (signal.status === SignalStatus.ACTIVE && signal.activatedAt) {
+            const diff = Date.now() - new Date(signal.activatedAt).getTime();
+            const mins = Math.floor(diff / 60000);
+            return { label: 'Active for', value: mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m` };
+        }
+        if (signal.status === SignalStatus.CLOSED && signal.closedAt) {
+            return { label: 'Closed', value: new Date(signal.closedAt).toLocaleTimeString() };
+        }
+        const diff = Date.now() - new Date(signal.timestamp).getTime();
+        const mins = Math.floor(diff / 60000);
+        return { label: 'Created', value: mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago` };
+    };
+
+    const timeContext = getTimeContext();
+
     return (
         <div className={`bg-card-bg rounded-xl p-5 space-y-4 hover:shadow-xl transition-shadow relative ${borderColor}`}>
             {isNew && (
@@ -84,16 +114,33 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
                 </div>
             </div>
 
-            {/* Progress Bar Neutralized - Replaced with Factual Data */}
-            {/* <SignalProgressBar signal={signal} currentPrice={currentPrice} className="mb-2" /> */}
+            {/* Live Context Data */}
+            {context && signal.status === SignalStatus.ACTIVE && (
+                <div className="bg-gray-800/40 rounded-lg p-2 text-xs space-y-1">
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Current Price</span>
+                        <span className="font-mono text-white">{formatPrice(currentPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-400">To Target</span>
+                        <span className={`${context.distToTP > 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                            {context.distToTP > 0 ? '-' : '+'}{Math.abs(context.distToTP).toFixed(2)}%
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-400">To Stop</span>
+                        <span className={`${context.distToSL < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                            {Math.abs(context.distToSL).toFixed(2)}%
+                        </span>
+                    </div>
+                </div>
+            )}
 
-            {/* Live Data Row (if available) */}
-            {currentPrice && signal.status !== SignalStatus.CLOSED && (
-                <div className="flex justify-between items-center text-xs bg-gray-800/30 rounded px-2 py-1 mb-2">
-                    <span className="text-gray-400">Current: {formatPrice(currentPrice)}</span>
-                    <span className={`${(signal.direction === 'BUY' ? currentPrice > signal.entry : currentPrice < signal.entry) ? 'text-green-400' : 'text-gray-400'}`}>
-                        {Math.abs((currentPrice - signal.entry) / signal.entry * 100).toFixed(2)}% dist
-                    </span>
+            {/* Pending Context */}
+            {context && signal.status === SignalStatus.PENDING && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2 text-xs flex justify-between items-center">
+                    <span className="text-yellow-500">Distance to Entry</span>
+                    <span className="font-mono text-white">{Math.abs(context.distToEntry).toFixed(2)}%</span>
                 </div>
             )}
 
@@ -117,7 +164,10 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
             </div>
 
             <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t border-gray-700">
-                <span>{new Date(signal.timestamp).toLocaleString()}</span>
+                <span className="flex items-center gap-1">
+                    <span className="text-gray-500">{timeContext.label}:</span>
+                    <span className="text-gray-300 font-medium">{timeContext.value}</span>
+                </span>
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={copySignalToClipboard}
