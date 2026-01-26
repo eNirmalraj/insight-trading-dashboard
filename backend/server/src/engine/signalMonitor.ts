@@ -2,6 +2,7 @@
 import { supabaseAdmin } from '../services/supabaseAdmin';
 import { updateSignalStatus } from '../services/signalStorage';
 import { eventBus, EngineEvents } from '../utils/eventBus';
+import { Candle } from './indicators';
 
 interface Signal {
     id: string;
@@ -96,6 +97,74 @@ export const handlePriceTick = async (symbol: string, currentPrice: number) => {
     }
 };
 
+/**
+ * Handle Candle Closure (Robust High/Low Evaluation)
+ */
+export const handleCandleClosure = async (symbol: string, candle: Candle) => {
+    const signals = activeSignalsBySymbol.get(symbol);
+    if (!signals || signals.length === 0) return;
+
+    for (const signal of signals) {
+        let closeReason = '';
+        let profitLoss = 0;
+        let shouldClose = false;
+        let closePrice = 0;
+
+        if (signal.direction === 'BUY') {
+            // Check High for TP (Did price wick up to target?)
+            if (signal.take_profit !== null && candle.high >= signal.take_profit) {
+                closeReason = 'TP';
+                closePrice = signal.take_profit; // Assume filled at TP
+                shouldClose = true;
+            }
+            // Check Low for SL (Did price wick down to stop?)
+            else if (signal.stop_loss !== null && candle.low <= signal.stop_loss) {
+                closeReason = 'SL';
+                closePrice = signal.stop_loss; // Assume filled at SL
+                shouldClose = true;
+            }
+        } else if (signal.direction === 'SELL') {
+            // Check Low for TP (Did price wick down to target?)
+            if (signal.take_profit !== null && candle.low <= signal.take_profit) {
+                closeReason = 'TP';
+                closePrice = signal.take_profit;
+                shouldClose = true;
+            }
+            // Check High for SL (Did price wick up to stop?)
+            else if (signal.stop_loss !== null && candle.high >= signal.stop_loss) {
+                closeReason = 'SL';
+                closePrice = signal.stop_loss;
+                shouldClose = true;
+            }
+        }
+
+        if (shouldClose) {
+            // Calculate PnL based on the specific close price (TP or SL level)
+            if (signal.direction === 'BUY') {
+                profitLoss = ((closePrice - signal.entry_price) / signal.entry_price) * 100;
+            } else {
+                profitLoss = ((signal.entry_price - closePrice) / signal.entry_price) * 100;
+            }
+
+            console.log(`[SignalMonitor] 🕯️ Candle Close (${symbol}) trigger: ${closeReason} at ${closePrice}`);
+            console.log(`[SignalMonitor] 🔥 Closing Signal ${signal.id} PnL: ${profitLoss.toFixed(2)}%`);
+
+            // Update DB
+            const success = await updateSignalStatus(signal.id, 'Closed', closeReason, profitLoss);
+
+            if (success) {
+                // Remove from cache
+                const remaining = signals.filter(s => s.id !== signal.id);
+                if (remaining.length === 0) {
+                    activeSignalsBySymbol.delete(symbol);
+                } else {
+                    activeSignalsBySymbol.set(symbol, remaining);
+                }
+            }
+        }
+    }
+};
+
 // Initialize Event Listeners
 export const initSignalMonitor = () => {
     console.log('[SignalMonitor] Initializing event listeners...');
@@ -103,6 +172,11 @@ export const initSignalMonitor = () => {
     // Price Ticks
     eventBus.on(EngineEvents.PRICE_TICK, ({ symbol, price }) => {
         handlePriceTick(symbol, price);
+    });
+
+    // Candle Closed (Robust Evaluator)
+    eventBus.on(EngineEvents.CANDLE_CLOSED, ({ symbol, candle }) => {
+        handleCandleClosure(symbol, candle);
     });
 
     // New Signal Created - Auto add to cache

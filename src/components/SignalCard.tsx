@@ -1,7 +1,8 @@
 import React from 'react';
 import { Signal, SignalStatus, TradeDirection } from '../types';
 import { BookmarkIcon, BookmarkOutlineIcon } from './IconComponents';
-import SignalProgressBar from './SignalProgressBar';
+
+// import SignalProgressBar from './SignalProgressBar'; // Components neutralized per audit
 
 interface SignalCardProps {
     signal: Signal;
@@ -83,8 +84,18 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
                 </div>
             </div>
 
-            {/* Progress Bar */}
-            <SignalProgressBar signal={signal} currentPrice={currentPrice} className="mb-2" />
+            {/* Progress Bar Neutralized - Replaced with Factual Data */}
+            {/* <SignalProgressBar signal={signal} currentPrice={currentPrice} className="mb-2" /> */}
+
+            {/* Live Data Row (if available) */}
+            {currentPrice && signal.status !== SignalStatus.CLOSED && (
+                <div className="flex justify-between items-center text-xs bg-gray-800/30 rounded px-2 py-1 mb-2">
+                    <span className="text-gray-400">Current: {formatPrice(currentPrice)}</span>
+                    <span className={`${(signal.direction === 'BUY' ? currentPrice > signal.entry : currentPrice < signal.entry) ? 'text-green-400' : 'text-gray-400'}`}>
+                        {Math.abs((currentPrice - signal.entry) / signal.entry * 100).toFixed(2)}% dist
+                    </span>
+                </div>
+            )}
 
             <div className="grid grid-cols-4 gap-3 text-center">
                 <div className="bg-gray-800/50 rounded-lg p-2">

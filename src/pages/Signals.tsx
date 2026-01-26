@@ -20,6 +20,7 @@ import { getSignalStatistics } from '../services/signalService';
 import { getStoredEngineStatus, setStoredEngineStatus } from '../services/signalEngineService';
 import { saveFavoriteTimeframesToDB } from '../services/settingsService';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabaseClient';
 
 // Market type detection helpers
 const getMarketType = (symbol: string): 'Crypto' | 'Forex' | 'Indian' | 'Unknown' => {
@@ -169,82 +170,80 @@ const Signals: React.FC = () => {
 
     // Supabase Realtime subscription for instant signal updates
     // The backend now generates signals, frontend just listens
+    // Supabase Realtime subscription for instant signal updates
     useEffect(() => {
-        let channel: any = null;
-        let isMounted = true;
+        if (!supabase) return;
 
-        const setupRealtimeSubscription = async () => {
-            const { supabase } = await import('../services/supabaseClient');
+        console.log('[Signals] 🔌 Setting up Supabase Realtime subscription...');
 
-            if (!supabase || !isMounted) {
-                if (!supabase) console.warn('[Signals] Supabase not configured, skipping realtime subscription');
-                return;
-            }
+        const channel = supabase
+            .channel('signals-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'signals'
+                },
+                (payload) => {
+                    console.log('[Signals] ⚡ Signal update received:', payload);
 
-            console.log('[Signals] 🔌 Setting up Supabase Realtime subscription...');
+                    if (payload.eventType === 'INSERT') {
+                        const newRow = payload.new;
+                        setSignals(prev => {
+                            // 1. Duplicate Check: Ensure ID doesn't already exist
+                            if (prev.some(s => s.id === newRow.id)) {
+                                console.warn('[Signals] Duplicate signal ignored:', newRow.id);
+                                return prev;
+                            }
 
-            channel = supabase
-                .channel('signals-realtime')
-                .on(
-                    'postgres_changes',
-                    {
-                        event: '*',
-                        schema: 'public',
-                        table: 'signals'
-                    },
-                    (payload) => {
-                        if (!isMounted) return;
-                        console.log('[Signals] ⚡ Signal update received:', payload);
-
-                        if (payload.eventType === 'INSERT') {
+                            // 2. Map Payload to Signal Type
                             const newSignal: Signal = {
-                                id: payload.new.id,
-                                pair: payload.new.symbol,
-                                strategy: payload.new.strategy,
-                                strategyCategory: payload.new.strategy_category,
-                                strategyId: payload.new.strategy_id,
-                                direction: payload.new.direction,
-                                entry: payload.new.entry_price,
-                                entryType: payload.new.entry_type,
-                                stopLoss: payload.new.stop_loss,
-                                takeProfit: payload.new.take_profit,
-                                status: payload.new.status,
-                                timestamp: payload.new.created_at,
-                                timeframe: payload.new.timeframe,
-                                isPinned: payload.new.is_pinned || false
+                                id: newRow.id,
+                                pair: newRow.symbol,
+                                strategy: newRow.strategy,
+                                strategyCategory: newRow.strategy_category,
+                                strategyId: newRow.strategy_id,
+                                direction: newRow.direction,
+                                entry: newRow.entry_price,
+                                entryType: newRow.entry_type,
+                                stopLoss: newRow.stop_loss,
+                                takeProfit: newRow.take_profit,
+                                status: newRow.status,
+                                timestamp: newRow.created_at,
+                                timeframe: newRow.timeframe,
+                                isPinned: newRow.is_pinned || false
                             };
-                            setSignals(prev => [newSignal, ...prev]);
-                        } else if (payload.eventType === 'UPDATE') {
-                            setSignals(prev => prev.map(s =>
-                                s.id === payload.new.id ? {
-                                    ...s,
-                                    status: payload.new.status,
-                                    isPinned: payload.new.is_pinned !== undefined ? payload.new.is_pinned : s.isPinned
-                                } : s
-                            ));
-                        }
-                        // Refresh stats instantly on any change
-                        refreshSignalStats();
-                    }
-                )
-                .subscribe((status) => {
-                    if (isMounted) {
-                        console.log('[Signals] Realtime subscription status:', status);
-                        setIsConnected(status === 'SUBSCRIBED');
-                    }
-                });
-        };
 
-        setupRealtimeSubscription();
+                            // 3. Prepend to list (maintaining sort mostly, but new is usually top)
+                            return [newSignal, ...prev];
+                        });
+                    } else if (payload.eventType === 'UPDATE') {
+                        const updatedRow = payload.new;
+                        setSignals(prev => prev.map(s =>
+                            s.id === updatedRow.id ? {
+                                ...s,
+                                status: updatedRow.status,
+                                // Only update fields that might change live
+                                isPinned: updatedRow.is_pinned !== undefined ? updatedRow.is_pinned : s.isPinned,
+                                profitLoss: updatedRow.profit_loss,
+                                closeReason: updatedRow.close_reason
+                            } : s
+                        ));
+                    }
+                    // Refresh stats instantly on any change
+                    refreshSignalStats();
+                }
+            )
+            .subscribe((status) => {
+                const isSubscribed = status === 'SUBSCRIBED';
+                setIsConnected(isSubscribed);
+                console.log(`[Signals] Realtime status: ${status}`);
+            });
 
         return () => {
-            isMounted = false;
-            if (channel) {
-                console.log('[Signals] Cleaning up realtime subscription');
-                import('../services/supabaseClient').then(({ supabase }) => {
-                    if (supabase) supabase.removeChannel(channel);
-                });
-            }
+            console.log('[Signals] Cleaning up realtime subscription');
+            supabase.removeChannel(channel);
             setIsConnected(false);
         };
     }, []);
