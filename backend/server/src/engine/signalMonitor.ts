@@ -25,7 +25,8 @@ export const loadMonitoredSignals = async () => {
         const { data, error } = await supabaseAdmin
             .from('signals')
             .select('*')
-            .in('status', ['Active']);
+            .select('*')
+            .in('status', ['Active', 'Pending']);
 
         if (error) throw error;
 
@@ -105,6 +106,45 @@ export const handleCandleClosure = async (symbol: string, candle: Candle) => {
     if (!signals || signals.length === 0) return;
 
     for (const signal of signals) {
+        // ---------------------------------------------------------
+        // 1. PENDING SIGNALS -> Check for Entry Trigger
+        // ---------------------------------------------------------
+        if (signal.status === 'Pending') {
+            let triggered = false;
+
+            if (signal.direction === 'BUY') {
+                // If price reached Entry (High >= Entry)
+                if (candle.high >= signal.entry_price) {
+                    triggered = true;
+                }
+            } else if (signal.direction === 'SELL') {
+                // If price reached Entry (Low <= Entry)
+                if (candle.low <= signal.entry_price) {
+                    triggered = true;
+                }
+            }
+
+            if (triggered) {
+                console.log(`[SignalMonitor] 🚀 Activating Signal ${signal.symbol} (${signal.direction}) at ${signal.entry_price}`);
+
+                // Update DB
+                const success = await updateSignalStatus(signal.id, 'Active');
+
+                if (success) {
+                    // Update Cache in place
+                    signal.status = 'Active';
+                    // Note: We do NOT check TP/SL in the same candle to ensure clear state transition.
+                    // Next candle will monitor for exit.
+                }
+            }
+            continue; // Move to next signal, don't process TP/SL for this one yet
+        }
+
+        // ---------------------------------------------------------
+        // 2. ACTIVE SIGNALS -> Check for TP / SL
+        // ---------------------------------------------------------
+        if (signal.status !== 'Active') continue;
+
         let closeReason = '';
         let profitLoss = 0;
         let shouldClose = false;
