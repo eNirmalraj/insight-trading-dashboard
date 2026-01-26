@@ -4,6 +4,7 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import { TradeDirection, StrategyCategory } from '../constants/builtInStrategies';
 import { eventBus } from '../utils/eventBus';
+import { createAlert } from './alertService';
 
 export interface SignalData {
     symbol: string;
@@ -97,6 +98,12 @@ export const saveSignal = async (signal: SignalData): Promise<string | null> => 
 
         // Notify via EventBus
         eventBus.emitSignalCreated(data.id, signal);
+
+        // Notify via AlertSystem
+        await createAlert(data.id, 'CREATED', signal.symbol, {
+            direction: signal.direction,
+            entry_price: signal.entryPrice
+        });
 
         return data?.id || null;
     } catch (error) {

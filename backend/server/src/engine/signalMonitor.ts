@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../services/supabaseAdmin';
 import { updateSignalStatus } from '../services/signalStorage';
 import { eventBus, EngineEvents } from '../utils/eventBus';
 import { Candle } from './indicators';
+import { createAlert } from '../services/alertService';
 
 interface Signal {
     id: string;
@@ -86,6 +87,10 @@ export const handlePriceTick = async (symbol: string, currentPrice: number) => {
             const success = await updateSignalStatus(signal.id, 'Closed', closeReason, profitLoss);
 
             if (success) {
+                // Alert
+                const alertType = closeReason === 'TP' ? 'CLOSED_TP' : closeReason === 'SL' ? 'CLOSED_SL' : 'CLOSED_OTHER';
+                await createAlert(signal.id, alertType, signal.symbol, { pnl: profitLoss });
+
                 // Remove from cache
                 const remaining = signals.filter(s => s.id !== signal.id);
                 if (remaining.length === 0) {
@@ -131,6 +136,8 @@ export const handleCandleClosure = async (symbol: string, candle: Candle) => {
                 const success = await updateSignalStatus(signal.id, 'Active');
 
                 if (success) {
+                    await createAlert(signal.id, 'ACTIVATED', signal.symbol, { entry_price: signal.entry_price });
+
                     // Update Cache in place
                     signal.status = 'Active';
                     // Note: We do NOT check TP/SL in the same candle to ensure clear state transition.
@@ -193,6 +200,10 @@ export const handleCandleClosure = async (symbol: string, candle: Candle) => {
             const success = await updateSignalStatus(signal.id, 'Closed', closeReason, profitLoss);
 
             if (success) {
+                // Alert
+                const alertType = closeReason === 'TP' ? 'CLOSED_TP' : closeReason === 'SL' ? 'CLOSED_SL' : 'CLOSED_OTHER';
+                await createAlert(signal.id, alertType, signal.symbol, { pnl: profitLoss });
+
                 // Remove from cache
                 const remaining = signals.filter(s => s.id !== signal.id);
                 if (remaining.length === 0) {
