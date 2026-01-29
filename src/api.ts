@@ -2,6 +2,7 @@
 // Thin interface layer - routes to mock or real backend based on environment
 
 import { GoogleGenAI, Chat } from "@google/genai";
+import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import * as watchlistService from './services/watchlistService';
 import * as positionService from './services/positionService';
 import * as signalService from './services/signalService';
@@ -176,8 +177,117 @@ Modify the input JSON if provided, or create new. Ensure the logic makes sense. 
             cleanText = cleanText.replace(/^```/, '').replace(/```$/, '');
         }
         return cleanText.trim();
+        return cleanText.trim();
     } catch (error) {
         console.error("Strategy AI Error:", error);
         throw new Error("Failed to generate strategy.");
     }
+};
+
+export interface AIAnalysisResult {
+    decision: 'TAKE' | 'SKIP' | 'WAIT';
+    confidence: number;
+    explanation: string;
+    riskFactors: string[];
+}
+
+export const getTradeAnalysis = async (
+    symbol: string,
+    price: number,
+    strategy: string,
+    marketContext: any
+): Promise<AIAnalysisResult> => {
+    try {
+        // Fix: Use responseSchema in config properly for gemini-2.0-flash
+        const responseSchema = {
+            type: "OBJECT",
+            properties: {
+                decision: { type: "STRING", enum: ["TAKE", "SKIP", "WAIT"] },
+                confidence: { type: "NUMBER" },
+                explanation: { type: "STRING" },
+                riskFactors: {
+                    type: "ARRAY",
+                    items: { type: "STRING" }
+                }
+            },
+            required: ["decision", "confidence", "explanation", "riskFactors"]
+        };
+
+        const prompt = `
+        Role: AI Trading Advisor (Preview)
+        Task: Analyze the provided market context and strategy performance to recommend a trade decision.
+        
+        Constraints:
+        1. Be conservative. If functionality is unsure, choose WAIT.
+        2. Analyze purely based on the data provided. Do not hallucinate external events.
+        3. Output MUST be valid JSON matching the schema.
+
+        Input Data:
+        - Symbol: ${symbol}
+        - Current Price: ${price}
+        - Strategy: ${strategy}
+        - Signals (Last 24h): ${JSON.stringify(marketContext.recentSignals || [])}
+        - Strategy Stats (Win Rate): ${marketContext.winRate || 'N/A'}%
+        - Market Sentiment: ${JSON.stringify(marketContext.indicators || {})}
+
+        Determine:
+        - Decision (TAKE / SKIP / WAIT)
+        - Confidence (0-100)
+        - Explanation (Concise, < 50 words)
+        - Risk Factors (List of warnings)
+        `;
+
+        // Use existing ai client (GoogleGenAI)
+        // Check if using @google/genai (new) or @google/generative-ai (old)
+        // Based on import { GoogleGenAI } from "@google/genai", it is the new SDK.
+        // It generally uses ai.models.generateContent or similar.
+        // Let's assume standard client capabilities or fallback to the chat approach which is known working in this file.
+
+        const chat = ai.chats.create({
+            model: 'gemini-2.0-flash',
+            config: {
+                temperature: 0,
+                responseMimeType: "application/json",
+                // @ts-ignore - Schema type might vary between SDK versions
+                responseSchema: responseSchema,
+                systemInstruction: "You are an AI Trading Advisor. Output valid JSON only."
+            }
+        });
+
+        const result = await chat.sendMessage({ message: prompt });
+        let text = result.text;
+
+        // Cleanup if markdown code block returned
+        if (text.startsWith('```json')) {
+            text = text.replace(/^```json/, '').replace(/```$/, '');
+        } else if (text.startsWith('```')) {
+            text = text.replace(/^```/, '').replace(/```$/, '');
+        }
+
+        return JSON.parse(text) as AIAnalysisResult;
+
+    } catch (error) {
+        console.error("AI Analysis Error:", error);
+        return {
+            decision: "WAIT",
+            confidence: 0,
+            explanation: "AI Service temporarily unavailable. Defaulting to safety.",
+            riskFactors: ["Service Error", "Connection Timeout"]
+        };
+    }
+};
+
+export const getPaperTrades = async () => {
+    if (!isSupabaseConfigured()) return [];
+
+    const { data, error } = await supabase
+        .from('paper_trades')
+        .select('*')
+        .order('filled_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching paper trades:", error);
+        return [];
+    }
+    return data;
 };

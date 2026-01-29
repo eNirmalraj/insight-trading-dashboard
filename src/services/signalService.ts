@@ -2,6 +2,7 @@
 import { supabase } from './supabaseClient';
 import { Signal, Timeframe } from '../types';
 import { getCandles } from './marketDataService';
+import { PaperExecutionEngine } from '../engine/paperExecutionEngine';
 
 export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> => {
     const { data, error } = await supabase
@@ -23,7 +24,7 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
 
     if (error) throw new Error(error.message);
 
-    return {
+    const newSignal: Signal = {
         id: data.id,
         pair: data.symbol,
         strategy: data.strategy,
@@ -37,6 +38,14 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
         timestamp: data.created_at,
         timeframe: data.timeframe
     };
+
+    // Trigger Paper Execution if Active immediately (Market Order)
+    if (newSignal.status === 'Active') {
+        // Run async without blocking
+        PaperExecutionEngine.processSignal(newSignal).catch(err => console.error("Paper Exec Error:", err));
+    }
+
+    return newSignal;
 };
 
 export const getSignals = async (): Promise<Signal[]> => {
@@ -84,12 +93,33 @@ export const updateSignalStatus = async (id: string, status: string): Promise<vo
         updateData.closed_at = new Date().toISOString();
     }
 
-    const { error } = await supabase
+    const { data: updatedSignal, error } = await supabase
         .from('signals')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
     if (error) throw new Error(error.message);
+
+    // Trigger Paper Execution if becoming Active
+    if (status === 'Active' && updatedSignal) {
+        const signalObj: Signal = {
+            id: updatedSignal.id,
+            pair: updatedSignal.symbol,
+            strategy: updatedSignal.strategy,
+            strategyId: updatedSignal.strategy_id,
+            direction: updatedSignal.direction,
+            entry: updatedSignal.entry_price,
+            entryType: updatedSignal.entry_type,
+            stopLoss: updatedSignal.stop_loss,
+            takeProfit: updatedSignal.take_profit,
+            status: updatedSignal.status,
+            timestamp: updatedSignal.created_at,
+            timeframe: updatedSignal.timeframe
+        };
+        PaperExecutionEngine.processSignal(signalObj).catch(err => console.error("Paper Exec Error:", err));
+    }
 };
 
 export const toggleSignalPin = async (signalId: string, isPinned: boolean): Promise<void> => {
@@ -109,15 +139,35 @@ export const toggleSignalPin = async (signalId: string, isPinned: boolean): Prom
 export const activateSignal = async (id: string): Promise<void> => {
     if (!supabase) return;
 
-    const { error } = await supabase
+    const { data: updatedSignal, error } = await supabase
         .from('signals')
         .update({
             status: 'Active',
             activated_at: new Date().toISOString()
         })
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
     if (error) throw new Error(error.message);
+
+    if (updatedSignal) {
+        const signalObj: Signal = {
+            id: updatedSignal.id,
+            pair: updatedSignal.symbol,
+            strategy: updatedSignal.strategy,
+            strategyId: updatedSignal.strategy_id,
+            direction: updatedSignal.direction,
+            entry: updatedSignal.entry_price,
+            entryType: updatedSignal.entry_type,
+            stopLoss: updatedSignal.stop_loss,
+            takeProfit: updatedSignal.take_profit,
+            status: updatedSignal.status,
+            timestamp: updatedSignal.created_at,
+            timeframe: updatedSignal.timeframe
+        };
+        PaperExecutionEngine.processSignal(signalObj).catch(err => console.error("Paper Exec Error:", err));
+    }
 };
 
 /**
