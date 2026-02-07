@@ -66,7 +66,7 @@ export class PaperExecutionEngine {
                 items: watchlist_items (
                     id,
                     symbol,
-                    is_auto_trade_enabled
+                    auto_trade_enabled
                 )
             `)
             .eq('strategy_type', strategies.name); // Using name as link per current architecture
@@ -77,7 +77,7 @@ export class PaperExecutionEngine {
         const hasEnabledItem = watchlists.some(wl =>
             wl.items.some((item: any) =>
                 item.symbol === signal.pair &&
-                item.is_auto_trade_enabled === true
+                item.auto_trade_enabled === true
             )
         );
 

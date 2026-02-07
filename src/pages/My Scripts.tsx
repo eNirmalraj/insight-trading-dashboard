@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Watchlist, WatchlistItem } from '../types';
-import { PencilIcon, WatchlistIcon, TrashIcon, PlusCircleIcon, SparklesIcon } from '../components/IconComponents';
+import { PencilIcon, WatchlistIcon, TrashIcon, PlusCircleIcon } from '../components/IconComponents';
 import CreatePriceAlertModal from '../components/CreatePriceAlertModal';
 import CreateWatchlistModal from '../components/CreateWatchlistModal';
 import EditWatchlistNameModal from '../components/EditWatchlistNameModal';
 import AddSymbolModal from '../components/AddSymbolModal';
 import ConfirmationModal from '../components/ConfirmationModal';
-import AIAnalysisPanel from '../components/AIAnalysisPanel';
 import { PaperTradesPanel } from '../components/PaperTradesPanel';
 import * as api from '../api';
 import Loader from '../components/Loader';
@@ -18,7 +17,6 @@ const WatchlistPage: React.FC = () => {
 
   // Modal States
   const [alertModalInfo, setAlertModalInfo] = useState<{ visible: boolean; symbol: string; price: number } | null>(null);
-  const [aiModalInfo, setAiModalInfo] = useState<{ visible: boolean; symbol: string; price: number; strategy: string } | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingWatchlist, setEditingWatchlist] = useState<Watchlist | null>(null);
   const [addingToWatchlist, setAddingToWatchlist] = useState<Watchlist | null>(null);
@@ -127,51 +125,10 @@ const WatchlistPage: React.FC = () => {
     });
   };
 
-  // AI Gating State - Frontend Only for Phase C1
-  const [aiApprovals, setAiApprovals] = useState<{ [symbol: string]: { decision: 'TAKE' | 'SKIP' | 'WAIT'; confidence: number; timestamp: number } }>({});
-
-  const handleAnalysisComplete = (symbol: string, result: any) => {
-    setAiApprovals(prev => ({
-      ...prev,
-      [symbol]: {
-        decision: result.decision,
-        confidence: result.confidence,
-        timestamp: Date.now()
-      }
-    }));
-  };
 
   const handleToggleAutoTrade = async (watchlistId: string, itemId?: string) => {
     const watchlist = watchlists.find(wl => wl.id === watchlistId);
     if (!watchlist) return;
-
-    // GATING LOGIC START
-    if (itemId) {
-      const item = watchlist.items.find(i => i.id === itemId);
-      if (!item) return;
-
-      // If trying to ENABLE auto-trade
-      if (!(item.autoTradeEnabled ?? false)) {
-        const approval = aiApprovals[item.symbol];
-
-        // Check if approval exists and meets criteria
-        if (!approval) {
-          alert(`AI Analysis Required!\n\nYou must run the AI analysis ("Analyze" button) before enabling Auto-Trade for ${item.symbol}.`);
-          return;
-        }
-
-        if (approval.decision !== 'TAKE') {
-          alert(`AI Approval Failed!\n\nThe AI decided to "${approval.decision}" for ${item.symbol}. Auto-Trade cannot be enabled.`);
-          return;
-        }
-
-        if (approval.confidence < 65) {
-          alert(`Low Confidence Warning!\n\nAI confidence is only ${approval.confidence}%. Minimum 65% required to enable Auto-Trade.`);
-          return;
-        }
-      }
-    }
-    // GATING LOGIC END for Item. Master Switch Logic omitted for brevity/safety in this phase as it's complex.
 
     let isEnabled;
     if (itemId) {
@@ -180,10 +137,6 @@ const WatchlistPage: React.FC = () => {
       isEnabled = !(item.autoTradeEnabled ?? false);
     } else {
       isEnabled = !(watchlist.isMasterAutoTradeEnabled ?? false);
-      if (isEnabled) {
-        alert("Master Switch Gating: In this phase, please enable symbols individually to verify AI Guardrails.");
-        return;
-      }
     }
 
     try {
@@ -323,17 +276,6 @@ const WatchlistPage: React.FC = () => {
                               </label>
                             </td>
                             <td className="px-6 py-4">
-                              <button
-                                onClick={() => setAiModalInfo({
-                                  visible: true,
-                                  symbol: item.symbol,
-                                  price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
-                                  strategy: watchlist.strategyType || 'Scalping'
-                                })}
-                                className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-3 py-1 rounded mr-3 text-xs font-semibold flex items-center gap-1 inline-flex transition-colors"
-                              >
-                                <SparklesIcon className="w-3 h-3" /> Analyze
-                              </button>
                               <button onClick={() => setAlertModalInfo({ visible: true, symbol: item.symbol, price: item.price })} className="text-blue-500 hover:text-blue-400 mr-4 font-medium">Alert</button>
                               <button onClick={() => handleRemoveSymbol(watchlist.id, item.id, item.symbol)} className="text-red-500 hover:text-red-400 font-medium">Remove</button>
                             </td>
@@ -385,17 +327,6 @@ const WatchlistPage: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <button
-                              onClick={() => setAiModalInfo({
-                                visible: true,
-                                symbol: item.symbol,
-                                price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
-                                strategy: watchlist.strategyType || 'Scalping'
-                              })}
-                              className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"
-                            >
-                              <SparklesIcon className="w-3 h-3" /> Analyze
-                            </button>
                             <button onClick={() => setAlertModalInfo({ visible: true, symbol: item.symbol, price: item.price })} className="text-blue-500 hover:text-blue-400 font-medium">Alert</button>
                             <button onClick={() => handleRemoveSymbol(watchlist.id, item.id, item.symbol)} className="text-red-500 hover:text-red-400 font-medium">Remove</button>
                           </div>
@@ -431,25 +362,14 @@ const WatchlistPage: React.FC = () => {
       <PaperTradesPanel />
 
       {/* --- MODALS --- */}
-      {/* AI Analysis Modal */}
-      {aiModalInfo?.visible && (
+      {alertModalInfo?.visible && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <AIAnalysisPanel
-            symbol={aiModalInfo.symbol}
-            price={aiModalInfo.price}
-            strategyName={aiModalInfo.strategy}
-            onClose={() => setAiModalInfo(null)}
-            onAnalysisComplete={(result) => handleAnalysisComplete(aiModalInfo.symbol, result)}
+          <CreatePriceAlertModal
+            symbol={alertModalInfo.symbol}
+            price={alertModalInfo.price}
+            onClose={() => setAlertModalInfo(null)}
           />
         </div>
-      )}
-
-      {alertModalInfo?.visible && (
-        <CreatePriceAlertModal
-          symbol={alertModalInfo.symbol}
-          price={alertModalInfo.price}
-          onClose={() => setAlertModalInfo(null)}
-        />
       )}
       {isCreateModalOpen && (
         <CreateWatchlistModal
