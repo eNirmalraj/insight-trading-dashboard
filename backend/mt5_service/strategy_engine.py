@@ -4,7 +4,7 @@
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
-from indicators import calculate_ema, calculate_rsi, calculate_bollinger_bands, detect_crossover
+from indicators import calculate_sma, calculate_ema, calculate_rsi, calculate_bollinger_bands, detect_crossover
 
 
 class TradeDirection(Enum):
@@ -21,40 +21,28 @@ class SignalResult:
     strategy_name: str = ''
 
 
-# Built-in Strategies Definition
+# Built-in Strategies Definition (MATCHED TO NODE.JS ENGINE)
 BUILT_IN_STRATEGIES = [
     {
-        'id': 'builtin-ma-crossover',
-        'name': 'MA Crossover',
+        'id': '11111111-1111-1111-1111-111111111111', # Matches Node.js UUID
+        'name': 'SMA Trend Strategy',
         'indicators': [
-            {'type': 'EMA', 'period': 9},
-            {'type': 'EMA', 'period': 21}
+            {'type': 'SMA', 'period': 20}
         ],
         'rules': [
-            {'condition': 'crossover', 'ind1': 'EMA_9', 'ind2': 'EMA_21', 'direction': TradeDirection.BUY},
-            {'condition': 'crossunder', 'ind1': 'EMA_9', 'ind2': 'EMA_21', 'direction': TradeDirection.SELL}
+            {'condition': 'greater_than', 'ind1': 'CLOSE', 'ind2': 'SMA_20', 'direction': TradeDirection.BUY},
+            {'condition': 'less_than', 'ind1': 'CLOSE', 'ind2': 'SMA_20', 'direction': TradeDirection.SELL}
         ]
     },
     {
-        'id': 'builtin-rsi-divergence',
-        'name': 'RSI Divergence',
+        'id': '22222222-2222-2222-2222-222222222222', # Matches Node.js UUID
+        'name': 'EMA Trend Strategy',
         'indicators': [
-            {'type': 'RSI', 'period': 14}
+            {'type': 'EMA', 'period': 20}
         ],
         'rules': [
-            {'condition': 'less_than', 'ind1': 'RSI_14', 'value': 30, 'direction': TradeDirection.BUY},
-            {'condition': 'greater_than', 'ind1': 'RSI_14', 'value': 70, 'direction': TradeDirection.SELL}
-        ]
-    },
-    {
-        'id': 'builtin-momentum-breakout',
-        'name': 'Momentum Breakout',
-        'indicators': [
-            {'type': 'BOLLINGER_BANDS', 'period': 20, 'std_dev': 2}
-        ],
-        'rules': [
-            {'condition': 'crossover', 'ind1': 'CLOSE', 'ind2': 'BB_upper', 'direction': TradeDirection.BUY},
-            {'condition': 'crossunder', 'ind1': 'CLOSE', 'ind2': 'BB_lower', 'direction': TradeDirection.SELL}
+            {'condition': 'greater_than', 'ind1': 'CLOSE', 'ind2': 'EMA_20', 'direction': TradeDirection.BUY},
+            {'condition': 'less_than', 'ind1': 'CLOSE', 'ind2': 'EMA_20', 'direction': TradeDirection.SELL}
         ]
     }
 ]
@@ -62,7 +50,9 @@ BUILT_IN_STRATEGIES = [
 
 def calculate_indicator(indicator_type: str, closes: List[float], params: Dict) -> Dict[str, List]:
     """Calculate an indicator and return its series"""
-    if indicator_type == 'EMA':
+    if indicator_type == 'SMA':
+        return {'main': calculate_sma(closes, params.get('period', 20))}
+    elif indicator_type == 'EMA':
         return {'main': calculate_ema(closes, params.get('period', 20))}
     elif indicator_type == 'RSI':
         return {'main': calculate_rsi(closes, params.get('period', 14))}
@@ -112,17 +102,29 @@ def evaluate_rule(rule: Dict, indicators: Dict, closes: List[float]) -> SignalRe
     
     elif condition in ['greater_than', 'less_than']:
         series = get_series(rule['ind1'], indicators, closes)
+        series2 = None
         
+        if rule.get('ind2') and rule['ind2'] != 'CLOSE': # Handle indicator comparison if needed
+             series2 = get_series(rule['ind2'], indicators, closes)
+
         if series is None or series[latest_idx] is None:
             return SignalResult(False, reason='Missing indicator data')
         
         current_value = series[latest_idx]
-        target_value = rule.get('value', 0)
+        
+        # Determine target value (either fixed value or another indicator)
+        target_value = 0
+        if series2:
+             if series2[latest_idx] is None:
+                  return SignalResult(False, reason='Missing indicator2 data')
+             target_value = series2[latest_idx]
+        else:
+             target_value = rule.get('value', 0)
         
         if condition == 'greater_than' and current_value > target_value:
-            return SignalResult(True, rule['direction'], f"{rule['ind1']} ({current_value:.2f}) > {target_value}")
+            return SignalResult(True, rule['direction'], f"{rule['ind1']} ({current_value:.2f}) > {target_value:.2f}")
         if condition == 'less_than' and current_value < target_value:
-            return SignalResult(True, rule['direction'], f"{rule['ind1']} ({current_value:.2f}) < {target_value}")
+            return SignalResult(True, rule['direction'], f"{rule['ind1']} ({current_value:.2f}) < {target_value:.2f}")
         
         return SignalResult(False, reason='Condition not met')
     

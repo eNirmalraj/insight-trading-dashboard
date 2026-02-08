@@ -1,75 +1,32 @@
-import { Strategy, StrategyCategory, TradeDirection, EntryType } from '../types';
+import { Strategy, StrategyCategory, TradeDirection } from '../types';
 
 export const BUILT_IN_STRATEGIES: Strategy[] = [
     {
-        id: 'builtin-ma-crossover',
-        name: 'MA Crossover',
-        description: 'Classic trend following strategy using EMA 9 and EMA 21 crossover',
+        id: '11111111-1111-1111-1111-111111111111', // Matches Backend UUID
+        name: 'SMA Trend Strategy',
+        description: 'Simple Moving Average Trend Following Strategy. Buys when price closes above SMA 20, Sells when price closes below SMA 20.',
         type: 'STRATEGY',
         category: StrategyCategory.TREND_FOLLOWING,
-        symbolScope: [], // Applies to all if empty or handled dynamically
-        timeframe: '1H', // Default, overridden by execution context
-        isActive: true,
-        indicators: [
-            {
-                id: 'fast_ema',
-                type: 'EMA',
-                parameters: { period: 9 }
-            },
-            {
-                id: 'slow_ema',
-                type: 'EMA',
-                parameters: { period: 21 }
-            }
-        ],
-        entryRules: [
-            {
-                id: 'buy_cross',
-                condition: 'crossover',
-                indicator1: 'EMA_9',
-                indicator2: 'EMA_21',
-                direction: TradeDirection.BUY
-            },
-            {
-                id: 'sell_cross',
-                condition: 'crossunder',
-                indicator1: 'EMA_9',
-                indicator2: 'EMA_21',
-                direction: TradeDirection.SELL
-            }
-        ],
-        exitRules: [],
-        parameters: []
-    },
-    {
-        id: 'builtin-rsi-divergence',
-        name: 'RSI Divergence',
-        description: 'Counter-trend strategy looking for RSI overbought/oversold conditions',
-        type: 'STRATEGY',
-        category: StrategyCategory.MOMENTUM,
         symbolScope: [],
         timeframe: '1H',
         isActive: true,
         indicators: [
             {
-                id: 'rsi',
-                type: 'RSI',
-                parameters: { period: 14 }
+                type: 'SMA',
+                parameters: { period: 20 }
             }
         ],
         entryRules: [
             {
-                id: 'rsi_oversold',
-                condition: 'less_than',
-                indicator1: 'RSI_14',
-                value: 30,
-                direction: TradeDirection.BUY
-            },
-            {
-                id: 'rsi_overbought',
                 condition: 'greater_than',
-                indicator1: 'RSI_14',
-                value: 70,
+                indicator1: 'CLOSE',
+                indicator2: 'SMA_20',
+                direction: TradeDirection.BUY
+            },
+            {
+                condition: 'less_than',
+                indicator1: 'CLOSE',
+                indicator2: 'SMA_20',
                 direction: TradeDirection.SELL
             }
         ],
@@ -77,34 +34,31 @@ export const BUILT_IN_STRATEGIES: Strategy[] = [
         parameters: []
     },
     {
-        id: 'builtin-momentum-breakout',
-        name: 'Momentum Breakout',
-        description: 'Breakout strategy using Bollinger Bands',
+        id: '22222222-2222-2222-2222-222222222222', // Matches Backend UUID
+        name: 'EMA Trend Strategy',
+        description: 'Exponential Moving Average Trend Following Strategy. Buys when price closes above EMA 20, Sells when price closes below EMA 20.',
         type: 'STRATEGY',
-        category: StrategyCategory.BREAKOUT,
+        category: StrategyCategory.TREND_FOLLOWING,
         symbolScope: [],
         timeframe: '1H',
         isActive: true,
         indicators: [
             {
-                id: 'bb',
-                type: 'BOLLINGER_BANDS',
-                parameters: { period: 20, stdDev: 2 }
+                type: 'EMA',
+                parameters: { period: 20 }
             }
         ],
         entryRules: [
             {
-                id: 'bb_upper_break',
-                condition: 'crossover', // Close crossing over upper band
-                indicator1: 'CLOSE', // Special keyword for price
-                indicator2: 'BOLLINGER_BANDS_20_upper',
+                condition: 'greater_than',
+                indicator1: 'CLOSE',
+                indicator2: 'EMA_20',
                 direction: TradeDirection.BUY
             },
             {
-                id: 'bb_lower_break',
-                condition: 'crossunder', // Close crossing under lower band
+                condition: 'less_than',
                 indicator1: 'CLOSE',
-                indicator2: 'BOLLINGER_BANDS_20_lower',
+                indicator2: 'EMA_20',
                 direction: TradeDirection.SELL
             }
         ],

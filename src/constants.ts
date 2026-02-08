@@ -61,21 +61,21 @@ export const DUMMY_SUGGESTIONS: Suggestion[] = [
 ];
 
 export const DUMMY_SIGNALS: Signal[] = [
-    { id: 'sig1', pair: 'EUR/USD', strategy: 'MA Crossover', strategyCategory: StrategyCategory.TREND_FOLLOWING, direction: TradeDirection.BUY, entry: 1.0850, entryType: EntryType.MARKET, stopLoss: 1.0820, takeProfit: 1.0910, status: SignalStatus.ACTIVE, timestamp: new Date(Date.now() - 3600000).toISOString(), timeframe: '1H', chartData: generateCandlestickData(1.0850, 60) },
-    { id: 'sig2', pair: 'BTC/USDT', strategy: 'RSI Divergence', strategyCategory: StrategyCategory.MEAN_REVERSION, direction: TradeDirection.SELL, entry: 69500, entryType: EntryType.LIMIT, stopLoss: 70500, takeProfit: 67000, status: SignalStatus.PENDING, timestamp: new Date(Date.now() - 7200000).toISOString(), timeframe: '4H', chartData: generateCandlestickData(69500, 60) },
-    { id: 'sig3', pair: 'GBP/JPY', strategy: 'Momentum Breakout', strategyCategory: StrategyCategory.VOLATILITY_BREAKOUT, direction: TradeDirection.BUY, entry: 195.50, entryType: EntryType.STOP, stopLoss: 195.00, takeProfit: 196.50, status: SignalStatus.CLOSED, timestamp: new Date(Date.now() - 86400000).toISOString(), timeframe: '15m', chartData: generateCandlestickData(195.50, 60) },
+    { id: 'sig1', pair: 'EUR/USD', strategy: 'SMA Trend Strategy', strategyCategory: StrategyCategory.TREND_FOLLOWING, direction: TradeDirection.BUY, entry: 1.0850, entryType: EntryType.MARKET, stopLoss: 1.0820, takeProfit: 1.0910, status: SignalStatus.ACTIVE, timestamp: new Date(Date.now() - 3600000).toISOString(), timeframe: '1H', chartData: generateCandlestickData(1.0850, 60) },
+    { id: 'sig2', pair: 'BTC/USDT', strategy: 'EMA Trend Strategy', strategyCategory: StrategyCategory.TREND_FOLLOWING, direction: TradeDirection.SELL, entry: 69500, entryType: EntryType.LIMIT, stopLoss: 70500, takeProfit: 67000, status: SignalStatus.PENDING, timestamp: new Date(Date.now() - 7200000).toISOString(), timeframe: '4H', chartData: generateCandlestickData(69500, 60) },
+    { id: 'sig3', pair: 'GBP/JPY', strategy: 'SMA Trend Strategy', strategyCategory: StrategyCategory.TREND_FOLLOWING, direction: TradeDirection.BUY, entry: 195.50, entryType: EntryType.STOP, stopLoss: 195.00, takeProfit: 196.50, status: SignalStatus.CLOSED, timestamp: new Date(Date.now() - 86400000).toISOString(), timeframe: '15m', chartData: generateCandlestickData(195.50, 60) },
 ];
 
 export const DUMMY_WATCHLISTS: Watchlist[] = [
     {
-        id: 'wl1', name: 'Majors', accountType: 'Forex', strategyType: 'MA Crossover', isMasterAutoTradeEnabled: true, items: [
+        id: 'wl1', name: 'Majors', accountType: 'Forex', strategyType: 'SMA Trend Strategy', isMasterAutoTradeEnabled: true, items: [
             { id: 'wli1', symbol: 'EUR/USD', price: 1.0855, change: 0.0030, changePercent: 0.28, isPositive: true, autoTradeEnabled: true, pnl: 150.25 },
             { id: 'wli2', symbol: 'GBP/USD', price: 1.2540, change: -0.0015, changePercent: -0.12, isPositive: false, autoTradeEnabled: false, pnl: -50.10 },
             { id: 'wli3', symbol: 'USD/JPY', price: 155.80, change: 0.50, changePercent: 0.32, isPositive: true, autoTradeEnabled: true, pnl: 220.00 },
         ]
     },
     {
-        id: 'wl2', name: 'Crypto Top Tier', accountType: 'Crypto', strategyType: 'RSI Divergence', isMasterAutoTradeEnabled: false, items: [
+        id: 'wl2', name: 'Crypto Top Tier', accountType: 'Crypto', strategyType: 'EMA Trend Strategy', isMasterAutoTradeEnabled: false, items: [
             { id: 'wli4', symbol: 'BTC/USDT', price: 68500.00, change: 1200.00, changePercent: 1.78, isPositive: true, autoTradeEnabled: false },
             { id: 'wli5', symbol: 'ETH/USDT', price: 3800.00, change: -50.00, changePercent: -1.30, isPositive: false, autoTradeEnabled: false, pnl: -120.00 },
         ]
@@ -104,19 +104,19 @@ export const DUMMY_WATCHLISTS: Watchlist[] = [
 
 export const DUMMY_SCRIPTS: Watchlist[] = [
     {
-        id: 'sc1', name: 'Momentum Bot', accountType: 'Forex', strategyType: 'Momentum Breakout', isMasterAutoTradeEnabled: true, items: [
+        id: 'sc1', name: 'Momentum Bot', accountType: 'Forex', strategyType: 'EMA Trend Strategy', isMasterAutoTradeEnabled: true, items: [
             { id: 'sci1', symbol: 'EUR/USD', price: 1.0855, change: 0.0030, changePercent: 0.28, isPositive: true, autoTradeEnabled: true, pnl: 150.25 },
             { id: 'sci2', symbol: 'GBP/JPY', price: 195.20, change: 0.5, changePercent: 0.25, isPositive: true, autoTradeEnabled: true, pnl: 80.00 },
         ]
     },
     {
-        id: 'sc2', name: 'Scalping Algo', accountType: 'Crypto', strategyType: 'Mean Reversion', isMasterAutoTradeEnabled: false, items: [
+        id: 'sc2', name: 'Scalping Algo', accountType: 'Crypto', strategyType: 'EMA Trend Strategy', isMasterAutoTradeEnabled: false, items: [
             { id: 'sci3', symbol: 'BTC/USDT', price: 68500.00, change: 1200.00, changePercent: 1.78, isPositive: true, autoTradeEnabled: false },
             { id: 'sci4', symbol: 'SOL/USDT', price: 145.00, change: -2.00, changePercent: -1.36, isPositive: false, autoTradeEnabled: false },
         ]
     },
     {
-        id: 'sc3', name: 'Trend Following', accountType: 'Forex', strategyType: 'MA Crossover', isMasterAutoTradeEnabled: true, items: [
+        id: 'sc3', name: 'Trend Following', accountType: 'Forex', strategyType: 'SMA Trend Strategy', isMasterAutoTradeEnabled: true, items: [
             { id: 'sci5', symbol: 'USD/JPY', price: 155.80, change: 0.50, changePercent: 0.32, isPositive: true, autoTradeEnabled: true },
         ]
     },
@@ -167,7 +167,7 @@ export const DUMMY_TRADE_HISTORY: DailyTradeSummary[] = Array.from({ length: 50 
 
 export const DUMMY_STRATEGY_PERFORMANCE = {}; // No complex data needed for now
 
-export const AVAILABLE_STRATEGIES = ['No Strategy', 'Momentum Breakout', 'RSI Divergence', 'MA Crossover', 'SMA Trend Strategy', 'EMA Trend Strategy'];
+export const AVAILABLE_STRATEGIES = ['SMA Trend Strategy', 'EMA Trend Strategy'];
 
 export const BUILTIN_STRATEGY_NAMES = [
     'SMA Trend Strategy',
