@@ -6,6 +6,9 @@ import { Candle } from '../components/market-chart/types';
 import { calculateIndicator, detectCrossover } from './indicators';
 import { getStrategies } from '../services/strategyService';
 import { createSignal, isDuplicateSignal } from '../services/signalService';
+import { Kuri } from '../kuri/kuri';
+import { FrontendVM } from '../kuri/frontendVM';
+import { Context } from '../kuri/interpreter';
 
 // Maximum execution limits for safety
 const MAX_INDICATORS_PER_STRATEGY = 10;
@@ -27,6 +30,15 @@ export interface EngineRunResult {
     errors: string[];
 }
 
+export interface RiskSettings {
+    lot_size?: number;
+    risk_percent?: number;
+    take_profit_distance?: number;
+    stop_loss_distance?: number;
+    trailing_stop_loss_distance?: number;
+    leverage?: number;
+}
+
 /**
  * Load all active strategies from database
  */
@@ -36,6 +48,78 @@ export const loadActiveStrategies = async (): Promise<Strategy[]> => {
         return allStrategies.filter(s => s.isActive && s.type === 'STRATEGY');
     } catch (error) {
         console.error('Failed to load active strategies:', error);
+        return [];
+    }
+};
+
+/**
+ * Evaluate a generic Kuri Strategy
+ * Compiles and runs the Kuri script, then checks for 'buy' / 'sell' signals
+ */
+const runKuriStrategy = async (
+    strategy: Strategy,
+    candles: Candle[]
+): Promise<StrategyEvaluationResult[]> => {
+    if (!strategy.content || !strategy.content.code) {
+        return [];
+    }
+
+    try {
+        // 1. Prepare Context
+        const context: Context = {
+            open: candles.map(c => c.open),
+            high: candles.map(c => c.high),
+            low: candles.map(c => c.low),
+            close: candles.map(c => c.close),
+            volume: candles.map(c => c.volume)
+        };
+
+        // 2. Compile to IR
+        const irJson = Kuri.compileToIR(strategy.content.code);
+        const ir = JSON.parse(irJson);
+
+        // 3. Execute in VM (Using FrontendVM for now as shared runtime)
+        const vm = new FrontendVM(context);
+        const result = vm.run(ir);
+
+        // 4. Check for signals in the LAST candle
+        // The script defines 'buy' and 'sell' boolean series
+        const buySeries = result.variables['buy'];
+        const sellSeries = result.variables['sell'];
+
+        // Safety check: Ensure they are arrays
+        if (!Array.isArray(buySeries) || !Array.isArray(sellSeries)) {
+            // Script might not define buy/sell, or they are not series
+            // This is valid, just means no signals
+            return [];
+        }
+
+        const lastIndex = candles.length - 1;
+        const buySignal = buySeries[lastIndex];
+        const sellSignal = sellSeries[lastIndex];
+
+        const evaluationResults: StrategyEvaluationResult[] = [];
+
+        if (buySignal) {
+            evaluationResults.push({
+                wouldSignal: true,
+                direction: TradeDirection.BUY,
+                reason: 'Kuri Script Buy Signal'
+            });
+        }
+
+        if (sellSignal) {
+            evaluationResults.push({
+                wouldSignal: true,
+                direction: TradeDirection.SELL,
+                reason: 'Kuri Script Sell Signal'
+            });
+        }
+
+        return evaluationResults;
+
+    } catch (error: any) {
+        console.error(`Kuri execution failed for ${strategy.name}:`, error);
         return [];
     }
 };
@@ -52,6 +136,12 @@ export const runStrategy = async (
     if (!strategy || !candles || candles.length === 0) {
         return [];
     }
+
+    // --- KURI STRATEGY EXECUTION ---
+    if (strategy.type === 'KURI') {
+        return runKuriStrategy(strategy, candles);
+    }
+    // -------------------------------
 
     if (strategy.indicators.length > MAX_INDICATORS_PER_STRATEGY) {
         console.warn(`Strategy ${strategy.name} has too many indicators (${strategy.indicators.length})`);
@@ -273,7 +363,8 @@ export const runAllStrategies = async (
     symbol: string,
     timeframe: string,
     candles: Candle[],
-    strategies: Strategy[] | null = null // Optional override
+    strategies: Strategy[] | null = null, // Optional override
+    riskSettings: RiskSettings | null = null // Per-symbol risk settings
 ): Promise<EngineRunResult> => {
     const result: EngineRunResult = {
         success: true,
@@ -343,8 +434,29 @@ export const runAllStrategies = async (
 
                     // Create the signal
                     const latestCandle = candles[candles.length - 1];
-                    const stopLoss = calculateStopLoss(latestCandle, evaluation.direction);
-                    const takeProfit = calculateTakeProfit(latestCandle.close, stopLoss, evaluation.direction);
+                    const entryPrice = latestCandle.close;
+
+                    // Priority: 1. User defined distance, 2. Dynamic high/low SL
+                    let stopLoss: number;
+                    if (riskSettings?.stop_loss_distance && riskSettings.stop_loss_distance > 0) {
+                        const distance = riskSettings.stop_loss_distance;
+                        stopLoss = evaluation.direction === TradeDirection.BUY
+                            ? entryPrice - distance
+                            : entryPrice + distance;
+                    } else {
+                        stopLoss = calculateStopLoss(latestCandle, evaluation.direction);
+                    }
+
+                    // Priority: 1. User defined distance, 2. Risk:Reward 1:2
+                    let takeProfit: number;
+                    if (riskSettings?.take_profit_distance && riskSettings.take_profit_distance > 0) {
+                        const distance = riskSettings.take_profit_distance;
+                        takeProfit = evaluation.direction === TradeDirection.BUY
+                            ? entryPrice + distance
+                            : entryPrice - distance;
+                    } else {
+                        takeProfit = calculateTakeProfit(entryPrice, stopLoss, evaluation.direction);
+                    }
 
                     // Determine initial status based on order type
                     // MARKET orders execute immediately → ACTIVE
@@ -363,6 +475,9 @@ export const runAllStrategies = async (
                         entryType: orderType,
                         stopLoss: stopLoss,
                         takeProfit: takeProfit,
+                        trailingStopLoss: riskSettings?.trailing_stop_loss_distance || 0,
+                        lotSize: riskSettings?.lot_size || result.signalsCreated, // Note: signalsCreated as index for lot if not set? No, use 0.01
+                        leverage: riskSettings?.leverage || 1,
                         timeframe: timeframe as any,
                         status: initialStatus,
                         timestamp: new Date(currentTime * 1000).toISOString()

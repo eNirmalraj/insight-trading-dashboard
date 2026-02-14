@@ -1,19 +1,28 @@
-// src/services/watchlistService.ts
-// Watchlist service with Supabase integration
+import { supabase } from './supabaseClient';
+import { Watchlist, WatchlistItem, AccountType } from '../types';
 
-import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { Watchlist, WatchlistItem } from '../types';
-
-// --- Type definitions for DB rows ---
-interface DbWatchlist {
+export interface DbWatchlist {
     id: string;
     user_id: string;
     name: string;
     account_type: string;
     strategy_type: string | null;
+    trading_mode: string;
     is_auto_trade_enabled: boolean;
     created_at: string;
     updated_at: string;
+    // Risk Management
+    lot_size: number;
+    risk_percent: number;
+    leverage: number;
+    stop_loss_distance: number;
+    take_profit_distance: number;
+    trailing_stop_loss_distance: number;
+    execution_timeframes: string[] | null;
+    manual_risk_enabled: boolean;
+    market_type: string | null;
+    risk_method: string | null;
+    auto_leverage_enabled: boolean;
 }
 
 interface DbWatchlistItem {
@@ -25,6 +34,12 @@ interface DbWatchlistItem {
     percent_change: number;
     pnl: number;
     auto_trade_enabled: boolean;
+    lot_size: number;
+    risk_percent: number;
+    take_profit_distance: number;
+    stop_loss_distance: number;
+    trailing_stop_loss_distance: number;
+    leverage: number;
     created_at: string;
     updated_at: string;
 }
@@ -43,6 +58,13 @@ const mapDbItemToWatchlistItem = (item: DbWatchlistItem): WatchlistItem => ({
     isPositive: Number(item.change) >= 0,
     autoTradeEnabled: item.auto_trade_enabled ?? false,
     pnl: item.pnl != null ? Number(item.pnl) : undefined,
+    // Risk Management Settings (Deprecated on item level, but kept for compatibility/overrides if needed)
+    lot_size: Number(item.lot_size) || 0.01,
+    risk_percent: Number(item.risk_percent) || 1.0,
+    take_profit_distance: Number(item.take_profit_distance) || 0,
+    stop_loss_distance: Number(item.stop_loss_distance) || 0,
+    trailing_stop_loss_distance: Number(item.trailing_stop_loss_distance) || 0,
+    leverage: Number(item.leverage) || 1,
 });
 
 /**
@@ -51,20 +73,36 @@ const mapDbItemToWatchlistItem = (item: DbWatchlistItem): WatchlistItem => ({
 const mapDbToWatchlist = (
     row: DbWatchlist,
     items: DbWatchlistItem[]
-): Watchlist => ({
-    id: row.id,
-    name: row.name,
-    accountType: row.account_type === 'crypto' ? 'Crypto' : 'Forex',
-    strategyType: row.strategy_type ?? undefined,
-    items: items.map(mapDbItemToWatchlistItem),
-    isMasterAutoTradeEnabled: row.is_auto_trade_enabled ?? false,
-});
+): Watchlist => {
+    let accountType: AccountType = AccountType.FOREX;
+    if (row.account_type === 'crypto') accountType = AccountType.CRYPTO;
+    else if (row.account_type === 'indian') accountType = AccountType.INDIAN;
+
+    return {
+        id: row.id,
+        name: row.name,
+        accountType: accountType,
+        strategyType: row.strategy_type ?? undefined,
+        tradingMode: (row.trading_mode as 'paper' | 'live') || 'paper',
+        items: items.map(mapDbItemToWatchlistItem),
+        isMasterAutoTradeEnabled: row.is_auto_trade_enabled ?? false,
+        // Global Risk Settings
+        lotSize: Number(row.lot_size) || 0.01,
+        riskPercent: Number(row.risk_percent) || 1.0,
+        leverage: Number(row.leverage) || 1,
+        stopLossDistance: Number(row.stop_loss_distance) || 0,
+        takeProfitDistance: Number(row.take_profit_distance) || 0,
+        trailingStopLossDistance: Number(row.trailing_stop_loss_distance) || 0,
+        executionTimeframes: row.execution_timeframes || [],
+        manualRiskEnabled: row.manual_risk_enabled ?? false,
+        marketType: (row.market_type as 'spot' | 'futures') || undefined,
+        riskMethod: (row.risk_method as 'fixed' | 'percent') || 'fixed',
+        autoLeverageEnabled: row.auto_leverage_enabled ?? false,
+    };
+};
 
 // --- Service Functions ---
 
-/**
- * Get all watchlists for the current user with their items
- */
 /**
  * Get all watchlists for the current user with their items
  */
@@ -112,8 +150,13 @@ export const getWatchlists = async (): Promise<Watchlist[]> => {
  */
 export const createWatchlist = async (
     name: string,
-    accountType: 'Forex' | 'Crypto',
-    strategyType: string
+    accountType: AccountType | 'Forex' | 'Crypto' | string,
+    strategyType: string,
+    tradingMode: 'paper' | 'live' = 'paper',
+    executionTimeframes?: string[],
+    marketType?: 'spot' | 'futures',
+    riskMethod?: 'fixed' | 'percent',
+    autoLeverageEnabled?: boolean
 ): Promise<Watchlist> => {
     if (!supabase) throw new Error('Supabase not configured');
 
@@ -128,7 +171,20 @@ export const createWatchlist = async (
             name,
             account_type: accountType.toLowerCase(),
             strategy_type: strategyType || null,
+            trading_mode: tradingMode,
             is_auto_trade_enabled: false,
+            // Defaults will be handled by DB or explicit here
+            lot_size: 0.01,
+            risk_percent: 1.0,
+            leverage: 1,
+            stop_loss_distance: 0,
+            take_profit_distance: 0,
+            trailing_stop_loss_distance: 0,
+            execution_timeframes: executionTimeframes || null,
+            manual_risk_enabled: false,
+            market_type: marketType || null,
+            risk_method: riskMethod || 'fixed',
+            auto_leverage_enabled: autoLeverageEnabled || false
         })
         .select()
         .single();
@@ -143,13 +199,43 @@ export const createWatchlist = async (
  */
 export const updateWatchlist = async (
     id: string,
-    payload: { name?: string; strategyType?: string }
+    payload: {
+        name?: string;
+        strategyType?: string;
+        tradingMode?: 'paper' | 'live';
+        // Risk Settings
+        lotSize?: number;
+        riskPercent?: number;
+        leverage?: number;
+        stopLossDistance?: number;
+        takeProfitDistance?: number;
+        trailingStopLossDistance?: number;
+        executionTimeframes?: string[];
+        manualRiskEnabled?: boolean;
+        marketType?: 'spot' | 'futures';
+        riskMethod?: 'fixed' | 'percent';
+        autoLeverageEnabled?: boolean;
+    }
 ): Promise<Watchlist | undefined> => {
     if (!supabase) throw new Error('Supabase not configured');
 
     const updateData: Record<string, unknown> = {};
     if (payload.name !== undefined) updateData.name = payload.name;
     if (payload.strategyType !== undefined) updateData.strategy_type = payload.strategyType;
+    if (payload.tradingMode !== undefined) updateData.trading_mode = payload.tradingMode;
+
+    // Risk Settings Updates
+    if (payload.lotSize !== undefined) updateData.lot_size = payload.lotSize;
+    if (payload.riskPercent !== undefined) updateData.risk_percent = payload.riskPercent;
+    if (payload.leverage !== undefined) updateData.leverage = payload.leverage;
+    if (payload.stopLossDistance !== undefined) updateData.stop_loss_distance = payload.stopLossDistance;
+    if (payload.takeProfitDistance !== undefined) updateData.take_profit_distance = payload.takeProfitDistance;
+    if (payload.trailingStopLossDistance !== undefined) updateData.trailing_stop_loss_distance = payload.trailingStopLossDistance;
+    if (payload.executionTimeframes !== undefined) updateData.execution_timeframes = payload.executionTimeframes;
+    if (payload.manualRiskEnabled !== undefined) updateData.manual_risk_enabled = payload.manualRiskEnabled;
+    if (payload.marketType !== undefined) updateData.market_type = payload.marketType;
+    if (payload.riskMethod !== undefined) updateData.risk_method = payload.riskMethod;
+    if (payload.autoLeverageEnabled !== undefined) updateData.auto_leverage_enabled = payload.autoLeverageEnabled;
 
     const { data, error } = await supabase
         .from('watchlists')
@@ -301,6 +387,33 @@ export const toggleAutoTrade = async (
     }
 };
 
+/**
+ * Update risk settings for a watchlist item
+ * @deprecated Moved to global watchlist settings. Kept for backward compat or item-level config in future.
+ */
+export const updateWatchlistItemRiskSettings = async (
+    itemId: string,
+    settings: {
+        lot_size?: number;
+        risk_percent?: number;
+        take_profit_distance?: number;
+        stop_loss_distance?: number;
+        trailing_stop_loss_distance?: number;
+        leverage?: number;
+    }
+): Promise<{ success: boolean }> => {
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const { error } = await supabase
+        .from('watchlist_items')
+        .update(settings)
+        .eq('id', itemId);
+
+    if (error) throw new Error(error.message);
+
+    return { success: true };
+};
+
 export default {
     getWatchlists,
     createWatchlist,
@@ -311,4 +424,5 @@ export default {
     toggleMasterAutoTrade,
     toggleItemAutoTrade,
     toggleAutoTrade,
+    updateWatchlistItemRiskSettings
 };

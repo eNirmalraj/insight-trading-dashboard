@@ -41,7 +41,8 @@ export const getStrategies = async (): Promise<Strategy[]> => {
             indicators: d.indicators,
             isActive: d.is_active,
             parameters: d.strategy_parameters,
-            type: d.type || 'STRATEGY'
+            type: d.type || 'STRATEGY',
+            tradingMode: d.trading_mode || 'paper' // Added field
         };
     });
 };

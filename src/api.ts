@@ -8,16 +8,15 @@ import * as signalService from './services/signalService';
 import * as accountService from './services/accountService';
 import * as marketDataService from './services/marketDataService';
 import * as authService from './services/authService';
+import * as paperTradingApi from './api/paperTradingApi';
 import {
     Metric, Signal, Watchlist, Alert, Position, UpcomingInfo, Suggestion,
-    PositionStatus, TradeDirection, AlertStatus, WatchlistItem
+    PositionStatus, TradeDirection, AlertStatus, WatchlistItem, AccountType
 } from './types';
 
 // Re-export all API functions - these route REAL services.
-// Mock API Mode is DELETED.
 
-// --- Overview Page ---
-// Legacy individual metric getters - redirected to account service equivalent or stubs
+// --- Analysis / Overview Page (Mocked/Stubs for now or redirected) ---
 export const getForexMetrics = async (): Promise<Metric[]> => accountService.getAccountMetrics('Forex');
 export const getBinanceMetrics = async (): Promise<Metric[]> => accountService.getAccountMetrics('Binance');
 export const getPerformanceChartData = async (): Promise<any[]> => []; // TODO: Implement Performance Service
@@ -29,14 +28,16 @@ export const getHistoricalData = (symbol: string, timeframe: string) =>
     marketDataService.getCandles(symbol, timeframe);
 
 // --- Signals Page ---
-// --- Signals Page ---
 export const getSignals = () => signalService.getSignals();
 export const toggleSignalPin = (signalId: string, isPinned: boolean) => signalService.toggleSignalPin(signalId, isPinned);
 
-// --- Watchlist API ---
+// --- Strategies API ---
+export const getStrategies = () => import('./services/strategyService').then(m => m.getStrategies());
+
+// --- Watchlist API (Used by SidePanels) ---
 export const getWatchlists = () => watchlistService.getWatchlists();
-export const createWatchlist = (name: string, accountType: 'Forex' | 'Crypto', strategyType: string) =>
-    watchlistService.createWatchlist(name, accountType, strategyType);
+export const createWatchlist = (name: string, accountType: AccountType | 'Forex' | 'Crypto' | string, strategyType: string, tradingMode: 'paper' | 'live' = 'paper') =>
+    watchlistService.createWatchlist(name, accountType, strategyType, tradingMode);
 export const updateWatchlist = (id: string, data: { name: string, strategyType?: string }) =>
     watchlistService.updateWatchlist(id, data);
 export const deleteWatchlist = (id: string) => watchlistService.deleteWatchlist(id);
@@ -47,12 +48,26 @@ export const removeSymbolFromWatchlist = (watchlistId: string, symbolId: string)
 export const toggleAutoTrade = (payload: { watchlistId: string; itemId?: string; isEnabled: boolean }) =>
     watchlistService.toggleAutoTrade({ scriptId: payload.watchlistId, itemId: payload.itemId, isEnabled: payload.isEnabled });
 
-// --- Scripts API (routed through watchlistService) ---
+// --- Scripts API (Used by My Scripts - routed through watchlistService) ---
 export const getScripts = () => watchlistService.getWatchlists();
-export const createScript = (name: string, accountType: 'Forex' | 'Crypto', strategyType: string) =>
-    watchlistService.createWatchlist(name, accountType, strategyType);
-export const updateScript = (id: string, data: { name: string, strategyType?: string }) =>
-    watchlistService.updateWatchlist(id, data);
+export const createScript = (name: string, accountType: AccountType | 'Forex' | 'Crypto' | string, strategyType: string, tradingMode: 'paper' | 'live' = 'paper', executionTimeframes?: string[]) =>
+    watchlistService.createWatchlist(name, accountType, strategyType, tradingMode, executionTimeframes);
+export const updateScript = (id: string, data: {
+    name?: string,
+    strategyType?: string,
+    tradingMode?: 'paper' | 'live',
+    executionTimeframes?: string[],
+    lotSize?: number,
+    riskPercent?: number,
+    leverage?: number,
+    stopLossDistance?: number,
+    takeProfitDistance?: number,
+    trailingStopLossDistance?: number,
+    manualRiskEnabled?: boolean,
+    marketType?: 'spot' | 'futures',
+    riskMethod?: 'fixed' | 'percent',
+    autoLeverageEnabled?: boolean
+}) => watchlistService.updateWatchlist(id, data);
 export const deleteScript = (id: string) => watchlistService.deleteWatchlist(id);
 export const addSymbolToScript = (scriptId: string, symbol: string) =>
     watchlistService.addSymbol(scriptId, symbol);
@@ -60,6 +75,9 @@ export const removeSymbolFromScript = (scriptId: string, symbolId: string) =>
     watchlistService.removeSymbol(scriptId, symbolId);
 export const toggleScriptAutoTrade = (payload: { scriptId: string; itemId?: string; isEnabled: boolean }) =>
     watchlistService.toggleAutoTrade(payload);
+
+export const updateWatchlistItemRiskSettings = (itemId: string, settings: any) =>
+    watchlistService.updateWatchlistItemRiskSettings(itemId, settings);
 
 // --- Positions API (routed through positionService) ---
 export const getPositions = () => positionService.getPositions();
@@ -91,13 +109,10 @@ export const getStrategyPerformanceData = () => accountService.getStrategyPerfor
 export const getEducationContent = async () => [];
 
 // --- Settings API ---
-// --- Settings API ---
 export const getSettings = async (): Promise<any> => ({});
 export const saveSettings = async (settings: any) => { console.log('Save Settings:', settings); };
 export const getUserSettings = () => authService.getUserSettings();
 export const updateUserSettings = (settings: any) => authService.updateUserSettings(settings);
-
-
 
 
 export const getPaperTrades = async () => {
@@ -114,3 +129,10 @@ export const getPaperTrades = async () => {
     }
     return data;
 };
+
+// --- Paper Trading Accounts API ---
+export const getPaperTradingAccounts = paperTradingApi.getPaperTradingAccounts;
+export const createPaperTradingAccount = paperTradingApi.createPaperTradingAccount;
+export const updatePaperTradingAccount = paperTradingApi.updatePaperTradingAccount;
+export const deletePaperTradingAccount = paperTradingApi.deletePaperTradingAccount;
+export const transferFunds = paperTradingApi.transferFunds;

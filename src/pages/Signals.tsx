@@ -12,22 +12,23 @@ import MiniChart from '../components/MiniChart';
 import { calculateEMA, calculateRSI } from '../components/market-chart/helpers';
 import ExecuteTradeModal from '../components/ExecuteTradeModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
+import { createPaperTrade } from '../services/paperTradingService';
+import { supabase } from '../services/supabaseClient';
 import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
 import Loader from '../components/Loader';
-// import { startSignalEngine, stopSignalEngine, getEngineStatus, triggerSignalGeneration } from '../engine/signalEngine';
+import { startSignalEngine, stopSignalEngine, getEngineStatus, triggerSignalGeneration } from '../engine/signalEngine';
 import { getSignalStatistics } from '../services/signalService';
 import { getStoredEngineStatus, setStoredEngineStatus } from '../services/signalEngineService';
 import { saveFavoriteTimeframesToDB } from '../services/settingsService';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
 
 // Market type detection helpers
 const getMarketType = (symbol: string): 'Crypto' | 'Forex' | 'Indian' | 'Unknown' => {
     const upperSymbol = symbol.toUpperCase();
 
-    // Crypto: Only USDT quote currency
-    if (upperSymbol.endsWith('USDT')) {
+    // Crypto: Only USDT quote currency (Spot or Futures)
+    if (upperSymbol.endsWith('USDT') || upperSymbol.endsWith('USDT.P')) {
         return 'Crypto';
     }
 
@@ -285,6 +286,19 @@ const Signals: React.FC = () => {
         refreshSignalStats();
     }, [fetchData, refreshSignalStats]);
 
+    // Manage Signal Engine Lifecycle
+    useEffect(() => {
+        if (engineEnabled) {
+            startSignalEngine();
+        } else {
+            stopSignalEngine();
+        }
+
+        return () => {
+            stopSignalEngine();
+        };
+    }, [engineEnabled]);
+
 
     // Load available strategies - Hybrid approach (Service + Actual Signals)
     useEffect(() => {
@@ -400,14 +414,42 @@ const Signals: React.FC = () => {
         });
     };
 
-    const handleExecuteTrade = (newPosition: Position) => {
-        // In a real app, this would likely be an API call
-        console.log("Executing trade:", newPosition);
-        setPositions(prev => [newPosition, ...prev]);
-        alert(`Trade for ${newPosition.symbol} executed successfully!`);
+    const handleExecuteTrade = async (newPosition: Position) => {
+        if (!executingSignal || !user?.id) return;
 
-        // Also update the signal status to Active or Closed if it was Pending
-        setSignals(prev => prev.map(s => s.id === executingSignal?.id ? { ...s, status: SignalStatus.ACTIVE } : s));
+        try {
+            console.log("Executing paper trade for signal:", executingSignal.id, "User:", user.id);
+
+            // 1. Call Service to persist in DB
+            const tradeId = await createPaperTrade(
+                executingSignal,
+                user.id,
+                {
+                    stopLoss: newPosition.stopLoss,
+                    takeProfit: newPosition.takeProfit
+                },
+                newPosition.quantity,
+                newPosition.leverage || 1
+            );
+
+            if (!tradeId) {
+                console.error("Failed to create paper trade in DB.");
+                alert("Execution Failed: Could not save trade to paper trading account.");
+                return;
+            }
+
+            // 2. Update local state
+            setPositions(prev => [{ ...newPosition, id: tradeId }, ...prev]);
+
+            // 3. Update the signal status locally
+            setSignals(prev => prev.map(s => s.id === executingSignal.id ? { ...s, status: SignalStatus.ACTIVE } : s));
+
+            alert(`Trade for ${newPosition.symbol} executed successfully! Trade ID: ${tradeId}`);
+            setExecutingSignal(null);
+        } catch (err: any) {
+            console.error('Error executing manual trade:', err);
+            alert(`Execution Error: ${err.message || 'Unknown error'}`);
+        }
     };
 
     const handleAddToWatchlist = async (watchlistId: string) => {

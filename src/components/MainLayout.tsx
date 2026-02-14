@@ -18,8 +18,6 @@ import Settings from '../pages/Settings';
 import StrategyStudio from '../pages/StrategyStudio';
 import Community from '../pages/Community';
 import Subscription from '../pages/Subscription';
-import InsightAssistant from './InsightAssistant';
-import { SparklesIcon } from './IconComponents';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 
@@ -27,7 +25,7 @@ const MainLayout: React.FC = () => {
   const location = ReactRouterDOM.useLocation();
   const { signOut } = useAuth();
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [isAssistantOpen, setAssistantOpen] = useState(false);
+
 
   // Check Supabase Connection
   // Check Supabase Connection
@@ -56,7 +54,7 @@ const MainLayout: React.FC = () => {
   const isMarketPage = location.pathname === '/market';
   const isStrategyStudio = location.pathname === '/script-editor';
   const showHeader = !isMarketPage;
-  const showFab = !isMarketPage && !isStrategyStudio;
+
 
   const handleLogout = async () => {
     await signOut();
@@ -104,7 +102,7 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 overflow-y-auto bg-dark-bg scrollbar-hide">
           <ReactRouterDOM.Routes>
             <ReactRouterDOM.Route path="/" element={<Overview />} />
-            <ReactRouterDOM.Route path="/market" element={<Market onLogout={handleLogout} onToggleMobileSidebar={handleToggleMobileSidebar} onOpenAssistant={() => setAssistantOpen(true)} />} />
+            <ReactRouterDOM.Route path="/market" element={<Market onLogout={handleLogout} onToggleMobileSidebar={handleToggleMobileSidebar} />} />
             <ReactRouterDOM.Route path="/screener" element={<Screener />} />
             <ReactRouterDOM.Route path="/signals" element={<Signals />} />
             <ReactRouterDOM.Route path="/my-scripts" element={<WatchlistPage />} />
@@ -120,21 +118,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* AI Assistant FAB - Hidden on Market Page and Strategy Studio */}
-      {showFab && (
-        <button
-          onClick={() => setAssistantOpen(true)}
-          className="fixed bottom-6 right-6 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-4 shadow-lg transition-transform hover:scale-110 z-40"
-          aria-label="Open Insight Assistant"
-        >
-          <SparklesIcon className="w-6 h-6" />
-        </button>
-      )}
 
-      {/* AI Assistant Modal */}
-      <InsightAssistant
-        isOpen={isAssistantOpen}
-        onClose={() => setAssistantOpen(false)}
-      />
     </div>
   );
 };

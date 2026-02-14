@@ -3,6 +3,7 @@
 
 import { Candle, calculateIndicator, detectCrossover } from './indicators';
 import { BuiltInStrategy, EntryRule, TradeDirection, BUILT_IN_STRATEGIES, ExitRule, ExitType } from '../constants/builtInStrategies';
+import { Kuri } from '../kuri/kuri';
 
 export interface SignalResult {
     wouldSignal: boolean;
@@ -201,14 +202,82 @@ export const runStrategy = (
 };
 
 /**
+ * Execute a Kuri script strategy
+ */
+const runKuriStrategy = (
+    strategy: BuiltInStrategy,
+    candles: Candle[]
+): SignalResult[] => {
+    try {
+        if (!strategy.kuriScript) return [];
+
+        // Prepare Context
+        const context = {
+            open: candles.map(c => c.open),
+            high: candles.map(c => c.high),
+            low: candles.map(c => c.low),
+            close: candles.map(c => c.close),
+            volume: candles.map(c => c.volume)
+        };
+
+        // Execute Script
+        const result = Kuri.execute(strategy.kuriScript, context);
+
+        // Check for Buy/Sell Signals
+        // Kuri convention: buy_signal = boolean, sell_signal = boolean (Series or single value)
+        const buySignal = result['buy_signal'];
+        const sellSignal = result['sell_signal'];
+
+        const latestIndex = candles.length - 1;
+        const isBuy = Array.isArray(buySignal) ? buySignal[latestIndex] : buySignal;
+        const isSell = Array.isArray(sellSignal) ? sellSignal[latestIndex] : sellSignal;
+
+        const results: SignalResult[] = [];
+
+        if (isBuy) {
+            results.push({
+                wouldSignal: true,
+                direction: TradeDirection.BUY,
+                reason: 'Kuri Script Buy Signal',
+                strategyId: strategy.id,
+                strategyName: strategy.name,
+                exitRules: strategy.exitRules
+            });
+        }
+
+        if (isSell) {
+            results.push({
+                wouldSignal: true,
+                direction: TradeDirection.SELL,
+                reason: 'Kuri Script Sell Signal',
+                strategyId: strategy.id,
+                strategyName: strategy.name,
+                exitRules: strategy.exitRules
+            });
+        }
+
+        return results;
+
+    } catch (error) {
+        console.error(`Error running Kuri strategy ${strategy.name}:`, error);
+        return [];
+    }
+};
+
+/**
  * Run all built-in strategies against candle data
  */
 export const runAllBuiltInStrategies = (candles: Candle[]): SignalResult[] => {
     const allResults: SignalResult[] = [];
 
     for (const strategy of BUILT_IN_STRATEGIES) {
-        const results = runStrategy(strategy, candles);
-        allResults.push(...results);
+        if (strategy.kuriScript) {
+            const results = runKuriStrategy(strategy, candles);
+            allResults.push(...results);
+        } else {
+            const results = runStrategy(strategy, candles);
+            allResults.push(...results);
+        }
     }
 
     return allResults;

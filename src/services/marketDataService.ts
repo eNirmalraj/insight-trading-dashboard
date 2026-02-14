@@ -184,7 +184,7 @@ const ALL_SYMBOLS_TTL = 60000; // 1 minute
 /**
  * Fetch Binance Futures symbols with status filtering
  */
-const fetchFuturesSymbols = async (): Promise<SearchSymbol[]> => {
+export const fetchFuturesSymbols = async (): Promise<SearchSymbol[]> => {
     try {
         // Fetch Futures exchange info to get symbol status
         const exchangeInfoResponse = await fetch('/fapi/binance/v1/exchangeInfo');

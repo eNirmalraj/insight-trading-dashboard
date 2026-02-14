@@ -208,6 +208,135 @@ export const indicatorToJSON = (indicator: BuiltInIndicator): string => {
         description: indicator.description,
         category: indicator.category,
         parameters: indicator.parameters,
-        outputs: indicator.outputs
+        outputs: indicator.outputs,
+        id: indicator.id // Ensure ID is included for logic
     }, null, 2);
+};
+
+/**
+ * Generate Kuri script code for a built-in indicator
+ */
+export const indicatorToKuri = (indicator: BuiltInIndicator): string => {
+    const p = indicator.parameters;
+
+    switch (indicator.id) {
+        case 'sma':
+            return `// Simple Moving Average
+period = ${p.period}
+src = ${p.source || 'close'}
+val = sma(src, period)
+plot(val, "SMA", "#2962FF")
+`;
+
+        case 'ema':
+            return `// Exponential Moving Average
+period = ${p.period}
+src = ${p.source || 'close'}
+val = ema(src, period)
+plot(val, "EMA", "#E91E63")
+`;
+
+        case 'rsi':
+            return `// Relative Strength Index
+len = ${p.period}
+src = close
+val = rsi(src, len)
+plot(val, "RSI", "#9C27B0")
+// Overbought/Oversold lines could be plotshape or hline (not implemented in v1 yet, use plot with constant?)
+// plot(70, "Overbought", "gray") 
+`;
+
+        case 'macd':
+            return `// MACD
+fast = ${p.fastPeriod}
+slow = ${p.slowPeriod}
+sig = ${p.signalPeriod}
+src = close
+
+mLine = macd(src, fast, slow, sig)
+sLine = macd_signal(src, fast, slow, sig)
+hist = macd_hist(src, fast, slow, sig)
+
+plot(mLine, "MACD", "#2196F3")
+plot(sLine, "Signal", "#FF9800")
+plot(hist, "Histogram", "#9E9E9E")
+`;
+
+        case 'bollinger_bands':
+            return `// Bollinger Bands
+len = ${p.period}
+mult = ${p.stdDev}
+src = close
+
+u = bb_upper(src, len, mult)
+l = bb_lower(src, len, mult)
+m = sma(src, len) // Middle is SMA
+
+plot(u, "Upper", "#2962FF")
+plot(m, "Basis", "#FF6D00")
+plot(l, "Lower", "#2962FF")
+`;
+
+        case 'stochastic':
+            return `// Stochastic Oscillator
+kLen = ${p.kPeriod}
+dLen = ${p.dPeriod}
+slow = ${p.kSlowing}
+
+k = stoch_k(high, low, close, kLen, dLen, slow)
+d = stoch_d(high, low, close, kLen, dLen, slow)
+
+plot(k, "%K", "#2196F3")
+plot(d, "%D", "#FF5722")
+`;
+
+        case 'supertrend':
+            return `// SuperTrend
+per = ${p.atrPeriod}
+mult = ${p.multiplier}
+
+st = supertrend(high, low, close, per, mult)
+plot(st, "SuperTrend", "#4CAF50")
+`;
+
+        case 'vwap':
+            return `// VWAP
+val = vwap(high, low, close, volume)
+plot(val, "VWAP", "#FF9800")
+`;
+
+        case 'cci':
+            return `// Commodity Channel Index
+len = ${p.period}
+val = cci(high, low, close, len)
+plot(val, "CCI", "#00BCD4")
+`;
+
+        case 'mfi':
+            return `// Money Flow Index
+len = ${p.period}
+val = mfi(high, low, close, volume, len)
+plot(val, "MFI", "#673AB7")
+`;
+
+        case 'obv':
+            return `// On-Balance Volume
+val = obv(close, volume)
+plot(val, "OBV", "#795548")
+`;
+
+        case 'ma_ribbon':
+            // Complex generation logic
+            const periods = p.periods as number[];
+            const colors = ["#F44336", "#E91E63", "#9C27B0", "#2196F3", "#4CAF50", "#FF9800"];
+            let code = `// Moving Average Ribbon\nsrc = close\n\n`;
+            periods.forEach((per, i) => {
+                code += `ma${per} = sma(src, ${per})\n`;
+                code += `plot(ma${per}, "MA ${per}", "${colors[i % colors.length]}")\n`;
+            });
+            return code;
+
+        default:
+            return `// Unknown indicator: ${indicator.name}\n// Could not generate Kuri code.`;
+    }
 };

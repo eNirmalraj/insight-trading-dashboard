@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useOutsideAlerter } from './hooks';
-import { SearchIcon, CloseIcon, PlusCircleIcon, MarketIcon } from '../IconComponents';
+import { SearchIcon, CloseIcon, PlusCircleIcon, MarketIcon, CheckCircleIcon } from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
 
 interface SymbolSearchModalProps {
@@ -8,13 +8,32 @@ interface SymbolSearchModalProps {
     onClose: () => void;
     onSymbolSelect: (symbol: string) => void;
     title?: string;
+    defaultTab?: string;
+    allowedTabs?: string[];
+    existingSymbols?: string[];
+    marketType?: 'spot' | 'futures'; // NEW: Enforce market type
 }
 
-const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, onSymbolSelect, title }) => {
+const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
+    isOpen,
+    onClose,
+    onSymbolSelect,
+    title,
+    defaultTab = 'All',
+    allowedTabs,
+    existingSymbols = [],
+    marketType
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState('All');
-    const [quoteFilter, setQuoteFilter] = useState('All');
-    const [marketFilter, setMarketFilter] = useState<'All' | 'Spot' | 'Futures'>('All'); // NEW
+    const [activeTab, setActiveTab] = useState(defaultTab);
+
+    // Initialize filter based on prop (capitalize first letter)
+    const initialMarketFilter = marketType
+        ? (marketType.charAt(0).toUpperCase() + marketType.slice(1) as 'Spot' | 'Futures')
+        : 'All';
+
+    const [marketFilter, setMarketFilter] = useState<'All' | 'Spot' | 'Futures'>(initialMarketFilter);
+    const [rankFilter, setRankFilter] = useState<'All' | 'Top 10' | 'Top 50' | 'Top 100'>('All');
     const [cryptoSymbols, setCryptoSymbols] = useState<SearchSymbol[]>([]);
     const [displayLimit, setDisplayLimit] = useState(50);
     const [loading, setLoading] = useState(false);
@@ -22,6 +41,15 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
     const inputRef = useRef<HTMLInputElement>(null);
 
     useOutsideAlerter(modalRef, () => { if (isOpen) onClose(); });
+
+    // Ensure filter updates if prop changes
+    useEffect(() => {
+        if (marketType) {
+            setMarketFilter(marketType.charAt(0).toUpperCase() + marketType.slice(1) as 'Spot' | 'Futures');
+        } else {
+            setMarketFilter('All');
+        }
+    }, [marketType]);
 
     // Load symbols on mount
     useEffect(() => {
@@ -38,10 +66,13 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
     useEffect(() => {
         if (isOpen) {
             setTimeout(() => inputRef.current?.focus(), 50);
+            if (defaultTab) {
+                setActiveTab(defaultTab);
+            }
         } else {
-            setSearchTerm(''); // Reset search on close (optional)
+            setSearchTerm('');
         }
-    }, [isOpen]);
+    }, [isOpen, defaultTab]);
 
     // Mock other categories
     const mockSymbols: Record<string, SearchSymbol[]> = {
@@ -55,8 +86,10 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
         'Indices': [],
     };
 
-    const tabs = ['All', 'Stocks', 'Forex', 'Crypto'];
-    const quotes = ['All', 'USDT', 'USDC', 'BTC', 'ETH', 'BNB'];
+    const allTabs = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian'];
+    const tabs = allowedTabs
+        ? allTabs.filter(tab => allowedTabs.includes(tab))
+        : allTabs;
 
     const filteredSymbols = useMemo(() => {
         let source: SearchSymbol[] = [];
@@ -71,34 +104,37 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
             source = [];
         }
 
-
-
-        // Filter by Quote
-        if (quoteFilter !== 'All' && activeTab === 'Crypto') {
-            source = source.filter(s => s.symbol.endsWith(quoteFilter) || s.symbol.endsWith(`/${quoteFilter}`));
-        }
-
-        // Filter by Market (Spot/Futures) - NEW
+        // Filter by Market (Spot/Futures)
         if (marketFilter !== 'All' && activeTab === 'Crypto') {
             source = source.filter(s => s.market === marketFilter);
         }
 
-        if (!searchTerm) {
-            // Reset limit when search is cleared, but return full list for scrolling
-            return source;
+        let result = source;
+
+        // Apply Search Filter
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            result = result.filter(s =>
+                s.symbol.toLowerCase().replace('/', '').includes(lower) ||
+                s.description.toLowerCase().includes(lower)
+            );
         }
 
-        const lower = searchTerm.toLowerCase();
-        return source.filter(s =>
-            s.symbol.toLowerCase().replace('/', '').includes(lower) ||
-            s.description.toLowerCase().includes(lower)
-        );
-    }, [searchTerm, activeTab, cryptoSymbols, quoteFilter, marketFilter]);
+        // 4. Rank Filter (Top X by Volume)
+        if (rankFilter !== 'All') {
+            result.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+            if (rankFilter === 'Top 10') result = result.slice(0, 10);
+            else if (rankFilter === 'Top 50') result = result.slice(0, 50);
+            else if (rankFilter === 'Top 100') result = result.slice(0, 100);
+        }
+
+        return result;
+    }, [searchTerm, activeTab, cryptoSymbols, marketFilter, rankFilter]);
 
     // Reset limit when filters change
     useEffect(() => {
         setDisplayLimit(50);
-    }, [searchTerm, activeTab, quoteFilter, marketFilter]);
+    }, [searchTerm, activeTab, marketFilter, rankFilter]);
 
     const visibleSymbols = useMemo(() => {
         return filteredSymbols.slice(0, displayLimit);
@@ -113,10 +149,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
         }
     };
 
-
     const handleResizePointerDown = (e: React.PointerEvent) => {
         if (!modalRef.current) return;
-        // Prevent drag on inputs or buttons to fix UX
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('button')) return;
 
@@ -125,7 +159,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
         const startY = e.clientY;
         const startRect = modalRef.current.getBoundingClientRect();
 
-        // Remove transform to prevent coordinate conflict and jumping
         modalRef.current.style.transform = 'none';
         modalRef.current.style.left = `${startRect.left}px`;
         modalRef.current.style.top = `${startRect.top}px`;
@@ -195,13 +228,38 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
                             placeholder="Symbol, ISIN, or CUSIP"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-10 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && searchTerm) {
+                                    onSymbolSelect(searchTerm.toUpperCase().replace('/', ''));
+                                }
+                            }}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-12 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                         />
-                        {searchTerm && (
-                            <button onClick={() => setSearchTerm('')} className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400 hover:text-white">
-                                <CloseIcon className="w-4 h-4" />
-                            </button>
-                        )}
+                        <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-1">
+                            {searchTerm && (
+                                (() => {
+                                    const isAlreadyAdded = existingSymbols.includes(searchTerm.toUpperCase().replace('/', ''));
+                                    return (
+                                        <>
+                                            <button
+                                                onClick={() => !isAlreadyAdded && onSymbolSelect(searchTerm.toUpperCase().replace('/', ''))}
+                                                className={`p-1.5 rounded transition-colors ${isAlreadyAdded ? 'text-green-500 cursor-default' : 'text-blue-500 hover:text-blue-400 hover:bg-blue-500/10'}`}
+                                                title={isAlreadyAdded ? `${searchTerm} already added` : `Add ${searchTerm}`}
+                                                disabled={isAlreadyAdded}
+                                            >
+                                                {isAlreadyAdded ? <CheckCircleIcon className="w-5 h-5" /> : <PlusCircleIcon className="w-5 h-5" />}
+                                            </button>
+                                            <button
+                                                onClick={() => setSearchTerm('')}
+                                                className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                                            >
+                                                <CloseIcon className="w-4 h-4" />
+                                            </button>
+                                        </>
+                                    );
+                                })()
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -222,8 +280,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
 
                 {/* Filters */}
                 <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-800/90 flex items-center gap-6 text-xs overflow-x-auto">
-                    {/* Market Filter (Spot/Futures) - NEW */}
-                    {activeTab === 'Crypto' && (
+                    {/* Market Filter (Spot/Futures) - Only show buttons if marketType NOT enforced */}
+                    {activeTab === 'Crypto' && !marketType && (
                         <div className="flex items-center gap-2">
                             <span className="text-gray-500 mr-1">Market:</span>
                             {(['All', 'Spot', 'Futures'] as const).map(m => (
@@ -232,24 +290,36 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
                                     onClick={() => setMarketFilter(m)}
                                     className={`px-2 py-1 rounded transition-colors ${marketFilter === m ? 'bg-gray-700 text-blue-400 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
                                 >
-                                    {m}
+                                    {m === 'Futures' ? 'USDT.P' : m}
                                 </button>
                             ))}
                         </div>
                     )}
-                    {/* Quote Filters (Only show if Crypto is relevant/active) */}
+
+                    {/* Show Active Market Type Label if Enforced */}
+                    {activeTab === 'Crypto' && marketType && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-500 mr-1">Market:</span>
+                            <span className="px-2 py-1 rounded bg-gray-700 text-blue-400 font-medium border border-blue-500/30">
+                                {marketType === 'futures' ? 'USDT.P (Futures)' : 'Spot'}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Rank Filter - NEW */}
                     {activeTab === 'Crypto' && (
                         <div className="flex items-center gap-2">
-                            <span className="text-gray-500 mr-1">Quote:</span>
-                            {quotes.map(q => (
-                                <button
-                                    key={q}
-                                    onClick={() => setQuoteFilter(q)}
-                                    className={`px-2 py-1 rounded transition-colors ${quoteFilter === q ? 'bg-gray-700 text-blue-400 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
-                                >
-                                    {q}
-                                </button>
-                            ))}
+                            <span className="text-gray-500 mr-1">Rank:</span>
+                            <select
+                                value={rankFilter}
+                                onChange={(e) => setRankFilter(e.target.value as any)}
+                                className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border-none outline-none cursor-pointer hover:bg-gray-600 transition-colors"
+                            >
+                                <option value="All">All Items</option>
+                                <option value="Top 10">Top 10 Monthly</option>
+                                <option value="Top 50">Top 50 Monthly</option>
+                                <option value="Top 100">Top 100 Monthly</option>
+                            </select>
                         </div>
                     )}
                 </div>
@@ -304,7 +374,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
                                         </td>
 
                                         {/* Exchange Badge */}
-                                        <td className="p-3 pr-6 text-right w-32">
+                                        <td className="p-3 text-right w-24">
                                             <div className="flex flex-col items-end">
                                                 <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider group-hover:text-gray-300">{item.type}</span>
                                                 <div className="flex items-center gap-1 mt-0.5">
@@ -312,6 +382,26 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({ isOpen, onClose, 
                                                     <span className="text-[10px] text-gray-400 font-medium group-hover:text-white uppercase">{item.exchange}</span>
                                                 </div>
                                             </div>
+                                        </td>
+
+                                        {/* Add Action */}
+                                        <td className="p-3 pr-6 text-right w-12">
+                                            {(() => {
+                                                const isAlreadyAdded = existingSymbols.includes(item.symbol.replace('/', ''));
+                                                return (
+                                                    <button
+                                                        className={`p-2 rounded-full transition-all ${isAlreadyAdded ? 'text-green-500 cursor-default' : 'text-gray-500 hover:text-blue-500 bg-gray-700/0 hover:bg-blue-500/10'}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!isAlreadyAdded) onSymbolSelect(item.symbol.replace('/', ''));
+                                                        }}
+                                                        disabled={isAlreadyAdded}
+                                                        title={isAlreadyAdded ? "Already Added" : "Add to list"}
+                                                    >
+                                                        {isAlreadyAdded ? <CheckCircleIcon className="w-5 h-5" /> : <PlusCircleIcon className="w-5 h-5" />}
+                                                    </button>
+                                                );
+                                            })()}
                                         </td>
                                     </tr>
                                 ))}

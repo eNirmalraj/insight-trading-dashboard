@@ -102,6 +102,9 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
                 <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                         {signal.pair}
+                        {signal.pair.endsWith('.P') && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">FUTURES</span>
+                        )}
                         <span className="text-xs text-gray-500">{signal.timeframe}</span>
                     </h3>
                     <p className="text-sm text-gray-400">{signal.strategy}</p>

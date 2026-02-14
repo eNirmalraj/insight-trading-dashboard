@@ -1,0 +1,2 @@
+ema20 = ema(close, 20)
+buy_signal = close > ema20

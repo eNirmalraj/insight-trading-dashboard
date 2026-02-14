@@ -96,8 +96,8 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ signal, onClose, 
     return (potentialProfit / potentialLoss).toFixed(2);
   }, [potentialProfit, potentialLoss]);
 
-  const handleSubmit = () => {
-    const newPosition: Position = {
+  const handleSubmit = async () => {
+    onExecute({
       id: `p${Date.now()}`,
       symbol: signal.pair,
       account: account,
@@ -110,8 +110,7 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ signal, onClose, 
       status: PositionStatus.OPEN,
       openTime: new Date().toISOString(),
       leverage: isCrypto ? leverage : undefined
-    };
-    onExecute(newPosition);
+    });
     onClose();
   };
 

@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Watchlist, WatchlistItem } from '../types';
+import { Watchlist, WatchlistItem, AccountType } from '../types';
 import { PencilIcon, WatchlistIcon, TrashIcon, PlusCircleIcon } from '../components/IconComponents';
 import CreatePriceAlertModal from '../components/CreatePriceAlertModal';
-import CreateWatchlistModal from '../components/CreateWatchlistModal';
+import CreateScriptInline from '../components/CreateScriptInline';
 import EditWatchlistNameModal from '../components/EditWatchlistNameModal';
-import AddSymbolModal from '../components/AddSymbolModal';
+import SymbolSearchModal from '../components/market-chart/SymbolSearchModal'; // Replaced AddSymbolModal
 import ConfirmationModal from '../components/ConfirmationModal';
-import { PaperTradesPanel } from '../components/PaperTradesPanel';
+
+// import { PaperTradesPanel } from '../components/PaperTradesPanel'; // Removed
 import * as api from '../api';
+import { updateWatchlistItemRiskSettings } from '../services/watchlistService';
 import Loader from '../components/Loader';
+
 
 const WatchlistPage: React.FC = () => {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
@@ -46,10 +49,16 @@ const WatchlistPage: React.FC = () => {
     fetchWatchlists();
   }, [fetchWatchlists]);
 
-  const handleConfirmCreateWatchlist = async (name: string, accountType: 'Forex' | 'Crypto', strategy: string) => {
+  const handleConfirmCreateWatchlist = async (name: string, accountType: AccountType | 'Forex' | 'Crypto', strategy: string, tradingMode: 'paper' | 'live') => {
+    const normalizedName = name.trim().toLowerCase();
+    if (watchlists.some(wl => wl.name.trim().toLowerCase() === normalizedName)) {
+      alert(`A script with the name "${name}" already exists. Please choose a different name.`);
+      return;
+    }
+
     try {
-      await api.createScript(name, accountType, strategy);
-      fetchWatchlists(); // Refetch to get the new list
+      await api.createScript(name, accountType, strategy, tradingMode);
+      fetchWatchlists();
       setIsCreateModalOpen(false);
     } catch (err) {
       alert("Error creating script. Please try again.");
@@ -63,10 +72,37 @@ const WatchlistPage: React.FC = () => {
     }
   };
 
-  const handleConfirmEditWatchlist = async (newName: string, newStrategy: string) => {
+  const handleConfirmEditWatchlist = async (
+    newName: string,
+    newStrategy: string,
+    newTradingMode: 'paper' | 'live',
+    riskSettings: {
+      lotSize: number;
+      riskPercent: number;
+      leverage: number;
+      stopLossDistance: number;
+      takeProfitDistance: number;
+      trailingStopLossDistance: number;
+    },
+    executionTimeframes?: string[],
+    manualRiskEnabled?: boolean,
+    marketType?: 'spot' | 'futures',
+    riskMethod?: 'fixed' | 'percent',
+    autoLeverageEnabled?: boolean
+  ) => {
     if (!editingWatchlist) return;
     try {
-      await api.updateScript(editingWatchlist.id, { name: newName, strategyType: newStrategy });
+      await api.updateScript(editingWatchlist.id, {
+        name: newName,
+        strategyType: newStrategy,
+        tradingMode: newTradingMode,
+        executionTimeframes,
+        manualRiskEnabled,
+        marketType,
+        riskMethod,
+        autoLeverageEnabled,
+        ...riskSettings
+      });
       fetchWatchlists();
       setEditingWatchlist(null);
     } catch (err) {
@@ -83,11 +119,36 @@ const WatchlistPage: React.FC = () => {
 
   const handleConfirmAddSymbol = async (symbol: string) => {
     if (!addingToWatchlist) return;
+
+    // Optimistic Update
+    const tempId = `temp-${Date.now()}`;
+    const newItem: WatchlistItem = {
+      id: tempId,
+      symbol: symbol,
+      price: 0,
+      change: 0,
+      changePercent: 0,
+      isPositive: true,
+      autoTradeEnabled: false
+    };
+
+    setWatchlists(prev => prev.map(wl => {
+      if (wl.id !== addingToWatchlist.id) return wl;
+      // Prevent duplicates in state if user clicks fast
+      if (wl.items.some(i => i.symbol === symbol)) return wl;
+      return { ...wl, items: [...wl.items, newItem] };
+    }));
+
     try {
       await api.addSymbolToScript(addingToWatchlist.id, symbol);
       fetchWatchlists();
-      setAddingToWatchlist(null);
+      // NOTE: We no longer setAddingToWatchlist(null) here to keep modal open
     } catch (err: any) {
+      // Revert on error
+      setWatchlists(prev => prev.map(wl => {
+        if (wl.id !== addingToWatchlist.id) return wl;
+        return { ...wl, items: wl.items.filter(i => i.id !== tempId) };
+      }));
       alert(`Error: ${err.message || 'Could not add symbol.'}`);
     }
   };
@@ -124,6 +185,7 @@ const WatchlistPage: React.FC = () => {
       }
     });
   };
+
 
 
   const handleToggleAutoTrade = async (watchlistId: string, itemId?: string) => {
@@ -166,11 +228,19 @@ const WatchlistPage: React.FC = () => {
     <div className="space-y-6 p-6">
       <div className="flex justify-end">
         <button
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => setIsCreateModalOpen(!isCreateModalOpen)}
           className="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
-          Create New Script
+          {isCreateModalOpen ? 'Cancel' : '+ Create New Script'}
         </button>
       </div>
+
+      {/* Inline Create Form */}
+      {isCreateModalOpen && (
+        <CreateScriptInline
+          onCreate={handleConfirmCreateWatchlist}
+          onCancel={() => setIsCreateModalOpen(false)}
+        />
+      )}
 
       <div className="space-y-8">
         {watchlists.length > 0 ? (
@@ -185,7 +255,10 @@ const WatchlistPage: React.FC = () => {
                   {/* Left Side */}
                   <div className="flex items-center gap-3 flex-wrap">
                     <h2 className="text-lg md:text-xl font-semibold text-white">{watchlist.name}</h2>
-                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full text-white ${watchlist.accountType === 'Crypto' ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full text-white ${watchlist.accountType === AccountType.CRYPTO ? 'bg-yellow-500' :
+                      watchlist.accountType === AccountType.INDIAN ? 'bg-orange-500' :
+                        'bg-blue-500'
+                      }`}>
                       {watchlist.accountType}
                     </span>
                     {watchlist.strategyType && (
@@ -193,6 +266,13 @@ const WatchlistPage: React.FC = () => {
                         {watchlist.strategyType}
                       </span>
                     )}
+                    {/* Trading Mode Badge */}
+                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${watchlist.tradingMode === 'live'
+                      ? 'bg-red-500/10 text-red-500 border-red-500/50'
+                      : 'bg-blue-500/10 text-blue-400 border-blue-500/50'
+                      }`}>
+                      {watchlist.tradingMode === 'live' ? 'LIVE' : 'PAPER'}
+                    </span>
                     <button
                       onClick={() => handleEditWatchlist(watchlist.id)}
                       className="text-gray-400 hover:text-blue-400 transition-colors p-1"
@@ -276,6 +356,7 @@ const WatchlistPage: React.FC = () => {
                               </label>
                             </td>
                             <td className="px-6 py-4">
+
                               <button onClick={() => setAlertModalInfo({ visible: true, symbol: item.symbol, price: item.price })} className="text-blue-500 hover:text-blue-400 mr-4 font-medium">Alert</button>
                               <button onClick={() => handleRemoveSymbol(watchlist.id, item.id, item.symbol)} className="text-red-500 hover:text-red-400 font-medium">Remove</button>
                             </td>
@@ -327,6 +408,7 @@ const WatchlistPage: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
+
                             <button onClick={() => setAlertModalInfo({ visible: true, symbol: item.symbol, price: item.price })} className="text-blue-500 hover:text-blue-400 font-medium">Alert</button>
                             <button onClick={() => handleRemoveSymbol(watchlist.id, item.id, item.symbol)} className="text-red-500 hover:text-red-400 font-medium">Remove</button>
                           </div>
@@ -358,39 +440,57 @@ const WatchlistPage: React.FC = () => {
         )}
       </div>
 
-      {/* Paper Trades Section (Phase C2) */}
-      <PaperTradesPanel />
+      {/* Paper Trades Section Removed per user request */}
 
       {/* --- MODALS --- */}
-      {alertModalInfo?.visible && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <CreatePriceAlertModal
-            symbol={alertModalInfo.symbol}
-            price={alertModalInfo.price}
-            onClose={() => setAlertModalInfo(null)}
-          />
-        </div>
-      )}
-      {isCreateModalOpen && (
-        <CreateWatchlistModal
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreate={handleConfirmCreateWatchlist}
+      {alertModalInfo && (
+        <CreatePriceAlertModal
+          symbol={alertModalInfo.symbol}
+          price={alertModalInfo.price}
+          onClose={() => setAlertModalInfo(null)}
         />
       )}
+
+
       {editingWatchlist && (
         <EditWatchlistNameModal
           currentName={editingWatchlist.name}
           currentStrategy={editingWatchlist.strategyType}
+          currentTradingMode={editingWatchlist.tradingMode}
+          accountType={editingWatchlist.accountType as AccountType}
+          currentRiskSettings={{
+            lotSize: editingWatchlist.lotSize ?? 0.01,
+            riskPercent: editingWatchlist.riskPercent ?? 1.0,
+            leverage: editingWatchlist.leverage ?? 1,
+            stopLossDistance: editingWatchlist.stopLossDistance ?? 0,
+            takeProfitDistance: editingWatchlist.takeProfitDistance ?? 0,
+            trailingStopLossDistance: editingWatchlist.trailingStopLossDistance ?? 0
+          }}
+          currentExecutionTimeframes={editingWatchlist.executionTimeframes}
           onClose={() => setEditingWatchlist(null)}
           onSave={handleConfirmEditWatchlist}
         />
       )}
       {addingToWatchlist && (
-        <AddSymbolModal
-          watchlistName={addingToWatchlist.name}
-          accountType={addingToWatchlist.accountType}
+        <SymbolSearchModal
+          isOpen={true}
+          title={`Add Symbol to ${addingToWatchlist.name}`}
           onClose={() => setAddingToWatchlist(null)}
-          onAdd={handleConfirmAddSymbol}
+          onSymbolSelect={(symbol) => handleConfirmAddSymbol(symbol)}
+          existingSymbols={addingToWatchlist?.items.map(i => i.symbol.replace('/', '')) || []}
+          marketType={addingToWatchlist.marketType}
+          defaultTab={
+            addingToWatchlist.accountType === AccountType.CRYPTO ? 'Crypto' :
+              addingToWatchlist.accountType === AccountType.FOREX ? 'Forex' :
+                addingToWatchlist.accountType === AccountType.INDIAN ? 'All' : // Indian stocks map to 'All' or 'Stocks' if available
+                  'All'
+          }
+          allowedTabs={
+            addingToWatchlist.accountType === AccountType.CRYPTO ? ['Crypto'] :
+              addingToWatchlist.accountType === AccountType.FOREX ? ['Forex'] :
+                // For Indian, we might want to restrict or allow All. Letting 'All' be default for now.
+                undefined
+          }
         />
       )}
       <ConfirmationModal

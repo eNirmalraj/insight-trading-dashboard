@@ -3,13 +3,14 @@
 
 import { getCandles } from '../services/marketDataService';
 import { marketRealtimeService } from '../services/marketRealtimeService';
-import { loadActiveStrategies, runAllStrategies } from './strategyEngine';
+import { loadActiveStrategies, runAllStrategies, RiskSettings } from './strategyEngine';
 import { getSignals, updateSignalStatus, cleanupOldSignals } from '../services/signalService';
+import { getWatchlists } from '../services/watchlistService';
 import { SignalStatus, EntryType } from '../types';
 
 // Engine configuration
 const SIGNAL_GENERATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const SIGNAL_UPDATE_INTERVAL_MS = 30 * 1000; // 30 seconds
+const SIGNAL_UPDATE_INTERVAL_MS = 1000; // 1 second (Faster SL/TP Monitoring)
 const DEFAULT_CANDLE_COUNT = 200; // Number of candles to fetch for strategy evaluation
 
 // Engine state
@@ -175,31 +176,34 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
         let uniqueSymbols: Set<string> = new Set();
 
         try {
-            const { fetchAllCryptoSymbols } = await import('../services/marketDataService'); // Dynamic import
-            console.log('[SignalEngine] Fetching all crypto symbols for market scan...');
+            const { fetchFuturesSymbols } = await import('../services/marketDataService'); // Dynamic import of Futures specific fetcher
+            console.log('[SignalEngine] Fetching FUTURES symbols for market scan...');
 
-            const allSymbols = await fetchAllCryptoSymbols();
+            const futuresSymbols = await fetchFuturesSymbols();
 
             // Filter and Sort
-            const topSymbols = allSymbols
+            const topSymbols = futuresSymbols
                 .filter(s => {
-                    // Only Crypto
+                    // Double check type (should be Crypto/Futures already)
                     if (s.type !== 'Crypto') return false;
+                    if (s.market !== 'Futures') return false;
+
                     // Must be USDT or USD quote
                     return s.symbol.includes('USDT') || s.symbol.includes('USD');
                 })
                 .sort((a, b) => b.volume - a.volume) // Sort by volume high to low
-                .slice(0, 150); // Top 150
+                .slice(0, 150); // Top 150 Futures Pairs
 
             topSymbols.forEach(s => uniqueSymbols.add(s.symbol));
 
             if (uniqueSymbols.size === 0) {
-                ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT'].forEach(s => uniqueSymbols.add(s));
+                // Fallback to major pairs if fetch fails or returns empty
+                ['BTC/USDT.P', 'ETH/USDT.P', 'BNB/USDT.P', 'SOL/USDT.P', 'XRP/USDT.P'].forEach(s => uniqueSymbols.add(s));
             }
 
         } catch (e) {
             console.error('Failed to load market symbols for engine:', e);
-            ['BTC/USDT', 'ETH/USDT'].forEach(s => uniqueSymbols.add(s));
+            ['BTC/USDT.P', 'ETH/USDT.P'].forEach(s => uniqueSymbols.add(s));
         }
 
         const symbols = Array.from(uniqueSymbols);
@@ -217,6 +221,30 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
             }
         });
 
+        // Fetch all watchlist items to get per-symbol risk settings
+        let riskSettingsMap: Record<string, RiskSettings> = {};
+        try {
+            const allWatchlists = await getWatchlists();
+            allWatchlists.forEach(wl => {
+                wl.items.forEach(item => {
+                    // Only use settings if auto-trade is enabled for this item
+                    // Global Risk Settings from Watchlist apply to all items
+                    if (item.autoTradeEnabled) {
+                        riskSettingsMap[item.symbol.replace('/', '').toUpperCase()] = {
+                            lot_size: wl.lotSize,
+                            risk_percent: wl.riskPercent,
+                            take_profit_distance: wl.takeProfitDistance,
+                            stop_loss_distance: wl.stopLossDistance,
+                            trailing_stop_loss_distance: wl.trailingStopLossDistance,
+                            leverage: wl.leverage
+                        };
+                    }
+                });
+            });
+        } catch (e) {
+            console.error('[SignalEngine] Failed to fetch risk settings:', e);
+        }
+
         console.log(`[SignalEngine] Scanning ${symbols.length} symbols on FAVORITE timeframes: ${Array.from(activeTimeframes).join(', ')}...`);
 
         for (const symbol of symbols) {
@@ -231,7 +259,10 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
                     }
 
                     // Run all strategies against this data
-                    const result = await runAllStrategies(symbol, timeframe, candles);
+                    const normalizedSymbol = symbol.replace('/', '').toUpperCase();
+                    const riskSettings = riskSettingsMap[normalizedSymbol] || null;
+
+                    const result = await runAllStrategies(symbol, timeframe, candles, strategies, riskSettings);
 
                     stats.signalsGenerated += result.signalsCreated;
                     stats.errors.push(...result.errors);
@@ -375,12 +406,36 @@ export const updateSignalStatuses = async (): Promise<void> => {
 
                 if (tpHit) {
                     console.log(`[SignalEngine] ✅ Take Profit hit for ${signal.pair} signal ${signal.id}`);
-                    await updateSignalStatus(signal.id, SignalStatus.CLOSED);
-                    // TODO: Add close_reason and profit_loss when schema is updated
+                    const { closeSignal } = await import('../services/signalService');
+                    await closeSignal(signal.id, 'TP', 0); // PnL 0 for now, paperTradingService calculates it
                 } else if (slHit) {
                     console.log(`[SignalEngine] ❌ Stop Loss hit for ${signal.pair} signal ${signal.id}`);
-                    await updateSignalStatus(signal.id, SignalStatus.CLOSED);
-                    // TODO: Add close_reason and profit_loss when schema is updated
+                    const { closeSignal } = await import('../services/signalService');
+                    await closeSignal(signal.id, 'SL', 0);
+                } else if (signal.trailingStopLoss && signal.trailingStopLoss > 0) {
+                    // Trailing Stop Loss logic
+                    const distance = signal.trailingStopLoss;
+                    let newSL = signal.stopLoss;
+
+                    if (isBuy) {
+                        // For BUY: If Price - Distance > current SL, move SL up
+                        const potentialSL = currentPrice - distance;
+                        if (potentialSL > signal.stopLoss) {
+                            newSL = potentialSL;
+                        }
+                    } else {
+                        // For SELL: If Price + Distance < current SL, move SL down
+                        const potentialSL = currentPrice + distance;
+                        if (potentialSL < signal.stopLoss) {
+                            newSL = potentialSL;
+                        }
+                    }
+
+                    if (newSL !== signal.stopLoss) {
+                        console.log(`[SignalEngine] 🛡️ Trailing SL adjusted for ${signal.pair} from ${signal.stopLoss.toFixed(2)} to ${newSL.toFixed(2)}`);
+                        const { updateSignalRiskLevels } = await import('../services/signalService');
+                        await updateSignalRiskLevels(signal.id, { stopLoss: newSL });
+                    }
                 }
 
             } catch (error: any) {

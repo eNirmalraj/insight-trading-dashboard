@@ -22,12 +22,12 @@ import { Strategy } from '../types';
 interface MarketProps {
     onLogout: () => void;
     onToggleMobileSidebar: () => void;
-    onOpenAssistant: () => void;
+
 }
 
 import { useAuth } from '../context/AuthContext';
 
-const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar, onOpenAssistant }) => {
+const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
     const { user, isLoading: isAuthLoading } = useAuth();
     const chartTools = [
         { icon: <TrendLineIcon className="w-5 h-5" />, name: "Trend Line", category: "Trend lines" },
@@ -347,7 +347,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar, onOpen
                     onAddCustomTimeframe={handleAddCustomTimeframe}
                     onLogout={onLogout}
                     onToggleMobileSidebar={onToggleMobileSidebar}
-                    onOpenAssistant={onOpenAssistant}
+
                     customScripts={customIndicators}
                     initialSettings={initialChartSettings}
                     onSettingsChange={handleSettingsChange}

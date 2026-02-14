@@ -23,9 +23,11 @@ export enum StrategyCategory {
   TREND_FOLLOWING = 'Trend Following',
   MEAN_REVERSION = 'Mean Reversion',
   VOLATILITY_BREAKOUT = 'Volatility Breakout',
+  MOMENTUM = 'Momentum',
+  BREAKOUT = 'Breakout',
 }
 
-export type Timeframe = '5m' | '15m' | '30m' | '1H' | '4H' | '1D';
+export type Timeframe = '1m' | '5m' | '15m' | '30m' | '1H' | '4H' | '1D';
 
 
 export interface Signal {
@@ -48,6 +50,9 @@ export interface Signal {
   isPinned?: boolean;
   activatedAt?: string;
   closedAt?: string;
+  trailingStopLoss?: number;
+  lotSize?: number;
+  leverage?: number;
 }
 
 export interface Metric {
@@ -78,27 +83,53 @@ export interface WatchlistItem {
   isPositive: boolean;
   autoTradeEnabled?: boolean;
   pnl?: number;
+  // Risk Management Settings
+  lot_size?: number;
+  risk_percent?: number;
+  take_profit_distance?: number;
+  stop_loss_distance?: number;
+  trailing_stop_loss_distance?: number;
+  leverage?: number;
+}
+
+export enum AccountType {
+  FOREX = 'Forex',
+  CRYPTO = 'Crypto',
+  INDIAN = 'Indian'
 }
 
 export interface Watchlist {
   id: string;
   name: string;
-  accountType: 'Forex' | 'Crypto';
+  accountType: AccountType | 'Forex' | 'Crypto' | 'Indian'; // Allow string for backward compatibility during migration
   strategyType?: string;
+  tradingMode?: 'paper' | 'live'; // Added tradingMode
   items: WatchlistItem[];
   isMasterAutoTradeEnabled?: boolean;
+  // Risk Management Settings (Global)
+  lotSize?: number;
+  riskPercent?: number;
+  takeProfitDistance?: number;
+  stopLossDistance?: number;
+  trailingStopLossDistance?: number;
+  leverage?: number;
+  executionTimeframes?: string[];
+  manualRiskEnabled?: boolean;
+  marketType?: 'spot' | 'futures';
+  riskMethod?: 'fixed' | 'percent';
+  autoLeverageEnabled?: boolean;
 }
 
 export enum PositionStatus {
-  OPEN = 'Open',
-  PENDING = 'Pending',
-  CLOSED = 'Closed',
+  OPEN = 'OPEN',
+  PENDING = 'PENDING',
+  CLOSED = 'CLOSED',
 }
 
 export interface Position {
   id: string;
   symbol: string;
-  account: 'Forex' | 'Binance';
+  account: 'Forex' | 'Binance' | 'Paper';
   direction: TradeDirection;
   quantity: number; // Lots for Forex, amount for Binance
   entryPrice: number;
@@ -109,6 +140,7 @@ export interface Position {
   openTime: string;
   closeTime?: string;
   leverage?: number;
+  marketType?: 'spot' | 'futures';
 }
 
 export interface RecentTrade {
@@ -174,6 +206,8 @@ export interface Strategy {
   id: string;
   name: string;
   description?: string;
+  category?: StrategyCategory;
+  tradingMode?: 'paper' | 'live'; // Added tradingMode
   timeframe: string;
   symbolScope: string[];
   entryRules: StrategyEntryRule[]; // Typed entry rules
@@ -181,8 +215,9 @@ export interface Strategy {
   indicators: StrategyIndicatorConfig[]; // Typed indicators
   isActive: boolean;
   parameters?: StrategyParameter[];
-  type: 'STRATEGY' | 'INDICATOR';
+  type: 'STRATEGY' | 'INDICATOR' | 'KURI';
   content?: any; // Full JSON content for accurate persistence
+  kuriScript?: string; // Kuri language script content
 }
 
 export interface StrategyParameter {

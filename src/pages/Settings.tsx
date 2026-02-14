@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserIcon, LinkIcon, BellIcon, SubscriptionIcon } from '../components/IconComponents';
+import { UserIcon, LinkIcon, BellIcon, SubscriptionIcon, PaperIcon } from '../components/IconComponents';
 import Subscription from './Subscription';
 import ExchangeManagement from './ExchangeManagement';
+import PaperTradingAccounts from './PaperTradingAccounts';
 
 import * as api from '../api';
 
@@ -26,7 +27,7 @@ const initialSettings: SettingsData = {
     notifications: { emailSignals: true, pushAlerts: true },
 };
 
-type SettingsTab = 'Profile & Security' | 'Broker Connect' | 'Notifications' | 'Subscription';
+type SettingsTab = 'Profile & Security' | 'Broker Connect' | 'Paper Trading' | 'Notifications' | 'Subscription';
 
 // --- REUSABLE UI COMPONENTS ---
 const Section: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
@@ -149,28 +150,38 @@ const Settings: React.FC = () => {
     const tabs: { name: SettingsTab; icon: React.ReactNode }[] = [
         { name: 'Profile & Security', icon: <UserIcon className="w-5 h-5" /> },
         { name: 'Broker Connect', icon: <LinkIcon className="w-5 h-5" /> },
+        { name: 'Paper Trading', icon: <PaperIcon className="w-5 h-5" /> },
         { name: 'Notifications', icon: <BellIcon className="w-5 h-5" /> },
         { name: 'Subscription', icon: <SubscriptionIcon className="w-5 h-5" /> },
     ];
 
     return (
-        <div className="flex flex-col md:flex-row h-full">
-            {/* Desktop Sidebar */}
-            <aside className="hidden md:block w-full md:w-64 bg-gray-900 border-b md:border-b-0 md:border-r border-gray-700/50 p-3 flex-shrink-0">
-                <nav className="space-y-4">
-                    <div>
-                        <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">User Settings</h3>
-                        <div className="mt-2 space-y-1">
-                            {tabs.map(tab => (
-                                <TabButton key={tab.name} {...tab} isActive={activeTab === tab.name} onClick={() => setActiveTab(tab.name)} />
-                            ))}
-                        </div>
-                    </div>
-                </nav>
-            </aside>
+        <div className="flex flex-col h-full">
+            {/* Header Tabs - Desktop */}
+            <div className="hidden md:block border-b border-gray-700/50 bg-gray-900/50">
+                <div className="px-6 pt-4">
+                    <h2 className="text-xl font-bold text-white mb-4">Settings</h2>
+                    <nav className="flex gap-1">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.name}
+                                onClick={() => setActiveTab(tab.name)}
+                                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${activeTab === tab.name
+                                    ? 'bg-gray-800 text-blue-400 border-b-2 border-blue-400'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                                    }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.name}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            </div>
 
             {/* Mobile Dropdown */}
-            <div className="md:hidden p-4 border-b border-gray-700/50">
+            <div className="md:hidden p-4 border-b border-gray-700/50 bg-gray-900">
+                <h2 className="text-lg font-bold text-white mb-3">Settings</h2>
                 <select
                     value={activeTab}
                     onChange={(e) => setActiveTab(e.target.value as SettingsTab)}
@@ -180,13 +191,14 @@ const Settings: React.FC = () => {
                 </select>
             </div>
 
-            <main className="flex-1 p-6 space-y-8 overflow-y-auto">
+            <main className="flex-1 p-6 space-y-8 overflow-y-auto bg-black">
                 {activeTab === 'Profile & Security' && <ProfileSettings settings={settings.profile} onChange={(f, v) => handleSettingChange('profile', f, v)} />}
                 {activeTab === 'Broker Connect' && <BrokerConnectSettings />}
+                {activeTab === 'Paper Trading' && <PaperTradingAccounts />}
                 {activeTab === 'Notifications' && <NotificationSettings settings={settings.notifications} onChange={(f, v) => handleSettingChange('notifications', f, v)} />}
                 {activeTab === 'Subscription' && <Subscription />}
 
-                {activeTab !== 'Subscription' && (
+                {activeTab !== 'Subscription' && activeTab !== 'Broker Connect' && activeTab !== 'Paper Trading' && (
                     <div className="flex justify-end pt-4">
                         <button
                             onClick={handleSave}
@@ -201,12 +213,5 @@ const Settings: React.FC = () => {
         </div>
     );
 };
-
-const TabButton: React.FC<{ name: string; icon: React.ReactNode; isActive: boolean; onClick: () => void; }> = ({ name, icon, isActive, onClick }) => (
-    <button onClick={onClick} className={`flex items-center w-full text-left px-3 py-2.5 text-sm rounded-lg transition-colors ${isActive ? 'bg-blue-500/10 text-blue-400' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-        {icon}
-        <span className="ml-3">{name}</span>
-    </button>
-);
 
 export default Settings;

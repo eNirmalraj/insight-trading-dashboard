@@ -1,109 +1,184 @@
-import React, { useState } from 'react';
-import { CloseIcon, BriefcaseIcon, SubscriptionIcon } from './IconComponents';
+import { useState } from "react";
+import { CloseIcon } from './IconComponents';
+import { AccountType } from '../types';
 import { AVAILABLE_STRATEGIES } from '../constants';
-import CustomSelect from './CustomSelect';
 
 interface CreateWatchlistModalProps {
-  onClose: () => void;
-  onCreate: (name: string, type: 'Forex' | 'Crypto', strategy: string) => void;
-  simple?: boolean;
-  defaultType?: 'Forex' | 'Crypto';
+    onClose: () => void;
+    onCreate: (name: string, type: AccountType, strategy: string, tradingMode: 'paper' | 'live') => void;
 }
 
-const TypeButton: React.FC<{ label: string, icon: React.ReactNode, isSelected: boolean, onClick: () => void }> = ({ label, icon, isSelected, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors duration-200 ${
-      isSelected 
-        ? 'bg-blue-500/10 border-blue-500 text-white' 
-        : 'bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-500'
-    }`}
-  >
-    {icon}
-    <span className="mt-2 font-semibold">{label}</span>
-  </button>
-);
+export default function CreateWatchlistModal({ onClose, onCreate }: CreateWatchlistModalProps) {
+    const [step, setStep] = useState("choose"); // choose | form
 
-const CreateWatchlistModal: React.FC<CreateWatchlistModalProps> = ({ onClose, onCreate, simple = false, defaultType = 'Forex' }) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<'Forex' | 'Crypto' | null>(simple ? defaultType : null);
-  const [strategy, setStrategy] = useState('No Strategy');
+    const [form, setForm] = useState({
+        name: "",
+        mode: "Paper",
+        account: "Demo",
+        market: "Crypto",
+        strategy: "Trend",
+    });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (name.trim() && type) {
-      const strategyToSave = simple ? '' : (strategy === 'No Strategy' ? '' : strategy);
-      onCreate(name.trim(), type, strategyToSave);
-    }
-  };
+    // ---------- FUNCTIONS ----------
 
-  return (
-    <div 
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      onPointerDown={e => e.currentTarget === e.target && onClose()}
-    >
-      <div 
-        className="w-full max-w-md bg-gray-800/90 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl z-50 text-gray-300 flex flex-col"
-        onPointerDown={e => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center p-4 border-b border-gray-700">
-          <h2 className="font-semibold text-white text-lg">Create New Watchlist</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><CloseIcon className="w-5 h-5" /></button>
-        </div>
+    const handleChange = (field: string, value: string) => {
+        setForm(prev => ({ ...prev, [field]: value }));
+    };
 
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-6">
-            <div>
-              <label htmlFor="watchlist-name" className="text-sm font-medium text-gray-400 mb-2 block">Watchlist Name</label>
-              <input
-                id="watchlist-name"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g., 'My Swing Trades'"
-                className="w-full bg-gray-900/50 border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-                autoFocus
-              />
-            </div>
-            {!simple && (
-                <>
-                    <CustomSelect
-                      label="Strategy Type"
-                      options={AVAILABLE_STRATEGIES}
-                      selected={strategy}
-                      onSelect={setStrategy}
-                    />
-                    <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">Watchlist Type</label>
-                      <div className="grid grid-cols-2 gap-4">
-                        <TypeButton 
-                          label="Forex" 
-                          icon={<BriefcaseIcon className="w-6 h-6" />}
-                          isSelected={type === 'Forex'}
-                          onClick={() => setType('Forex')}
-                        />
-                        <TypeButton 
-                          label="Crypto" 
-                          icon={<SubscriptionIcon className="w-6 h-6" />}
-                          isSelected={type === 'Crypto'}
-                          onClick={() => setType('Crypto')}
-                        />
-                      </div>
+    const chooseMode = (mode: string) => {
+        handleChange("mode", mode);
+        setStep("form");
+    };
+
+    const submit = () => {
+        if (!form.name) {
+            alert("Enter script name");
+            return;
+        }
+
+        console.log("SCRIPT CREATED:", form);
+
+        // Convert form data to expected format
+        const accountType = form.market as AccountType;
+        const tradingMode = form.mode === "Paper" ? "paper" : "live";
+
+        onCreate(form.name, accountType, form.strategy, tradingMode as 'paper' | 'live');
+
+        // Reset form
+        setForm({
+            name: "",
+            mode: "Paper",
+            account: "Demo",
+            market: "Crypto",
+            strategy: "Trend",
+        });
+        setStep("choose");
+        onClose();
+    };
+
+    // ---------- UI ----------
+
+    return (
+        <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            onPointerDown={e => e.currentTarget === e.target && onClose()}
+        >
+            <div
+                className="w-full max-w-4xl bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-2xl shadow-2xl z-50"
+                onPointerDown={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex justify-between items-center px-6 py-4 border-b border-zinc-700">
+                    <h2 className="text-xl font-bold text-white">Create New Script</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition">
+                        <CloseIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* STEP 1 — Choose Mode */}
+                {step === "choose" && (
+                    <div className="p-8">
+                        <h3 className="text-lg font-semibold text-white mb-6">Select Mode</h3>
+                        <div className="grid grid-cols-2 gap-6">
+                            <button
+                                onClick={() => chooseMode("Paper")}
+                                className="p-12 bg-zinc-800 hover:bg-zinc-700 border-2 border-zinc-700 hover:border-zinc-600 rounded-2xl transition text-white text-xl font-medium"
+                            >
+                                Paper Trading
+                            </button>
+                            <button
+                                onClick={() => chooseMode("Live")}
+                                className="p-12 bg-zinc-800 hover:bg-zinc-700 border-2 border-zinc-700 hover:border-zinc-600 rounded-2xl transition text-white text-xl font-medium"
+                            >
+                                Live Trading
+                            </button>
+                        </div>
                     </div>
-                </>
-            )}
-          </div>
-          
-          <div className="flex justify-end items-center p-4 bg-gray-900/50 border-t border-gray-700 rounded-b-lg gap-3">
-            <button type="button" onClick={onClose} className="px-5 py-2 rounded-md text-sm font-semibold text-gray-300 hover:bg-gray-700/50">Cancel</button>
-            <button type="submit" disabled={!name.trim() || !type} className="px-6 py-2 rounded-md text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed">Create</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+                )}
 
-export default CreateWatchlistModal;
+                {/* STEP 2 — Form */}
+                {step === "form" && (
+                    <div className="p-8">
+                        <div className="mb-6 text-sm text-gray-400">
+                            Mode: <span className="text-white font-semibold">{form.mode}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6 mb-8">
+                            {/* Script Name */}
+                            <div>
+                                <label className="block text-white font-medium mb-2">Script Name</label>
+                                <input
+                                    className="w-full px-4 py-3 bg-zinc-800 border-2 border-yellow-500 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+                                    value={form.name}
+                                    onChange={e => handleChange("name", e.target.value)}
+                                    placeholder="Enter script name"
+                                />
+                            </div>
+
+                            {/* Account */}
+                            <div>
+                                <label className="block text-white font-medium mb-2">Account</label>
+                                <select
+                                    className="w-full px-4 py-3 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
+                                    value={form.account}
+                                    onChange={e => handleChange("account", e.target.value)}
+                                >
+                                    <option>Demo</option>
+                                    <option>Binance</option>
+                                    <option>Broker X</option>
+                                </select>
+                            </div>
+
+                            {/* Market */}
+                            <div>
+                                <label className="block text-white font-medium mb-2">Market</label>
+                                <select
+                                    className="w-full px-4 py-3 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
+                                    value={form.market}
+                                    onChange={e => handleChange("market", e.target.value)}
+                                >
+                                    <option>Crypto</option>
+                                    <option>Forex</option>
+                                    <option>Indian</option>
+                                </select>
+                            </div>
+
+                            {/* Strategy */}
+                            <div>
+                                <label className="block text-white font-medium mb-2">Strategy</label>
+                                <select
+                                    className="w-full px-4 py-3 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
+                                    value={form.strategy}
+                                    onChange={e => handleChange("strategy", e.target.value)}
+                                >
+                                    <option>Trend</option>
+                                    <option>Scalp</option>
+                                    <option>Breakout</option>
+                                    {AVAILABLE_STRATEGIES.map(strat => (
+                                        <option key={strat} value={strat}>{strat}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => setStep("choose")}
+                                className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-white font-medium transition"
+                            >
+                                Back
+                            </button>
+                            <button
+                                onClick={submit}
+                                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition"
+                            >
+                                Create
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

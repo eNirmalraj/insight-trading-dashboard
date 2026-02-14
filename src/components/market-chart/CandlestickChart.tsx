@@ -203,7 +203,7 @@ interface CandlestickChartProps {
     initialDrawings?: Drawing[];
     onDrawingsChange?: (drawings: Drawing[]) => void;
     customScripts?: Strategy[];
-    onOpenAssistant?: () => void;
+
 }
 
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
@@ -285,7 +285,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
     const [editingText, setEditingText] = useState<{ drawing: TextNoteDrawing | CalloutDrawing, x: number, y: number } | null>(null);
     const [snapIndicator, setSnapIndicator] = useState<{ x: number, y: number } | null>(null);
-    const [rightPanel, setRightPanel] = useState<'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | 'assistant' | null>(null);
+    const [rightPanel, setRightPanel] = useState<'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | null>(null);
     const [alertModalInfo, setAlertModalInfo] = useState<{
         visible: boolean;
         drawing: Drawing | null;
@@ -3906,7 +3906,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             onRedo={handleRedo}
                             canUndo={undoStack.length > 0}
                             canRedo={redoStack.length > 0}
-                            onOpenAssistant={props.onOpenAssistant}
+
                         />
                         <ActiveIndicatorsDisplay
                             indicators={allActiveIndicators}
@@ -3917,7 +3917,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             onCreateAlert={handleCreateIndicatorAlert}
                         />
                     </div>
-                    {!isMobile && <RightToolbar onTogglePanel={panel => setRightPanel(p => p === panel ? null : panel)} onOpenAssistant={props.onOpenAssistant} />}
+                    {!isMobile && <RightToolbar onTogglePanel={panel => setRightPanel(p => p === panel ? null : panel)} />}
                 </div>
 
                 {isIndicatorPanelOpen && <IndicatorPanel isOpen={isIndicatorPanelOpen} onClose={() => setIndicatorPanelOpen(false)} onAdd={handleAddIndicator} customScripts={props.customScripts} onAddCustom={handleAddCustomIndicator} strategyVisibility={strategyVisibility} onToggleStrategy={onToggleStrategyVisibility} />}

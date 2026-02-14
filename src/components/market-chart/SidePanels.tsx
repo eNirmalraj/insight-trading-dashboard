@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertStatus, Watchlist, TradeDirection, WatchlistItem } from '../../types';
+import { AlertStatus, Watchlist, TradeDirection, WatchlistItem, AccountType } from '../../types';
 import { Candle, Drawing, Indicator, OrderDetails, PlacingOrderLine } from './types';
-import { SearchIcon, CloseIcon, EyeIcon, EyeOffIcon, TrashIcon, TargetIcon, PlusIcon, MinusIcon, ChevronDownIcon, PlusCircleIcon, WatchlistIcon, AlertIcon, DataWindowIcon, OrderPanelIcon, ObjectTreeIcon, CloneIcon, SettingsIcon, SparklesIcon, SendIcon } from '../IconComponents';
+import { SearchIcon, CloseIcon, EyeIcon, EyeOffIcon, TrashIcon, TargetIcon, PlusIcon, MinusIcon, ChevronDownIcon, PlusCircleIcon, WatchlistIcon, AlertIcon, DataWindowIcon, OrderPanelIcon, ObjectTreeIcon, CloneIcon, SettingsIcon, SendIcon } from '../IconComponents';
 import * as api from '../../api';
+
 import { subscribeToTicker, unsubscribeFromTicker } from "../../services/marketRealtimeService";
 import * as priceAlertService from '../../services/alertService';
 import { useAuth } from '../../context/AuthContext';
@@ -129,7 +130,7 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
     const assetType = useMemo(() => {
         const upperSymbol = symbol.toUpperCase();
         const isCrypto = ['USDT', 'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LTC', 'BNB'].some(c => upperSymbol.includes(c));
-        return isCrypto ? 'Crypto' : 'Forex';
+        return isCrypto ? AccountType.CRYPTO : AccountType.FOREX;
     }, [symbol]);
 
     const fetchWatchlists = useCallback(async () => {
@@ -203,9 +204,15 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
     }, [activeWatchlist]); // Use entire watchlist object instead of items array to prevent unnecessary re-renders
 
 
-    const handleCreateWatchlist = async (name: string, accountType: 'Forex' | 'Crypto', strategy: string) => {
+    const handleCreateWatchlist = async (name: string, accountType: AccountType, strategy: string, tradingMode: 'paper' | 'live') => {
+        const normalizedName = name.trim().toLowerCase();
+        if (watchlists.some(wl => wl.name.trim().toLowerCase() === normalizedName)) {
+            alert(`A watchlist with the name "${name}" already exists.`);
+            return;
+        }
+
         try {
-            const newWatchlist = await api.createWatchlist(name, accountType, strategy);
+            const newWatchlist = await api.createWatchlist(name, accountType, strategy, tradingMode);
             await fetchWatchlists();
             setActiveWatchlistId(newWatchlist.id);
             setIsCreateModalOpen(false);
@@ -217,13 +224,37 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
 
     const handleAddSymbol = async (symbol: string) => {
         if (!activeWatchlist) return;
+
+        // Optimistic Update
+        const tempId = `temp-${Date.now()}`;
+        const newItem: WatchlistItem = {
+            id: tempId,
+            symbol: symbol,
+            price: tickerData[symbol]?.price || 0,
+            change: tickerData[symbol]?.change || 0,
+            changePercent: tickerData[symbol]?.changePercent || 0,
+            isPositive: (tickerData[symbol]?.changePercent || 0) >= 0,
+            autoTradeEnabled: false
+        };
+
+        setWatchlists(prev => prev.map(wl => {
+            if (wl.id !== activeWatchlist.id) return wl;
+            if (wl.items.some(i => i.symbol === symbol)) return wl;
+            return { ...wl, items: [...wl.items, newItem] };
+        }));
+
         try {
             await api.addSymbolToWatchlist(activeWatchlist.id, symbol);
             fetchWatchlists();
+            // Modal stays open
         } catch (e: any) {
+            // Revert on error
+            setWatchlists(prev => prev.map(wl => {
+                if (wl.id !== activeWatchlist.id) return wl;
+                return { ...wl, items: wl.items.filter(i => i.id !== tempId) };
+            }));
             alert(e.message);
         }
-        setIsAddSymbolModalOpen(false);
     };
 
     const handleRemoveSymbol = async (symbolId: string) => {
@@ -465,6 +496,7 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
                                                             <SymbolLogo symbol={item.symbol} />
                                                             <span className="truncate">{item.symbol}</span>
                                                         </div>
+
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -526,7 +558,26 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
                 </div>
             </div>
             {isCreateModalOpen && <CreateWatchlistModal onClose={() => setIsCreateModalOpen(false)} onCreate={handleCreateWatchlist} simple={true} defaultType={assetType} />}
-            {isAddSymbolModalOpen && activeWatchlist && <SymbolSearchModal isOpen={isAddSymbolModalOpen} onClose={() => setIsAddSymbolModalOpen(false)} onSymbolSelect={handleAddSymbol} title="Add Symbol to List" />}
+            {isAddSymbolModalOpen && activeWatchlist && (
+                <SymbolSearchModal
+                    isOpen={isAddSymbolModalOpen}
+                    onClose={() => setIsAddSymbolModalOpen(false)}
+                    onSymbolSelect={handleAddSymbol}
+                    title="Add Symbol to List"
+                    existingSymbols={activeWatchlist.items.map(i => i.symbol.replace('/', ''))}
+                    defaultTab={
+                        activeWatchlist.accountType === AccountType.CRYPTO ? 'Crypto' :
+                            activeWatchlist.accountType === AccountType.FOREX ? 'Forex' :
+                                activeWatchlist.accountType === AccountType.INDIAN ? 'All' :
+                                    'All'
+                    }
+                    allowedTabs={
+                        activeWatchlist.accountType === AccountType.CRYPTO ? ['Crypto'] :
+                            activeWatchlist.accountType === AccountType.FOREX ? ['Forex'] :
+                                undefined
+                    }
+                />
+            )}
             <ConfirmationModal
                 isOpen={confirmModalState.isOpen}
                 onClose={() => setConfirmModalState(prev => ({ ...prev, isOpen: false }))}
@@ -534,6 +585,7 @@ const WatchlistPanel: React.FC<WatchlistPanelProps> = ({ onClose, onSymbolSelect
                 title={confirmModalState.title}
                 message={confirmModalState.message}
             />
+
         </>
     );
 };
@@ -1108,144 +1160,11 @@ const OrderPanel: React.FC<{
 };
 
 
-interface Message {
-    role: 'user' | 'model';
-    text: string;
-}
 
-const AssistantPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const chatEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isLoading]);
-
-    useEffect(() => {
-        inputRef.current?.focus();
-    }, []);
-
-    const handleSendMessage = async (messageText: string) => {
-        if (!messageText.trim() || isLoading) return;
-
-        const newUserMessage: Message = { role: 'user', text: messageText };
-        setMessages(prev => [...prev, newUserMessage]);
-        setIsLoading(true);
-        setInput('');
-
-        try {
-            const responseText = await api.getAssistantResponse(messageText);
-            const newModelMessage: Message = { role: 'model', text: responseText };
-            setMessages(prev => [...prev, newModelMessage]);
-        } catch (error) {
-            const errorMessage: Message = { role: 'model', text: "Sorry, I couldn't get a response. Please check your connection or try again." };
-            setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleFormSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        handleSendMessage(input);
-    };
-
-    const SuggestedPrompt: React.FC<{ text: string }> = ({ text }) => (
-        <button
-            onClick={() => handleSendMessage(text)}
-            className="bg-gray-800 hover:bg-gray-700 text-left text-xs text-gray-300 p-2 rounded transition-colors border border-gray-700 hover:border-gray-600"
-        >
-            {text}
-        </button>
-    );
-
-    return (
-        <div className="w-full h-full flex flex-col text-white bg-gray-900">
-            <div className="flex items-center justify-between p-2.5 border-b border-gray-700/50">
-                <div className="flex items-center gap-2">
-                    <SparklesIcon className="w-4 h-4 text-blue-400" />
-                    <h3 className="font-semibold">Insight AI</h3>
-                </div>
-                <button onClick={onClose} className="text-gray-400 hover:text-white"><CloseIcon className="w-5 h-5" /></button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 scrollbar-hide">
-                {messages.length === 0 && !isLoading && (
-                    <div className="flex flex-col h-full justify-center text-center">
-                        <div className="space-y-3">
-                            <p className="text-gray-400 text-sm">How can I help you regarding trading?</p>
-                            <div className="grid grid-cols-1 gap-2 pt-2">
-                                <SuggestedPrompt text="How do I create a new watchlist?" />
-                                <SuggestedPrompt text="Explain the current indicators." />
-                                <SuggestedPrompt text="Analyze the current trend." />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="space-y-4">
-                    {messages.map((msg, index) => (
-                        <div key={index} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.role === 'model' && (
-                                <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0 mt-1">
-                                    <SparklesIcon className="w-3 h-3 text-blue-400" />
-                                </div>
-                            )}
-                            <div className={`max-w-[85%] p-2.5 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none'}`}>
-                                {msg.role === 'model' ? (
-                                    <div className="prose prose-invert prose-sm" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br />') }} />
-                                ) : (
-                                    msg.text
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    {isLoading && (
-                        <div className="flex gap-2 justify-start">
-                            <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0 mt-1">
-                                <SparklesIcon className="w-3 h-3 text-blue-400" />
-                            </div>
-                            <div className="p-3 rounded-2xl bg-gray-800 rounded-bl-none flex items-center space-x-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0s' }}></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                            </div>
-                        </div>
-                    )}
-                    <div ref={chatEndRef} />
-                </div>
-            </div>
-
-            <div className="p-3 border-t border-gray-800 bg-gray-900">
-                <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask..."
-                        disabled={isLoading}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 px-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                    />
-                    <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-lg disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
-                    >
-                        <SendIcon className="w-4 h-4" />
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
-};
 
 
 export interface SidePanelsProps {
-    panel: 'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | 'assistant' | null;
+    panel: 'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | null;
     onClose: () => void;
     hoveredCandle: Candle | null;
     symbol: string;
@@ -1277,7 +1196,7 @@ export const SidePanels: React.FC<SidePanelsProps> = (props) => {
             case 'dataWindow': return <DataWindowPanel onClose={props.onClose} hoveredCandle={props.hoveredCandle} symbol={props.symbol} />;
             case 'objectTree': return <ObjectTreePanel onClose={props.onClose} drawings={props.drawings} indicators={props.indicators} onDeleteDrawing={props.onDeleteDrawing} onToggleDrawingVisibility={props.onToggleDrawingVisibility} onDeleteIndicator={props.onDeleteIndicator} onToggleIndicatorVisibility={props.onToggleIndicatorVisibility} />;
             case 'orderPanel': return <OrderPanel onClose={props.onClose} symbol={props.symbol} currentPrice={props.currentPrice} order={props.order} setOrder={props.setOrder} placingOrderLine={props.placingOrderLine} onPlaceLine={props.onPlaceLine} onExecuteOrder={props.onExecuteOrder} assetType={props.assetType} forexAccountBalance={props.forexAccountBalance} cryptoAccountBalance={props.cryptoAccountBalance} />;
-            case 'assistant': return <AssistantPanel onClose={props.onClose} />;
+
             default: return null;
         }
     };

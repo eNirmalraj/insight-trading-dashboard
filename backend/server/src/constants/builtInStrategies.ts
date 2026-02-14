@@ -48,6 +48,7 @@ export interface BuiltInStrategy {
     indicators: StrategyIndicator[];
     entryRules: EntryRule[];
     exitRules?: ExitRule[];
+    kuriScript?: string; // Optional Kuri script for custom strategies
 }
 
 export const BUILT_IN_STRATEGIES: BuiltInStrategy[] = [
@@ -128,5 +129,24 @@ export const BUILT_IN_STRATEGIES: BuiltInStrategy[] = [
                 unit: 'PERCENTAGE'
             }
         ]
+    },
+    {
+        id: 'kuri_001',
+        name: 'Kuri Test Strategy',
+        description: 'A test strategy using the Kuri language.',
+        category: StrategyCategory.TREND_FOLLOWING,
+        indicators: [],
+        entryRules: [], // Kuri handles this
+        exitRules: [],
+        kuriScript: `
+            // Kuri Test Strategy
+            // Buy if Close > SMA(20)
+            
+            period = 20
+            my_sma = sma(close, period)
+            
+            buy_signal = close > my_sma
+            sell_signal = close < my_sma
+        `
     }
 ];
