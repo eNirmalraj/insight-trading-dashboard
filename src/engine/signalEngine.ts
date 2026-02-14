@@ -191,10 +191,22 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
                     // Must be USDT or USD quote
                     return s.symbol.includes('USDT') || s.symbol.includes('USD');
                 })
+                .map(s => {
+                    // EMERGENCY FIX: Ensure symbol has .P suffix
+                    if (!s.symbol.endsWith('.P')) {
+                        let base = s.symbol.replace('/', '').replace('USDT', '').replace('.P', '');
+                        // Reconstruct standard format: BASE/USDT.P
+                        const newSymbol = `${base}/USDT.P`;
+                        return { ...s, symbol: newSymbol };
+                    }
+                    return s;
+                })
                 .sort((a, b) => b.volume - a.volume) // Sort by volume high to low
                 .slice(0, 150); // Top 150 Futures Pairs
 
             topSymbols.forEach(s => uniqueSymbols.add(s.symbol));
+
+            console.log('[SignalEngine] Top 5 Scan Targets:', Array.from(uniqueSymbols).slice(0, 5));
 
             if (uniqueSymbols.size === 0) {
                 // Fallback to major pairs if fetch fails or returns empty

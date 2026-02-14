@@ -15,21 +15,26 @@ const candleBuffer: Map<string, Candle[]> = new Map();
 const BUFFER_SIZE = 200; // Keep last 200 candles for indicator calculations
 
 // Binance exchange instance (can switch to US)
-let exchange = new ccxt.binance({ enableRateLimit: true });
+// UPDATED: Default to Futures (Perpetual)
+let exchange = new ccxt.binance({
+    enableRateLimit: true,
+    options: { defaultType: 'future' }
+});
 
 /**
  * Fetch all USDT trading pairs from Binance
  */
 export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
     try {
-        console.log('[CryptoEngine] Connecting to Binance Global...');
+        console.log('[CryptoEngine] Connecting to Binance Global Futures...');
         await exchange.loadMarkets();
     } catch (error: any) {
         // Handle Geo-Restriction (HTTP 451 or specific message)
         if (error.message.includes('451') || error.message.includes('Service unavailable')) {
             console.warn('[CryptoEngine] ⚠️ Geo-restriction detected (US IP). Switching to Binance US...');
 
-            // Switch to Binance US
+            // Switch to Binance US (Note: Binance US Futures might require different handling)
+            // For now, assume Global Futures access via Proxy or VPN if user is accessing
             exchange = new ccxt.binanceus({ enableRateLimit: true });
 
             // Switch WebSocket Stream
@@ -52,13 +57,20 @@ export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
         const symbols = Object.keys(exchange.markets)
             .filter(symbol => {
                 const market = exchange.markets[symbol];
+                // Check for linear swap (USDT settled futures) and Active
+                // CCXT 'linear' means USDT-margined usually
                 return market.active &&
-                    market.spot &&
-                    (symbol.endsWith('/USDT') || symbol.endsWith('/USD'));
+                    (market.linear || market.swap) &&
+                    market.quote === 'USDT';
             })
-            .map(symbol => symbol.replace('/', '')); // BTCUSDT format
+            .map(symbol => {
+                // CCXT Symbol: BTC/USDT:USDT or BTC/USDT
+                const market = exchange.markets[symbol];
+                // Format for Frontend: BTC/USDT.P
+                return `${market.base}/USDT.P`;
+            });
 
-        console.log(`[CryptoEngine] Found ${symbols.length} USDT/USD pairs`);
+        console.log(`[CryptoEngine] Found ${symbols.length} USDT Futures pairs`);
         return symbols;
     } catch (error) {
         console.error('[CryptoEngine] Error processing markets:', error);
@@ -75,12 +87,16 @@ export const fetchHistoricalCandles = async (
     limit: number = 200
 ): Promise<Candle[]> => {
     try {
-        // Convert symbol format: BTCUSDT -> BTC/USDT
+        // Convert symbol format: BTC/USDT.P -> CCXT format
+        // With defaultType='future', 'BTC/USDT' usually works for the perp
         let formattedSymbol = symbol;
-        if (symbol.endsWith('USDT')) {
+
+        if (symbol.endsWith('.P')) {
+            const base = symbol.replace('.P', '').split('/')[0]; // BTC
+            formattedSymbol = `${base}/USDT`;
+        } else if (symbol.endsWith('USDT')) {
+            // Fallback for old symbols
             formattedSymbol = symbol.slice(0, -4) + '/USDT';
-        } else if (symbol.endsWith('USD')) {
-            formattedSymbol = symbol.slice(0, -3) + '/USD';
         }
 
         const ohlcv = await exchange.fetchOHLCV(formattedSymbol, timeframe.toLowerCase(), undefined, limit);

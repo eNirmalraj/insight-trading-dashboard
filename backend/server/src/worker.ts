@@ -27,7 +27,9 @@ async function startWorker() {
     }
 
     // Start Engine
+    // UPDATED: Re-enabled with Futures Support
     await startCryptoEngine();
+    // console.log('[Worker] ⏸️ Engine startup PAUSED (Migration in progress)');
 
     // Heartbeat Loop
     setInterval(() => {

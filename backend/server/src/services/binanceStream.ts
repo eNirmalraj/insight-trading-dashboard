@@ -38,18 +38,21 @@ export class BinanceStreamManager {
     private lastMessageTime: number = 0;
     private watchdogInterval: NodeJS.Timeout | null = null;
 
-    private baseUrl = 'wss://stream.binance.com:9443/stream?streams=';
+    private baseUrl = 'wss://fstream.binance.com/stream?streams=';
 
     /**
      * Set the region for Binance Stream (US or Global)
      */
     public setRegion(isUS: boolean): void {
         if (isUS) {
+            // Binance US Futures endpoint (if applicable, otherwise fallback or error)
+            // For now, keeping legacy US spot url but logging warning
+            console.warn('[BinanceStream] Warning: Binance US Futures stream not fully configured, using global fstream as fallback/test');
             this.baseUrl = 'wss://stream.binance.us:9443/stream?streams=';
-            console.log('[BinanceStream] Switched to Binance US WebSocket');
         } else {
-            this.baseUrl = 'wss://stream.binance.com:9443/stream?streams=';
-            console.log('[BinanceStream] Switched to Binance Global WebSocket');
+            // Global Futures
+            this.baseUrl = 'wss://fstream.binance.com/stream?streams=';
+            console.log('[BinanceStream] Switched to Binance Global Futures WebSocket');
         }
     }
 
@@ -90,8 +93,11 @@ export class BinanceStreamManager {
         // Build stream names
         const streams: string[] = [];
         this.subscriptions.forEach((timeframes, symbol) => {
+            // Sanitize symbol for stream name: BTC/USDT.P -> btcusdt
+            const cleanSymbol = symbol.replace('.P', '').replace('/', '').toLowerCase();
+
             timeframes.forEach(tf => {
-                const stream = `${symbol.toLowerCase()}@kline_${tf.toLowerCase()}`;
+                const stream = `${cleanSymbol}@kline_${tf.toLowerCase()}`;
                 streams.push(stream);
             });
         });

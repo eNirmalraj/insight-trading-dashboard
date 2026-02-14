@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ''),
-      'process.env.VITE_USE_MOCK_API': JSON.stringify(env.VITE_USE_MOCK_API || 'true'),
+      'process.env.VITE_USE_MOCK_API': JSON.stringify(env.VITE_USE_MOCK_API || 'false'),
     },
     resolve: {
       alias: {

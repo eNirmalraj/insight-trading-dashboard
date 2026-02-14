@@ -48,8 +48,13 @@ class MarketRealtimeService {
         // Debounce connection to prevent "Ping after close" race conditions on rapid switching
         this.connectTimer = setTimeout(() => {
             const cleanSymbol = normalizeSymbol(symbol).toLowerCase();
+
+            // FIX: Strip .p suffix for stream name (Binance expects 'btcusdt', not 'btcusdt.p')
+            // The .p is only for internal app routing to know it's Futures.
+            const streamSymbol = cleanSymbol.replace('.p', '');
+
             const cleanTf = normalizeTimeframe(timeframe);
-            const subscription = `${cleanSymbol}@kline_${cleanTf}`;
+            const subscription = `${streamSymbol}@kline_${cleanTf}`;
 
             // If already connected to this EXACT subscription, just update the callback
             if (this.chartSocket && this.chartSocket.readyState === WebSocket.OPEN && this.activeSubscription === subscription) {
@@ -257,10 +262,14 @@ class MarketRealtimeService {
 
     private _processTickerData(data: any, type: 'SPOT' | 'FUTURES') {
         let symbol = data.s.toLowerCase();
-        if (type === 'FUTURES') symbol += '.p'; // Check if futures symbols need .p? 
-        // Note: Binance Futures stream sends symbol as "BTCUSDT". 
-        // Our app expects "btcusdt.p" for futures to distinguish.
-        // Yes, we append .p manually for internal mapping.
+        if (type === 'FUTURES') {
+            symbol += '.p'; // Check if futures symbols need .p? 
+            // Debug Log (Once)
+            if (!window.hasLoggedFuturesData) {
+                console.log(`[Realtime] 🟢 First FUTURES packet received: ${symbol} Price: ${data.c}`);
+                window.hasLoggedFuturesData = true;
+            }
+        }
 
         // Update Global Cache
         this.lastPrices.set(symbol, parseFloat(data.c));
