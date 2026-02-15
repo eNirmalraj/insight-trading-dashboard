@@ -74,7 +74,10 @@ export class Lexer {
             case '<': return this.consume(TokenType.LT);
             case '(': return this.consume(TokenType.LPAREN);
             case ')': return this.consume(TokenType.RPAREN);
+            case '[': return this.consume(TokenType.LBRACKET);
+            case ']': return this.consume(TokenType.RBRACKET);
             case ',': return this.consume(TokenType.COMMA);
+            case '"': return this.readString();
         }
 
         // Unknown character
@@ -107,7 +110,7 @@ export class Lexer {
         const start = this.position;
         const startCol = this.column;
 
-        while (this.position < this.input.length && /[a-zA-Z0-9_]/.test(this.input[this.position])) {
+        while (this.position < this.input.length && /[a-zA-Z0-9_\.]/.test(this.input[this.position])) {
             this.position++;
             this.column++;
         }
@@ -155,5 +158,33 @@ export class Lexer {
             this.line++;
             this.column = 1;
         }
+    }
+
+    private readString(): Token {
+        const start = this.position;
+        const startCol = this.column;
+
+        // Skip opening quote
+        this.position++;
+        this.column++;
+
+        const strStart = this.position;
+
+        while (this.position < this.input.length && this.input[this.position] !== '"') {
+            this.position++;
+            this.column++;
+        }
+
+        if (this.position >= this.input.length) {
+            throw new Error(`Unterminated string literal at line ${this.line}, column ${startCol}`);
+        }
+
+        const value = this.input.substring(strStart, this.position);
+
+        // Consume closing quote
+        this.position++;
+        this.column++;
+
+        return { type: TokenType.STRING, value, line: this.line, column: startCol };
     }
 }

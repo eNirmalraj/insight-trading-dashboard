@@ -1,6 +1,3 @@
-// backend/server/src/services/binanceStream.ts
-// Binance WebSocket Connection for Real-Time Candle Data
-
 import WebSocket from 'ws';
 import { Candle } from '../engine/indicators';
 import { eventBus } from '../utils/eventBus';
@@ -25,32 +22,38 @@ export interface KlineMessage {
 
 type CandleCloseCallback = (symbol: string, timeframe: string, candle: Candle) => void;
 
+interface StreamShard {
+    id: number;
+    ws: WebSocket | null;
+    streams: string[];
+    isConnected: boolean;
+    reconnectTimer: NodeJS.Timeout | null;
+    reconnectAttempts: number;
+}
+
 export class BinanceStreamManager {
-    private ws: WebSocket | null = null;
-    private reconnectAttempts = 0;
-    private maxReconnectAttempts = 10;
-    private reconnectDelay = 5000;
-    private isConnected = false;
+    // Configuration
+    private baseUrl = 'wss://fstream.binance.com/stream?streams=';
+    private readonly STREAMS_PER_CONNECTION = 200;
+    private readonly MAX_RECONNECT_DELAY = 60000; // 60 seconds max backoff
+
+    // State
+    private shards: StreamShard[] = [];
     private subscriptions: Map<string, Set<string>> = new Map(); // symbol -> Set<timeframe>
     private onCandleCloseCallback: CandleCloseCallback | null = null;
-    private candleBuffer: Map<string, Candle[]> = new Map(); // symbol_timeframe -> candles
 
-    private lastMessageTime: number = 0;
+    // Watchdog
+    private lastMessageTime: number = Date.now();
     private watchdogInterval: NodeJS.Timeout | null = null;
-
-    private baseUrl = 'wss://fstream.binance.com/stream?streams=';
 
     /**
      * Set the region for Binance Stream (US or Global)
      */
     public setRegion(isUS: boolean): void {
         if (isUS) {
-            // Binance US Futures endpoint (if applicable, otherwise fallback or error)
-            // For now, keeping legacy US spot url but logging warning
-            console.warn('[BinanceStream] Warning: Binance US Futures stream not fully configured, using global fstream as fallback/test');
+            console.warn('[BinanceStream] Warning: Binance US Futures stream not fully configured, using global fstream as fallback');
             this.baseUrl = 'wss://stream.binance.us:9443/stream?streams=';
         } else {
-            // Global Futures
             this.baseUrl = 'wss://fstream.binance.com/stream?streams=';
             console.log('[BinanceStream] Switched to Binance Global Futures WebSocket');
         }
@@ -67,7 +70,7 @@ export class BinanceStreamManager {
      * Subscribe to symbols and timeframes
      */
     public async subscribe(symbols: string[], timeframes: string[]): Promise<void> {
-        // Store subscriptions
+        // 1. Store subscriptions
         for (const symbol of symbols) {
             if (!this.subscriptions.has(symbol)) {
                 this.subscriptions.set(symbol, new Set());
@@ -77,81 +80,124 @@ export class BinanceStreamManager {
             }
         }
 
-        // Build stream list
-        await this.connect();
-    }
-
-    /**
-     * Connect to Binance WebSocket
-     */
-    private async connect(): Promise<void> {
-        if (this.isConnected) {
-            console.log('[BinanceStream] Already connected');
-            return;
-        }
-
-        // Build stream names
-        const streams: string[] = [];
-        this.subscriptions.forEach((timeframes, symbol) => {
-            // Sanitize symbol for stream name: BTC/USDT.P -> btcusdt
+        // 2. Build complete list of streams
+        const allStreams: string[] = [];
+        this.subscriptions.forEach((tfs, symbol) => {
+            // Sanitize symbol: BTC/USDT.P -> btcusdt
             const cleanSymbol = symbol.replace('.P', '').replace('/', '').toLowerCase();
-
-            timeframes.forEach(tf => {
+            tfs.forEach(tf => {
                 const stream = `${cleanSymbol}@kline_${tf.toLowerCase()}`;
-                streams.push(stream);
+                allStreams.push(stream);
             });
         });
 
-        if (streams.length === 0) {
+        if (allStreams.length === 0) {
             console.log('[BinanceStream] No subscriptions to connect');
             return;
         }
 
-        // Binance has a limit of 1024 streams per connection
-        // For now, we'll use first batch. For production, split into multiple connections.
-        const limitedStreams = streams.slice(0, 200);
-        const url = this.baseUrl + limitedStreams.join('/');
+        console.log(`[BinanceStream] Preparing to connect ${allStreams.length} streams...`);
 
-        console.log(`[BinanceStream] Connecting to ${limitedStreams.length} streams...`);
+        // 3. Create Shards
+        this.disconnect(); // Close existing first
+
+        const chunkedStreams = this.chunkArray(allStreams, this.STREAMS_PER_CONNECTION);
+
+        this.shards = chunkedStreams.map((streams, index) => ({
+            id: index + 1,
+            ws: null,
+            streams: streams,
+            isConnected: false,
+            reconnectTimer: null,
+            reconnectAttempts: 0
+        }));
+
+        console.log(`[BinanceStream] Created ${this.shards.length} connection shards`);
+
+        // 4. Connect all shards
+        this.shards.forEach(shard => this.connectShard(shard));
+
+        // 5. Start Watchdog
+        this.startWatchdog();
+    }
+
+    private chunkArray<T>(array: T[], size: number): T[][] {
+        const result: T[][] = [];
+        for (let i = 0; i < array.length; i += size) {
+            result.push(array.slice(i, i + size));
+        }
+        return result;
+    }
+
+    /**
+     * Connect a specific shard
+     */
+    private connectShard(shard: StreamShard): void {
+        if (shard.ws) {
+            try { shard.ws.terminate(); } catch (e) { }
+        }
+
+        const url = this.baseUrl + shard.streams.join('/');
+        console.log(`[BinanceStream] [Shard ${shard.id}] Connecting to ${shard.streams.length} streams...`);
 
         try {
-            this.ws = new WebSocket(url);
+            shard.ws = new WebSocket(url);
 
-            this.ws.on('open', () => {
-                console.log('[BinanceStream] ✅ Connected to Binance WebSocket');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-
-                // Start Watchdog
+            shard.ws.on('open', () => {
+                console.log(`[BinanceStream] [Shard ${shard.id}] ✅ Connected`);
+                shard.isConnected = true;
+                shard.reconnectAttempts = 0; // Reset backoff on success
                 this.lastMessageTime = Date.now();
-                this.startWatchdog();
             });
 
-            this.ws.on('message', (data: WebSocket.Data) => {
+            shard.ws.on('message', (data: WebSocket.Data) => {
                 this.handleMessage(data);
             });
 
-            this.ws.on('close', () => {
-                console.log('[BinanceStream] Connection closed');
-                this.isConnected = false;
-                this.stopWatchdog();
-                this.scheduleReconnect();
+            shard.ws.on('close', () => {
+                console.log(`[BinanceStream] [Shard ${shard.id}] Connection closed`);
+                shard.isConnected = false;
+                this.scheduleReconnect(shard);
             });
 
-            this.ws.on('error', (error) => {
-                console.error('[BinanceStream] WebSocket error:', error.message);
+            shard.ws.on('error', (error) => {
+                console.error(`[BinanceStream] [Shard ${shard.id}] Error:`, error.message);
+                console.error(`[BinanceStream] DEBUG: Connection Error Details:`, error);
+                // 'close' event usually follows error, so we rely on that for reconnect
             });
+
         } catch (error) {
-            console.error('[BinanceStream] Connection error:', error);
-            this.scheduleReconnect();
+            console.error(`[BinanceStream] [Shard ${shard.id}] Valid connection error:`, error);
+            this.scheduleReconnect(shard);
         }
     }
 
     /**
-     * Handle incoming WebSocket message
+     * Schedule reconnection for a shard with exponential backoff
+     */
+    private scheduleReconnect(shard: StreamShard): void {
+        if (shard.reconnectTimer) return; // Already scheduled
+
+        // Exponential backoff: 5s, 10s, 20s... max 60s
+        const baseDelay = 5000;
+        let delay = baseDelay * Math.pow(2, shard.reconnectAttempts);
+        if (delay > this.MAX_RECONNECT_DELAY) delay = this.MAX_RECONNECT_DELAY;
+
+        shard.reconnectAttempts++;
+
+        console.log(`[BinanceStream] [Shard ${shard.id}] Reconnecting in ${delay / 1000}s (Attempt ${shard.reconnectAttempts})...`);
+
+        shard.reconnectTimer = setTimeout(() => {
+            shard.reconnectTimer = null;
+            this.connectShard(shard);
+        }, delay);
+    }
+
+    /**
+     * Handle incoming WebSocket message (from any shard)
      */
     private handleMessage(data: WebSocket.Data): void {
-        this.lastMessageTime = Date.now(); // Update heartbeat
+        this.lastMessageTime = Date.now();
 
         try {
             const parsed = JSON.parse(data.toString());
@@ -159,7 +205,14 @@ export class BinanceStreamManager {
             // Combined stream format: { stream: "btcusdt@kline_1h", data: {...} }
             if (parsed.data && parsed.data.e === 'kline') {
                 const kline = parsed.data as KlineMessage;
-                const symbol = kline.s.toUpperCase();
+                let symbol = kline.s.toUpperCase();
+
+                // Normalize Futures symbols to match system format: BTC/USDT.P
+                if (this.baseUrl.includes('fstream') && symbol.endsWith('USDT')) {
+                    const base = symbol.substring(0, symbol.length - 4);
+                    symbol = `${base}/USDT.P`;
+                }
+
                 const timeframe = kline.k.i;
                 const currentPrice = parseFloat(kline.k.c);
 
@@ -178,6 +231,8 @@ export class BinanceStreamManager {
                     };
 
                     console.log(`[BinanceStream] 🕯️ Candle closed: ${symbol} ${timeframe} @ ${candle.close}`);
+                    // TRACE LOG
+                    console.log(`[TRACE] Candle closed:`, symbol, timeframe, candle.time);
 
                     // Emit event via eventBus
                     eventBus.emitCandleClosed(symbol, timeframe, candle);
@@ -193,28 +248,31 @@ export class BinanceStreamManager {
     }
 
     /**
-     * Start the Watchdog Timer to detect zombie connections
+     * Watchdog: Monitor global data flow
      */
     private startWatchdog(): void {
         this.stopWatchdog();
 
-        // Check every 30 seconds
         this.watchdogInterval = setInterval(() => {
             const silenceDuration = Date.now() - this.lastMessageTime;
 
-            // If no message for > 2 minutes (120000ms), assume dead connection
-            if (silenceDuration > 120000) {
-                console.error(`[BinanceStream] ⚠️ Watchdog Timeout: No data for ${Math.floor(silenceDuration / 1000)}s. Terminating connection...`);
-                if (this.ws) {
-                    this.ws.terminate(); // Emit 'close' event
-                }
+            // If no message from ANY shard for > 2 mins (120s), something is wrong globally
+            // Or we check individual shards?
+            // For simplicity, if global silence > 120s, reconnect ALL shards
+            if (silenceDuration > 120000 && this.shards.length > 0) {
+                console.error(`[BinanceStream] ⚠️ Global Watchdog Timeout: No data for ${Math.floor(silenceDuration / 1000)}s. Resetting all connections...`);
+
+                // Force reconnect all
+                this.shards.forEach(shard => {
+                    if (shard.ws) shard.ws.terminate();
+                });
+
+                // Reset timer to avoid double-triggering before they reconnect
+                this.lastMessageTime = Date.now();
             }
-        }, 30000);
+        }, 30000); // Check every 30s
     }
 
-    /**
-     * Stop the Watchdog Timer
-     */
     private stopWatchdog(): void {
         if (this.watchdogInterval) {
             clearInterval(this.watchdogInterval);
@@ -223,46 +281,36 @@ export class BinanceStreamManager {
     }
 
     /**
-     * Schedule reconnection attempt
-     */
-    private scheduleReconnect(): void {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('[BinanceStream] Max reconnection attempts reached');
-            return;
-        }
-
-        this.reconnectAttempts++;
-        const delay = this.reconnectDelay * this.reconnectAttempts;
-
-        console.log(`[BinanceStream] Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts})`);
-
-        setTimeout(() => {
-            this.connect();
-        }, delay);
-    }
-
-    /**
-     * Disconnect from WebSocket
+     * Disconnect all shards
      */
     public disconnect(): void {
         this.stopWatchdog();
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-        this.isConnected = false;
+        this.shards.forEach(shard => {
+            if (shard.reconnectTimer) clearTimeout(shard.reconnectTimer);
+            if (shard.ws) {
+                shard.ws.removeAllListeners(); // Prevent reconnect triggers
+                shard.ws.terminate();
+            }
+        });
+        this.shards = [];
     }
 
     /**
      * Get connection status
      */
-    public getStatus(): { connected: boolean; subscriptionCount: number } {
+    public getStatus(): { connected: boolean; subscriptionCount: number; shards: number } {
         let count = 0;
+        let connectedShards = 0;
+
         this.subscriptions.forEach(tfs => count += tfs.size);
+        this.shards.forEach(s => {
+            if (s.isConnected) connectedShards++;
+        });
 
         return {
-            connected: this.isConnected,
-            subscriptionCount: count
+            connected: connectedShards > 0 && connectedShards === this.shards.length,
+            subscriptionCount: count,
+            shards: this.shards.length
         };
     }
 }

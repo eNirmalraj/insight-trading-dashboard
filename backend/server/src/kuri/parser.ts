@@ -1,4 +1,4 @@
-import { Token, TokenType, ASTNode, Program, Assignment, BinaryExpression, CallExpression, Identifier, Literal, IfStatement } from './types';
+import { Token, TokenType, ASTNode, Program, Assignment, BinaryExpression, CallExpression, Identifier, Literal, IfStatement, IndexExpression } from './types';
 
 export class Parser {
     private tokens: Token[];
@@ -108,10 +108,17 @@ export class Parser {
                 if (this.peek().type === TokenType.LPAREN) {
                     return this.parseCallExpression(token);
                 }
+                // Check if it's an array index access: close[1]
+                if (this.peek().type === TokenType.LBRACKET) {
+                    return this.parseIndexExpression(token);
+                }
                 return { type: "Identifier", name: token.value } as Identifier;
 
             case TokenType.NUMBER:
                 return { type: "Literal", value: parseFloat(token.value) } as Literal;
+
+            case TokenType.STRING:
+                return { type: "Literal", value: token.value } as Literal;
 
             case TokenType.LPAREN:
                 const expression = this.parseExpression();
@@ -176,5 +183,17 @@ export class Parser {
         }
         this.position++;
         return token;
+    }
+
+    private parseIndexExpression(identifier: Token): IndexExpression {
+        this.consume(TokenType.LBRACKET);
+        const index = this.parseExpression();
+        this.consume(TokenType.RBRACKET);
+
+        return {
+            type: "IndexExpression",
+            object: { type: "Identifier", name: identifier.value } as Identifier,
+            index: index
+        };
     }
 }

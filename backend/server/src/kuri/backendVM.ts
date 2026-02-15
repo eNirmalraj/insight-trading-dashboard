@@ -5,7 +5,8 @@ import {
     IRBinaryOp,
     IRCall,
     IRVar,
-    IRConst
+    IRConst,
+    IRIndex
 } from './ir';
 import { RUNTIME_LIMITS, RuntimeLimitError } from './runtimeLimits';
 
@@ -43,6 +44,8 @@ export interface BackendVMOutput {
     context: Context;
     signals: StrategySignal[];
     variables: { [key: string]: any };
+    stopLoss?: number;
+    takeProfit?: number;
 }
 
 /**
@@ -58,6 +61,11 @@ export class BackendVM {
     private context: Context;
     private signals: StrategySignal[] = [];
     private currentIndex: number = 0;
+    private stopLoss: number | undefined;
+    private takeProfit: number | undefined;
+
+    // State for Rising Edge Detection
+    private strategyState: Map<string, boolean> = new Map();
 
     // Runtime safety counters
     private operationCount = 0;
@@ -86,6 +94,7 @@ export class BackendVM {
 
         // Reset signals
         this.signals = [];
+        this.strategyState.clear();
 
         // Execute for each candle (bar-by-bar execution)
         for (let i = 0; i < seriesLength; i++) {
@@ -110,10 +119,13 @@ export class BackendVM {
             }
         }
 
+        // Finalize output
         return {
             context: this.context,
             signals: this.signals,
-            variables: { ...this.context }
+            variables: { ...this.context },
+            stopLoss: this.stopLoss,
+            takeProfit: this.takeProfit
         };
     }
 
@@ -147,6 +159,9 @@ export class BackendVM {
 
             case 'IR_CONST':
                 return (node as IRConst).value;
+
+            case 'IR_INDEX':
+                return this.executeIndex(node);
 
             default:
                 throw new Error(`Unknown IR node type: ${(node as any).type}`);
@@ -244,6 +259,12 @@ export class BackendVM {
         if (funcName === 'strategy.close') {
             return this.strategyClose(node.args);
         }
+        if (funcName === 'strategy.exit_sl') {
+            return this.strategyExitSL(node.args);
+        }
+        if (funcName === 'strategy.exit_tp') {
+            return this.strategyExitTP(node.args);
+        }
 
         // Otherwise, execute built-in indicator functions
         const args = node.args.map(arg => this.executeNode(arg as IR));
@@ -252,10 +273,25 @@ export class BackendVM {
             case 'sma': return this.sma(args[0], args[1]);
             case 'ema': return this.ema(args[0], args[1]);
             case 'rsi': return this.rsi(args[0], args[1]);
+            case 'rsi': return this.rsi(args[0], args[1]);
             case 'crossover': return this.crossover(args[0], args[1]);
             case 'crossunder': return this.crossunder(args[0], args[1]);
+            // V2 Indicators
+            case 'macd': return this.macd(args[0], args[1], args[2], args[3]);
+            case 'bollinger': return this.bollinger(args[0], args[1], args[2]);
+            case 'atr': return this.atr(args[0]);
+            case 'supertrend': return this.supertrend(args[0], args[1]);
+            // Visuals
+            case 'plot': return this.plot(args[0], args[1], args[2]);
             default: throw new Error(`Unknown function: ${funcName}`);
         }
+    }
+
+    private plot(series: any, title?: string, color?: string): void {
+        // For BackendVM, we currently don't use the plots for signaling.
+        // But we should support the function call to prevent crashes.
+        // We could store them if we want to return them for debugging/backtesting.
+        return;
     }
 
     /**
@@ -266,6 +302,33 @@ export class BackendVM {
             throw new Error(`Undefined variable: ${node.name}`);
         }
         return this.context[node.name];
+    }
+
+    /**
+     * Execute Index Expression (History Access)
+     */
+    private executeIndex(node: any): any {
+        // node is IRIndex
+        const obj = this.executeNode(node.object);
+        const indexVal = this.executeNode(node.index);
+
+        if (!Array.isArray(obj)) {
+            throw new Error('Index access only supported on arrays/series');
+        }
+
+        if (typeof indexVal !== 'number') {
+            throw new Error('Index must be a number');
+        }
+
+        // Kuri V2 History Access: obj[1] means "previous value"
+        // So we access obj[currentIndex - indexVal]
+        const targetIndex = this.currentIndex - indexVal;
+
+        if (targetIndex < 0 || targetIndex >= obj.length) {
+            return null; // Return null for out of bounds (e.g. before start of data)
+        }
+
+        return obj[targetIndex];
     }
 
     /**
@@ -281,8 +344,14 @@ export class BackendVM {
         const direction = String(this.executeNode(args[1] as IR)).toUpperCase() as 'LONG' | 'SHORT';
         const condition = this.executeNode(args[2] as IR);
 
-        // Only trigger if condition is true
-        if (condition === true) {
+        // Rising Edge Detection
+        const currentCondition = Array.isArray(condition)
+            ? !!condition[this.currentIndex]
+            : !!condition;
+
+        const prevState = this.strategyState.get(id) || false;
+
+        if (currentCondition && !prevState) {
             const signal: StrategySignal = {
                 type: 'ENTRY',
                 direction,
@@ -301,6 +370,9 @@ export class BackendVM {
 
             this.signals.push(signal);
         }
+
+        // Update state
+        this.strategyState.set(id, currentCondition);
     }
 
     /**
@@ -315,8 +387,12 @@ export class BackendVM {
         const id = String(this.executeNode(args[0] as IR));
         const condition = this.executeNode(args[1] as IR);
 
-        // Only trigger if condition is true
-        if (condition === true) {
+        // Only trigger if condition is true (vectorized)
+        const currentCondition = Array.isArray(condition)
+            ? !!condition[this.currentIndex]
+            : !!condition;
+
+        if (currentCondition) {
             this.signals.push({
                 type: 'EXIT',
                 id,
@@ -324,6 +400,22 @@ export class BackendVM {
                 timestamp: this.currentIndex
             });
         }
+    }
+
+    /**
+     * strategy.exit_sl() - Set default stop loss
+     */
+    private strategyExitSL(args: IR[]): void {
+        if (args.length < 1) return;
+        this.stopLoss = Number(this.executeNode(args[0] as IR));
+    }
+
+    /**
+     * strategy.exit_tp() - Set default take profit
+     */
+    private strategyExitTP(args: IR[]): void {
+        if (args.length < 1) return;
+        this.takeProfit = Number(this.executeNode(args[0] as IR));
     }
 
     // --- Built-in Functions (same as Frontend VM) ---
@@ -434,5 +526,107 @@ export class BackendVM {
             }
         }
         return result;
+    }
+
+    // --- V2 Standard Library ---
+
+    private macd(source: number[], fastLen: number, slowLen: number, signalLen: number): (number | null)[] {
+        const fastMA = this.ema(source, fastLen);
+        const slowMA = this.ema(source, slowLen);
+        const macdLine: (number | null)[] = [];
+
+        for (let i = 0; i < source.length; i++) {
+            if (fastMA[i] === null || slowMA[i] === null) macdLine.push(null);
+            else macdLine.push(fastMA[i]! - slowMA[i]!);
+        }
+
+        return macdLine;
+    }
+
+    private bollinger(source: number[], period: number, stdDevMult: number): (number | null)[] {
+        const sma = this.sma(source, period);
+        const upper: (number | null)[] = [];
+
+        for (let i = 0; i < source.length; i++) {
+            if (sma[i] === null) {
+                upper.push(null);
+                continue;
+            }
+
+            let sumSqDiff = 0;
+            let count = 0;
+            for (let j = 0; j < period; j++) {
+                if (i - j >= 0) {
+                    const diff = source[i - j] - sma[i]!;
+                    sumSqDiff += diff * diff;
+                    count++;
+                }
+            }
+            const stdev = Math.sqrt(sumSqDiff / count);
+            upper.push(sma[i]! + stdev * stdDevMult);
+        }
+        return upper;
+    }
+
+    private atr(period: number): (number | null)[] {
+        const high = this.context.high || [];
+        const low = this.context.low || [];
+        const close = this.context.close || [];
+
+        if (high.length < period) return [];
+
+        const tr: number[] = [0];
+        for (let i = 1; i < high.length; i++) {
+            const val1 = high[i] - low[i];
+            const val2 = Math.abs(high[i] - close[i - 1]);
+            const val3 = Math.abs(low[i] - close[i - 1]);
+            tr.push(Math.max(val1, val2, val3));
+        }
+
+        return this.sma(tr, period);
+    }
+
+    private supertrend(period: number, multiplier: number): (number | null)[] {
+        const atr = this.atr(period);
+        const high = this.context.high!;
+        const low = this.context.low!;
+        const close = this.context.close!;
+
+        const supertrend: (number | null)[] = [];
+        let trend = 1;
+        let upperBandBasic = 0;
+        let lowerBandBasic = 0;
+        let upperBand = 0;
+        let lowerBand = 0;
+
+        for (let i = 0; i < close.length; i++) {
+            if (atr[i] === null) {
+                supertrend.push(null);
+                continue;
+            }
+
+            const hl2 = (high[i] + low[i]) / 2;
+            upperBandBasic = hl2 + multiplier * atr[i]!;
+            lowerBandBasic = hl2 - multiplier * atr[i]!;
+
+            if (i > 0) {
+                upperBand = (upperBandBasic < upperBand || close[i - 1] > upperBand) ? upperBandBasic : upperBand;
+                lowerBand = (lowerBandBasic > lowerBand || close[i - 1] < lowerBand) ? lowerBandBasic : lowerBand;
+
+                let prevTrend = trend;
+                if (prevTrend === 1) {
+                    if (close[i] < lowerBand) trend = -1;
+                } else {
+                    if (close[i] > upperBand) trend = 1;
+                }
+            } else {
+                upperBand = upperBandBasic;
+                lowerBand = lowerBandBasic;
+            }
+
+            supertrend.push(trend === 1 ? lowerBand : upperBand);
+        }
+
+        return supertrend;
     }
 }

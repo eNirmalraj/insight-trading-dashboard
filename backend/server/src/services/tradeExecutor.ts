@@ -1,69 +1,95 @@
-import ccxt from 'ccxt';
+import { supabaseAdmin } from './supabaseAdmin';
 
-interface TradeParams {
-    exchangeId: string; // e.g., 'binance'
-    apiKey: string;
-    apiSecret: string;
-    symbol: string; // e.g., 'BTC/USDT'
-    side: 'buy' | 'sell';
-    amount: number; // Quantity in base currency
-    type?: 'market' | 'limit';
-    price?: number;
+interface SignalData {
+    id: string;
+    symbol: string;
+    direction: 'BUY' | 'SELL';
+    entry_price: number;
+    stop_loss?: number;
+    take_profit?: number;
+    profit_loss?: number; // from signals table
+    close_reason?: string;
 }
 
 export class TradeExecutor {
 
     /**
-     * Executes a trade on the specified exchange using CCXT.
+     * Opens a new paper trade position
      */
-    static async executeTrade(params: TradeParams) {
-        console.log(`[EXECUTOR] Preparing ${params.side.toUpperCase()} ${params.amount} ${params.symbol} on ${params.exchangeId}...`);
+    /**
+     * Opens a new paper trade position
+     */
+    static async openPosition(userId: string, signal: SignalData) {
+        console.log(`[TradeExecutor] Opening Position: ${signal.symbol} ${signal.direction}`);
 
         try {
-            // 1. Initialize Exchange
-            const exchangeClass = (ccxt as any)[params.exchangeId];
-            if (!exchangeClass) {
-                throw new Error(`Exchange '${params.exchangeId}' not supported by CCXT.`);
-            }
-
-            const exchange = new exchangeClass({
-                apiKey: params.apiKey,
-                secret: params.apiSecret,
-                enableRateLimit: true,
+            // Call Atomic RPC
+            const { data, error } = await supabaseAdmin.rpc('open_paper_trade', {
+                p_user_id: userId,
+                p_signal_id: signal.id,
+                p_strategy_id: (signal as any).strategy_id, // Ensure signal has strategy_id or handle it
+                p_symbol: signal.symbol,
+                p_direction: signal.direction,
+                p_entry_price: signal.entry_price,
+                p_initial_balance: 10000
             });
 
-            // 2. Load Markets (Required for precision/validation)
-            // await exchange.loadMarkets(); 
-            // In a real scenario, cache this or load selectively.
-
-            // 3. Environment Check
-            if (process.env.PAPER_TRADING === 'true') {
-                console.log(`[PAPER TRADING] Order simulated: ${params.side} ${params.amount} ${params.symbol}`);
-                return {
-                    id: 'mock-' + Date.now(),
-                    status: 'closed',
-                    filled: params.amount,
-                    price: params.price || 0,
-                    info: { note: 'Paper Trading Mode' }
-                };
+            if (error) {
+                console.error('[TradeExecutor] RPC Call Failed:', error);
+                throw error;
             }
 
-            // 4. Place Order (REAL)
-            const orderType = params.type || 'market';
-            const order = await exchange.createOrder(
-                params.symbol,
-                orderType,
-                params.side,
-                params.amount,
-                params.price // undefined for market orders
-            );
-
-            console.log(`[EXECUTOR] Order Placed: ID ${order.id}`);
-            return order;
+            // Handle Logic Response
+            if (!data.success) {
+                if (data.error === 'Trade already exists') {
+                    console.warn(`[TradeExecutor] ⚠️ Trade already exists for signal ${signal.id}. Skipping.`);
+                    return; // Idempotent success
+                }
+                console.warn(`[TradeExecutor] ❌ Could not open position: ${data.error}`);
+            } else {
+                console.log(`[TradeExecutor] ✅ Position Opened: ${signal.symbol}. New Balance: ${data.new_balance}`);
+            }
 
         } catch (error) {
-            console.error(`[EXECUTOR] Trade Failed: ${(error as Error).message}`);
-            throw error;
+            console.error('[TradeExecutor] Open Position Failed:', error);
+        }
+    }
+
+    /**
+     * Closes an existing paper trade position
+     */
+    /**
+     * Closes an existing paper trade position
+     */
+    static async closePosition(userId: string, signal: SignalData) {
+        console.log(`[TradeExecutor] Closing Position: ${signal.symbol}`);
+
+        try {
+            // Call Atomic RPC
+            const { data, error } = await supabaseAdmin.rpc('close_paper_trade', {
+                p_signal_id: signal.id,
+                p_pnl_percent: signal.profit_loss || 0,
+                p_close_reason: signal.close_reason || 'MANUAL'
+            });
+
+            if (error) {
+                console.error('[TradeExecutor] RPC Close Failed:', error);
+                throw error;
+            }
+
+            // Handle Logic Response
+            if (!data.success) {
+                if (data.error === 'Trade already closed') {
+                    console.warn(`[TradeExecutor] ⚠️ Trade already closed for signal ${signal.id}. Skipping.`);
+                    return; // Idempotent
+                }
+                console.warn(`[TradeExecutor] ❌ Could not close position: ${data.error}`);
+            } else {
+                console.log(`[TradeExecutor] ✅ Position Closed: ${signal.symbol}. PnL: $${data.pnl} (${signal.profit_loss}%). New Balance: ${data.new_balance}`);
+            }
+
+        } catch (error) {
+            console.error('[TradeExecutor] Close Position Failed:', error);
         }
     }
 }

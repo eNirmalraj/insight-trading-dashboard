@@ -18,6 +18,7 @@ const BUFFER_SIZE = 200; // Keep last 200 candles for indicator calculations
 // UPDATED: Default to Futures (Perpetual)
 let exchange = new ccxt.binance({
     enableRateLimit: true,
+    timeout: 5000, // Fail fast on network blocks
     options: { defaultType: 'future' }
 });
 
@@ -29,26 +30,22 @@ export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
         console.log('[CryptoEngine] Connecting to Binance Global Futures...');
         await exchange.loadMarkets();
     } catch (error: any) {
-        // Handle Geo-Restriction (HTTP 451 or specific message)
-        if (error.message.includes('451') || error.message.includes('Service unavailable')) {
-            console.warn('[CryptoEngine] ⚠️ Geo-restriction detected (US IP). Switching to Binance US...');
+        console.warn(`[CryptoEngine] ⚠️ Connection to Global Futures failed (${error.code || error.message}). Switching to Binance US...`);
 
-            // Switch to Binance US (Note: Binance US Futures might require different handling)
-            // For now, assume Global Futures access via Proxy or VPN if user is accessing
-            exchange = new ccxt.binanceus({ enableRateLimit: true });
+        // Switch to Binance US (Fallback)
+        exchange = new ccxt.binanceus({
+            enableRateLimit: true,
+            timeout: 5000
+        });
 
-            // Switch WebSocket Stream
-            binanceStream.setRegion(true);
+        // Switch WebSocket Stream
+        binanceStream.setRegion(true);
 
-            try {
-                await exchange.loadMarkets();
-                console.log('[CryptoEngine] ✅ Connected to Binance US');
-            } catch (usError) {
-                console.error('[CryptoEngine] Failed to connect to Binance US:', usError);
-                return [];
-            }
-        } else {
-            console.error('[CryptoEngine] Error fetching symbols:', error);
+        try {
+            await exchange.loadMarkets();
+            console.log('[CryptoEngine] ✅ Connected to Binance US');
+        } catch (usError) {
+            console.error('[CryptoEngine] Failed to connect to Binance US:', usError);
             return [];
         }
     }

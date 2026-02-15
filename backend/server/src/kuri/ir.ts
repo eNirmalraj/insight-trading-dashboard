@@ -9,7 +9,8 @@ export type IRNodeType =
     | 'IR_BINARY_OP'
     | 'IR_CALL'
     | 'IR_VAR'
-    | 'IR_CONST';
+    | 'IR_CONST'
+    | 'IR_INDEX';
 
 export interface IRNode {
     type: IRNodeType;
@@ -30,7 +31,13 @@ export interface IRVar extends IRNode {
     name: string;
 }
 
-export type IR = IRProgram | IRAssign | IRBinaryOp | IRCall | IRVar | IRConst;
+export interface IRIndex extends IRNode {
+    type: 'IR_INDEX';
+    object: IR;
+    index: IR;
+}
+
+export type IR = IRProgram | IRAssign | IRBinaryOp | IRCall | IRVar | IRConst | IRIndex;
 
 export interface IRProgram extends IRNode {
     type: 'IR_PROGRAM';

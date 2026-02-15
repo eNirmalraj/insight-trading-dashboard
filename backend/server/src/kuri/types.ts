@@ -26,6 +26,8 @@ export enum TokenType {
     // Separators
     LPAREN = "LPAREN", // (
     RPAREN = "RPAREN", // )
+    LBRACKET = "LBRACKET", // [
+    RBRACKET = "RBRACKET", // ]
     COMMA = "COMMA", // ,
     EOF = "EOF"
 }
@@ -75,6 +77,12 @@ export interface Identifier extends ASTNode {
 export interface Literal extends ASTNode {
     type: "Literal";
     value: number | string;
+}
+
+export interface IndexExpression extends ASTNode {
+    type: "IndexExpression";
+    object: ASTNode; // The array/series being accessed
+    index: ASTNode; // The index expression
 }
 
 export interface IfStatement extends ASTNode {
