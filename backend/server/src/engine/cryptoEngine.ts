@@ -174,22 +174,38 @@ const initializeBuffers = async (symbols: string[], timeframes: string[]): Promi
     console.log('[CryptoEngine] Initializing candle buffers...');
 
     // Limit initial fetch to avoid rate limits
-    // Limit initial fetch to avoid rate limits
-    const limitedSymbols = symbols.slice(0, 50); // Start with top 50
+    // Limit initial fetch to avoid rate limits? No, we need data for all.
+    // We will fetch in batches to be safe.
+    const BATCH_SIZE = 10;
+    const TOTAL_SYMBOLS = symbols.length;
 
-    for (const symbol of limitedSymbols) {
-        for (const timeframe of timeframes) {
-            try {
-                const candles = await fetchHistoricalCandles(symbol, timeframe, BUFFER_SIZE);
-                if (candles.length > 0) {
-                    candleBuffer.set(`${symbol}_${timeframe}`, candles);
+    console.log(`[CryptoEngine] Initialization queue: ${TOTAL_SYMBOLS} symbols across ${timeframes.length} timeframes`);
+
+    for (let i = 0; i < TOTAL_SYMBOLS; i += BATCH_SIZE) {
+        const batch = symbols.slice(i, i + BATCH_SIZE);
+
+        // Process batch in parallel
+        await Promise.all(batch.map(async (symbol) => {
+            for (const timeframe of timeframes) {
+                try {
+                    const candles = await fetchHistoricalCandles(symbol, timeframe, BUFFER_SIZE);
+                    if (candles.length > 0) {
+                        candleBuffer.set(`${symbol}_${timeframe}`, candles);
+                    }
+                } catch (error) {
+                    console.error(`[CryptoEngine] Error loading ${symbol} ${timeframe}:`, error);
                 }
-                // Small delay to respect rate limits
-                await new Promise(r => setTimeout(r, 100));
-            } catch (error) {
-                console.error(`[CryptoEngine] Error loading ${symbol} ${timeframe}:`, error);
             }
-        }
+        }));
+
+        // Rate limit delay between batches (e.g., 1 second every 10 symbols * 5 timeframes = 50 requests)
+        // Binance weight is usually 1 per request. 50 requests = 50 weight.
+        // Limit is often 1200/min. So 50/sec is 3000/min -> too fast.
+        // We need 1200/min = 20/sec.
+        // 50 requests in a batch -> Wait 2.5s to be safe.
+        // Let's be conservative: 2s delay.
+        console.log(`[CryptoEngine] Initialized batch ${i / BATCH_SIZE + 1}/${Math.ceil(TOTAL_SYMBOLS / BATCH_SIZE)}`);
+        await new Promise(r => setTimeout(r, 2000));
     }
 
     console.log(`[CryptoEngine] Initialized ${candleBuffer.size} buffers`);
