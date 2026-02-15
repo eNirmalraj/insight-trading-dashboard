@@ -24,6 +24,7 @@ let exchange = new ccxt.binance({
 
 /**
  * Fetch all USDT trading pairs from Binance
+ * UPDATED: Top 100 by Volume
  */
 export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
     try {
@@ -51,23 +52,34 @@ export const fetchAllCryptoSymbols = async (): Promise<string[]> => {
     }
 
     try {
+        // Fetch 24h Tickers for Volume Sorting
+        console.log('[CryptoEngine] Fetching 24h Tickers for Volume Sorting...');
+        const tickers = await exchange.fetchTickers();
+
         const symbols = Object.keys(exchange.markets)
             .filter(symbol => {
                 const market = exchange.markets[symbol];
-                // Check for linear swap (USDT settled futures) and Active
-                // CCXT 'linear' means USDT-margined usually
                 return market.active &&
                     (market.linear || market.swap) &&
                     market.quote === 'USDT';
             })
+            // Sort by Volume (Quote Volume in USDT)
+            .sort((a, b) => {
+                const volA = tickers[a]?.quoteVolume || 0;
+                const volB = tickers[b]?.quoteVolume || 0;
+                return volB - volA; // Descending
+            })
+            // LIMIT TO TOP 100
+            .slice(0, 100)
             .map(symbol => {
-                // CCXT Symbol: BTC/USDT:USDT or BTC/USDT
                 const market = exchange.markets[symbol];
-                // Format for Frontend: BTC/USDT.P
                 return `${market.base}/USDT.P`;
             });
 
-        console.log(`[CryptoEngine] Found ${symbols.length} USDT Futures pairs`);
+        console.log(`[CryptoEngine] Found Top ${symbols.length} High-Volume USDT Futures pairs`);
+        // Log top 5 for verification
+        console.log('[CryptoEngine] Top 5:', symbols.slice(0, 5));
+
         return symbols;
     } catch (error) {
         console.error('[CryptoEngine] Error processing markets:', error);
