@@ -86,10 +86,10 @@ export const fetchHistoricalCandles = async (
     timeframe: string,
     limit: number = 200
 ): Promise<Candle[]> => {
+    let formattedSymbol = symbol;
     try {
         // Convert symbol format: BTC/USDT.P -> CCXT format
         // With defaultType='future', 'BTC/USDT' usually works for the perp
-        let formattedSymbol = symbol;
 
         if (symbol.endsWith('.P')) {
             const base = symbol.replace('.P', '').split('/')[0]; // BTC
@@ -100,6 +100,7 @@ export const fetchHistoricalCandles = async (
         }
 
         const ohlcv = await exchange.fetchOHLCV(formattedSymbol, timeframe.toLowerCase(), undefined, limit);
+        console.log(`[CryptoEngine] fetchHistoricalCandles: ${symbol} -> ${formattedSymbol} | Candles: ${ohlcv.length}`);
 
         return ohlcv.map((candle: any) => ({
             time: Math.floor(candle[0] / 1000),
@@ -141,6 +142,9 @@ const processCandle = async (symbol: string, timeframe: string, candle: Candle):
     }
 
     // Run strategies
+    if (candles.length % 10 === 0) {
+        console.log(`[CryptoEngine] DEBUG: Running strategies for ${symbol} ${timeframe} (Candles: ${candles.length})`);
+    }
     const signals = runAllBuiltInStrategies(candles);
 
     // Process each signal
@@ -172,6 +176,7 @@ const processCandle = async (symbol: string, timeframe: string, candle: Candle):
 const initializeBuffers = async (symbols: string[], timeframes: string[]): Promise<void> => {
     console.log('[CryptoEngine] Initializing candle buffers...');
 
+    // Limit initial fetch to avoid rate limits
     // Limit initial fetch to avoid rate limits
     const limitedSymbols = symbols.slice(0, 50); // Start with top 50
 
@@ -231,12 +236,11 @@ export const startCryptoEngine = async (): Promise<void> => {
         // 💡 Note: Monitoring (TP/SL) is now handled automatically 
         // by SignalMonitor which listens directly to PRICE_TICK events.
 
-        // Subscribe to WebSocket streams (limited for now)
-        const limitedSymbols = symbols.slice(0, 100); // Start with top 100
-        await binanceStream.subscribe(limitedSymbols, timeframes);
+        // Subscribe to WebSocket streams (ALL symbols)
+        await binanceStream.subscribe(symbols, timeframes);
 
         console.log('[CryptoEngine] ✅ Crypto Signal Engine started successfully');
-        console.log(`[CryptoEngine] 📊 Monitoring ${limitedSymbols.length} symbols on ${timeframes.length} timeframes`);
+        console.log(`[CryptoEngine] 📊 Monitoring ${symbols.length} symbols on ${timeframes.length} timeframes`);
 
     } catch (error) {
         console.error('[CryptoEngine] Failed to start:', error);

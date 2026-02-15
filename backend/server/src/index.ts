@@ -31,12 +31,13 @@ app.listen(PORT, async () => {
     console.log(`🔗 Connected to Supabase...`);
 
     // Start Listening for Signals (existing functionality)
-    startSignalListener();
+    await startSignalListener();
 
     // Start Crypto Signal Engine
     console.log('');
     console.log('═══════════════════════════════════════════');
     console.log('       CRYPTO SIGNAL ENGINE STARTING       ');
     console.log('═══════════════════════════════════════════');
+    console.log("[BOOT] Crypto Engine Started");
     await startCryptoEngine();
 });

@@ -56,8 +56,11 @@ export const isDuplicateSignal = async (
  * Save a new signal to the database
  */
 export const saveSignal = async (signal: SignalData): Promise<string | null> => {
+    // console.log('[TRACE] Attempting DB insert:', signal.symbol, signal.strategy);
     try {
         // Check for duplicate first
+        // TEMPORARY: Disabled for testing as per user request
+        /*
         const isDupe = await isDuplicateSignal(
             signal.strategyId,
             signal.symbol,
@@ -69,6 +72,7 @@ export const saveSignal = async (signal: SignalData): Promise<string | null> => 
             console.log(`[SignalStorage] Duplicate signal prevented for ${signal.symbol} ${signal.strategy}`);
             return null;
         }
+        */
 
         const { data, error } = await supabaseAdmin
             .from('signals')
@@ -88,6 +92,9 @@ export const saveSignal = async (signal: SignalData): Promise<string | null> => 
             })
             .select('id')
             .single();
+
+        // console.log('[TRACE] Insert result:', data?.id, JSON.stringify(data));
+        // console.log('[TRACE] Insert error:', error);
 
         if (error) {
             console.error('Error saving signal:', error);

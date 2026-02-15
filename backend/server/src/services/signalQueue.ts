@@ -1,7 +1,11 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import { TradeExecutor } from './tradeExecutor';
 
-export const startSignalListener = () => {
+export const startSignalListener = async () => {
+
+    // 1. Reconcile missed signals (Restart Catch-up) - NON-BLOCKING
+    reconcileActiveSignals().catch(e => console.error('[SIGNAL QUEUE] Reconciliation Error:', e));
+
     console.log('[SIGNAL QUEUE] Listening for new signals in database...');
 
     const channel = supabaseAdmin
@@ -9,54 +13,109 @@ export const startSignalListener = () => {
         .on(
             'postgres_changes',
             {
-                event: 'INSERT',
+                event: '*', // Listen to INSERT and UPDATE
                 schema: 'public',
-                table: 'signal_logs', // Assuming we have a table for signals to process
+                table: 'signals',
             },
             async (payload) => {
-                console.log('[SIGNAL RECEIVED]', payload.new);
-                await processSignal(payload.new);
+                const newSignal = payload.new as any;
+                console.log('[SIGNAL EVENT]', payload.eventType, newSignal.symbol, newSignal.status);
+                await processSignalEvent(payload);
             }
         )
         .subscribe();
 };
 
-async function processSignal(signal: any) {
-    // 1. Validate Signal
-    if (!signal.symbol || !signal.action || !signal.strategy_id) {
-        console.warn('[SIGNAL SKIPPED] Invalid payload', signal);
+/**
+ * Scans for 'Active' signals that don't have an open trade (e.g. after server restart)
+ * Process in batches to avoid rate limits and blocking.
+ */
+export async function reconcileActiveSignals() {
+    console.log('[SIGNAL QUEUE] 🔄 Reconciling active signals (Background)...');
+    try {
+        const { data: activeSignals, error } = await supabaseAdmin
+            .from('signals')
+            .select('*')
+            .eq('status', 'Active');
+
+        if (error || !activeSignals) {
+            console.error('[SIGNAL QUEUE] Failed to fetch active signals', error);
+            return;
+        }
+
+        console.log(`[SIGNAL QUEUE] Found ${activeSignals.length} active signals. Processing in batches...`);
+
+        const BATCH_SIZE = 20;
+        for (let i = 0; i < activeSignals.length; i += BATCH_SIZE) {
+            const batch = activeSignals.slice(i, i + BATCH_SIZE);
+            // console.log(`[SIGNAL QUEUE] Processing batch ${i / BATCH_SIZE + 1}/${Math.ceil(activeSignals.length / BATCH_SIZE)}...`);
+
+            await Promise.all(batch.map(async (signal) => {
+                try {
+                    // We can just try to open it. The RPC is idempotent!
+                    // But we need the userId.
+                    const { data: strategy } = await supabaseAdmin
+                        .from('strategies')
+                        .select('user_id')
+                        .eq('id', signal.strategy_id)
+                        .single();
+
+                    if (strategy?.user_id) {
+                        await TradeExecutor.openPosition(strategy.user_id, signal);
+                    }
+                } catch (err) {
+                    console.error(`[SIGNAL QUEUE] Failed to reconcile signal ${signal.id}`, err);
+                }
+            }));
+
+            // Small delay between batches to be nice to the DB/API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        console.log('[SIGNAL QUEUE] ✅ Reconciliation Complete.');
+
+    } catch (e) {
+        console.error('[SIGNAL QUEUE] Reconciliation failed:', e);
+    }
+}
+
+async function processSignalEvent(payload: any) {
+    const signal = payload.new;
+    if (!signal || !signal.strategy_id) return;
+
+    // 1. Fetch User ID from Strategy
+    const { data: strategy, error } = await supabaseAdmin
+        .from('strategies')
+        .select('user_id')
+        .eq('id', signal.strategy_id)
+        .single();
+
+    if (error || !strategy) {
+        console.warn(`[SIGNAL SKIP] Could not find strategy/user for signal ${signal.id}`);
         return;
     }
 
-    // 2. Find Subscribers (Mock Logic for now)
-    // In real app: Query 'social_follows' or 'strategy_subscriptions'
-    console.log(`[PROCESSING] Finding subscribers for Strategy ${signal.strategy_id}...`);
+    const userId = strategy.user_id;
 
-    // Mock User for Testing
-    const mockUser = {
-        id: 'user-123',
-        exchangeId: 'binance',
-        apiKey: 'mock-key',
-        apiSecret: 'mock-secret',
-        riskSize: 0.01 // 1% of balance
-    };
-
-    // 3. Execute Trade for User
+    // 2. Handle Event Type
     try {
-        await TradeExecutor.executeTrade({
-            exchangeId: mockUser.exchangeId,
-            apiKey: mockUser.apiKey,
-            apiSecret: mockUser.apiSecret,
-            symbol: signal.symbol, // e.g. "BTC/USDT"
-            side: signal.action.toLowerCase(), // "buy" or "sell"
-            amount: 0.001, // Mock amount
-            type: 'market'
-        });
+        if (payload.eventType === 'INSERT' && signal.status === 'Active') {
+            // New Active Signal -> Open Position
+            console.log(`[TRADE ENTRY] Handling Entry for ${signal.symbol}`);
+            await TradeExecutor.openPosition(userId, signal);
 
-        // 4. Log Success
-        console.log('[SIGNAL PROCESSED] Trade executed successfully.');
-
-    } catch (error) {
-        console.error('[SIGNAL ERROR] Failed to execute trade:', error);
+        } else if (payload.eventType === 'UPDATE') {
+            // Status changed to Active -> Open Position (if Late Entry)
+            if (signal.status === 'Active' && payload.old.status === 'Pending') {
+                console.log(`[TRADE ENTRY] Handling Entry (Activated) for ${signal.symbol}`);
+                await TradeExecutor.openPosition(userId, signal);
+            }
+            // Status changed to Closed -> Close Position
+            else if (signal.status === 'Closed' && payload.old.status !== 'Closed') {
+                console.log(`[TRADE EXIT] Handling Exit for ${signal.symbol}`);
+                await TradeExecutor.closePosition(userId, signal);
+            }
+        }
+    } catch (err) {
+        console.error(`[TRADE ERROR] Failed to process signal ${signal.id}:`, err);
     }
 }
