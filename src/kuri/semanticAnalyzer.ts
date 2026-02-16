@@ -59,7 +59,9 @@ export class SemanticAnalyzer {
         'bgcolor',
         // Strategy functions (Backend VM)
         'strategy.entry',
-        'strategy.close'
+        'strategy.close',
+        'strategy.exit_sl',
+        'strategy.exit_tp'
     ]);
 
     // ... (rest of class)
@@ -96,7 +98,9 @@ export class SemanticAnalyzer {
 
             'plot': { min: 1, max: 3 },      // plot(series, title?, color?)
             'strategy.entry': { min: 3, max: 5 }, // strategy.entry(id, direction, condition, sl?, tp?)
-            'strategy.close': { min: 2, max: 2 }  // strategy.close(id, condition)
+            'strategy.close': { min: 2, max: 2 },  // strategy.close(id, condition)
+            'strategy.exit_sl': { min: 1, max: 1 }, // strategy.exit_sl(value)
+            'strategy.exit_tp': { min: 1, max: 1 }  // strategy.exit_tp(value)
         };
 
         const sig = signatures[funcName];

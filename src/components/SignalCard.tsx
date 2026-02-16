@@ -16,10 +16,10 @@ interface SignalCardProps {
 
 const getStatusColor = (status: SignalStatus) => {
     switch (status) {
-        case SignalStatus.ACTIVE: return 'bg-gray-500 text-gray-200'; // Neutral for active (calm)
-        case SignalStatus.CLOSED: return 'bg-gray-700 text-gray-400'; // Darker for closed
-        case SignalStatus.PENDING: return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'; // Clear pending state
-        default: return 'bg-gray-500';
+        case SignalStatus.ACTIVE: return 'bg-gray-700/50 text-gray-200 border-gray-600';
+        case SignalStatus.CLOSED: return 'bg-gray-800 text-gray-500 border-gray-700';
+        case SignalStatus.PENDING: return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30';
+        default: return 'bg-gray-700 border-gray-600';
     }
 }
 
@@ -80,42 +80,54 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
 
     return (
         <div className={`bg-card-bg rounded-xl p-5 space-y-4 hover:shadow-xl transition-shadow relative ${borderColor}`}>
-            {isNew && (
-                <div className="absolute top-2 left-2 z-10">
-                    <span className="px-2.5 py-1 text-[11px] font-bold rounded-md bg-gradient-to-r from-yellow-400 to-yellow-500 text-black shadow-md">
-                        NEW
-                    </span>
-                </div>
-            )}
-
-            {/* Pin Button - Top Right Corner */}
-            <button
-                onClick={(e) => { e.stopPropagation(); onTogglePin(signal); }}
-                className={`absolute top-2 right-2 z-10 p-1.5 rounded-full transition-colors ${signal.isPinned ? 'text-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/20' : 'text-gray-600 hover:text-gray-400'}`}
-                title={signal.isPinned ? "Unpin Signal" : "Pin Signal"}
-            >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11.2V22H12.8V16H18V14L16 12Z" />
-                </svg>
-            </button>
-            <div className="flex justify-between items-start">
+            {/* Top Bar: Badges & Actions */}
+            <div className="absolute top-0 left-0 w-full p-3 flex justify-between items-start z-10">
+                {/* Left: NEW Badge */}
                 <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        {signal.pair} [FIXED]
-                        {signal.pair.endsWith('.P') && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">FUTURES</span>
-                        )}
-                        <span className="text-xs text-gray-500">{signal.timeframe}</span>
-                    </h3>
-                    <p className="text-sm text-gray-400">{signal.strategy}</p>
+                    {isNew && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-yellow-400 text-black shadow-sm shadow-yellow-400/20">
+                            NEW
+                        </span>
+                    )}
                 </div>
-                <div className="flex items-center space-x-2">
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full text-white ${getStatusColor(signal.status)}`}>
+
+                {/* Right: Status, Direction, Pin */}
+                <div className="flex items-center gap-2">
+                    <span className={`h-5 px-2 flex items-center justify-center text-[9px] uppercase font-bold tracking-wide rounded border backdrop-blur-md shadow-sm ${getStatusColor(signal.status)}`}>
                         {signal.status}
                     </span>
-                    <span className={`px-3 py-1 text-sm font-bold rounded-full ${isBuy ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    <span className={`h-5 px-2 flex items-center justify-center text-[9px] uppercase font-bold tracking-wide rounded border backdrop-blur-md shadow-sm ${isBuy ? 'bg-green-500/10 text-green-400 border-green-500/20 shadow-green-500/10' : 'bg-red-500/10 text-red-400 border-red-500/20 shadow-red-500/10'}`}>
                         {signal.direction}
                     </span>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onTogglePin(signal); }}
+                        className={`p-1 rounded-full transition-colors ${signal.isPinned ? 'text-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/20' : 'text-gray-500 hover:text-gray-300'}`}
+                        title={signal.isPinned ? "Unpin Signal" : "Pin Signal"}
+                    >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11.2V22H12.8V16H18V14L16 12Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="mt-8 mb-4">
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white leading-none tracking-tight">
+                            {signal.pair}
+                        </h3>
+                        {signal.pair.endsWith('.P') && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 leading-none">
+                                FUTURES
+                            </span>
+                        )}
+                        <span className="text-xs text-gray-500 font-medium bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">
+                            {signal.timeframe}
+                        </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5 font-medium">{signal.strategy}</p>
                 </div>
             </div>
 
@@ -149,51 +161,51 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
                 </div>
             )}
 
-            <div className="grid grid-cols-4 gap-3 text-center">
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400">Entry</p>
-                    <p className="text-sm font-semibold text-white">{formatPrice(signal.entry)}</p>
+            <div className="grid grid-cols-4 gap-2 text-center py-2 h-16">
+                <div className="bg-gray-800/30 rounded-lg p-1.5 flex flex-col justify-center border border-gray-700/30">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Entry</p>
+                    <p className="text-xs font-bold text-white font-mono mt-0.5">{formatPrice(signal.entry)}</p>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400">Stop Loss</p>
-                    <p className="text-sm font-semibold text-red-400">{formatPrice(signal.stopLoss)}</p>
+                <div className="bg-gray-800/30 rounded-lg p-1.5 flex flex-col justify-center border border-gray-700/30">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Stop</p>
+                    <p className="text-xs font-bold text-red-400 font-mono mt-0.5">{formatPrice(signal.stopLoss)}</p>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400">Take Profit</p>
-                    <p className="text-sm font-semibold text-green-400">{formatPrice(signal.takeProfit)}</p>
+                <div className="bg-gray-800/30 rounded-lg p-1.5 flex flex-col justify-center border border-gray-700/30">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Target</p>
+                    <p className="text-xs font-bold text-green-400 font-mono mt-0.5">{formatPrice(signal.takeProfit)}</p>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400">R:R</p>
-                    <p className="text-sm font-semibold text-blue-400">1:{riskReward}</p>
+                <div className="bg-gray-800/30 rounded-lg p-1.5 flex flex-col justify-center border border-gray-700/30">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">R:R</p>
+                    <p className="text-xs font-bold text-blue-400 font-mono mt-0.5">1:{riskReward}</p>
                 </div>
             </div>
 
-            <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t border-gray-700">
-                <span className="flex items-center gap-1">
+            <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-700 mt-auto">
+                <span className="flex items-center gap-1.5 h-7">
                     <span className="text-gray-500">{timeContext.label}:</span>
                     <span className="text-gray-300 font-medium">{timeContext.value}</span>
                 </span>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 h-7">
                     <button
                         onClick={copySignalToClipboard}
-                        className="p-1.5 rounded-md text-gray-400 hover:bg-gray-700 transition-colors"
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-700 transition-colors border border-transparent hover:border-gray-600"
                         title="Copy to clipboard"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                     </button>
                     <button
                         onClick={() => onAddToWatchlist(signal.pair)}
-                        className="p-1.5 rounded-md text-blue-400 hover:bg-blue-500/20 transition-colors"
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-blue-400 hover:bg-blue-500/20 transition-colors border border-transparent hover:border-blue-500/30"
                         title={isAddedToWatchlist ? "Manage in Watchlist" : "Add to Watchlist"}
                     >
-                        {isAddedToWatchlist ? <BookmarkIcon className="w-4 h-4" /> : <BookmarkOutlineIcon className="w-4 h-4" />}
+                        {isAddedToWatchlist ? <BookmarkIcon className="w-3.5 h-3.5" /> : <BookmarkOutlineIcon className="w-3.5 h-3.5" />}
                     </button>
                     {signal.chartData && (
                         <button
                             onClick={() => onShowChart(signal)}
-                            className="bg-gray-700 text-white font-semibold py-1.5 px-3 rounded-md hover:bg-gray-600 transition-colors text-xs"
+                            className="h-7 px-3 flex items-center justify-center bg-gray-700 text-white font-bold rounded-md hover:bg-gray-600 transition-colors text-[10px] uppercase tracking-wider border border-gray-600"
                         >
                             Chart
                         </button>
@@ -201,7 +213,7 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, currentPrice, onShowCha
                     {signal.status !== SignalStatus.CLOSED && (
                         <button
                             onClick={() => onExecute(signal)}
-                            className={`${isBuy ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} text-white font-semibold py-1.5 px-3 rounded-md transition-colors text-xs`}
+                            className={`h-7 px-3 flex items-center justify-center font-bold rounded-md transition-colors text-[10px] uppercase tracking-wider shadow-lg ${isBuy ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/20' : 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/20'}`}
                         >
                             Execute
                         </button>

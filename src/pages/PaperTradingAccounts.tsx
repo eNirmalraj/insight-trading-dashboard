@@ -205,7 +205,13 @@ const PaperTradingAccounts: React.FC = () => {
             resetForm();
         } catch (err: any) {
             console.error('Error saving account:', err);
-            alert(`Error: ${err.message || 'Failed to save account'}`);
+
+            // Handle unique constraint violation (duplicate account)
+            if (err.code === '23505' || (err.message && err.message.includes('unique_user_broker_subtype'))) {
+                alert(`You already have a ${formData.broker} ${formData.sub_type} account.\n\nPlease delete the existing one if you wish to reset it.`);
+            } else {
+                alert(`Error: ${err.message || 'Failed to save account'}`);
+            }
         }
     };
 
@@ -231,13 +237,6 @@ const PaperTradingAccounts: React.FC = () => {
             console.log('Local state updated');
         } catch (err: any) {
             console.error('Error deleting account:', err);
-            console.error('Error details:', {
-                message: err.message,
-                code: err.code,
-                details: err.details,
-                hint: err.hint,
-                statusCode: err.statusCode
-            });
 
             // Show detailed error to user
             let errorMessage = 'Failed to delete account';
