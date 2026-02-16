@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm install --prefix backend/server && npm run build --prefix backend/server && vite build",
     "preview": "vite preview",
     "test:parity": "tsx src/kuri/tests/parity/run_parity_tests.ts",
     "test:parity:simple": "tsx src/kuri/tests/parity/simple_test.ts"
