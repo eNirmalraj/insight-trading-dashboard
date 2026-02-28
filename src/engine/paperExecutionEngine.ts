@@ -3,6 +3,7 @@ import { Signal, SignalStatus } from '../types';
 import { createPaperTrade, closePaperTrade } from '../services/paperTradingService';
 import { SymbolUtils } from '../utils/symbolUtils';
 import { RiskCalculator } from './RiskCalculator';
+import { evaluateSignalAtPrice } from '@insight/computation';
 
 export class PaperExecutionEngine {
 
@@ -376,29 +377,22 @@ export class PaperExecutionEngine {
     }
 
     private static async checkTradeExit(trade: any) {
-        // Fetch current price for symbol
-        // Using our market data cache or service
-        const currentPrice = await this.fetchCurrentPrice(trade.symbol); // Helper needed
+        const currentPrice = await this.fetchCurrentPrice(trade.symbol);
         if (!currentPrice) return;
 
-        let closeReason = null;
+        // Use shared computation for TP/SL evaluation
+        const result = evaluateSignalAtPrice({
+            id: trade.signal_id || trade.id,
+            symbol: trade.symbol,
+            direction: trade.direction as 'BUY' | 'SELL',
+            entry_price: trade.entry_price,
+            stop_loss: trade.stop_loss,
+            take_profit: trade.take_profit,
+            status: 'Active',
+        }, currentPrice);
 
-        const tp = trade.take_profit;
-        const sl = trade.stop_loss;
-
-        // Logic for BUY
-        if (trade.direction === 'BUY') {
-            if (tp && currentPrice >= tp) closeReason = 'TP';
-            else if (sl && currentPrice <= sl) closeReason = 'SL';
-        }
-        // Logic for SELL
-        else if (trade.direction === 'SELL') {
-            if (tp && currentPrice <= tp) closeReason = 'TP';
-            else if (sl && currentPrice >= sl) closeReason = 'SL';
-        }
-
-        if (closeReason) {
-            await closePaperTrade(trade.signal_id, currentPrice, closeReason);
+        if (result.action === 'CLOSE_TP' || result.action === 'CLOSE_SL') {
+            await closePaperTrade(trade.signal_id, currentPrice, result.reason);
         }
     }
 

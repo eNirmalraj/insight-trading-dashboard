@@ -11,24 +11,53 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase credentials');
     process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const seedBackendStrategies = async () => {
+    console.log('🌱 Checking for Kuri legacy strategies...');
+
+    // 1. Delete all Kuri script legacy rows
+    const { error: deleteKuriError } = await supabase
+        .from('strategies')
+        .delete()
+        .eq('type', 'KURI');
+
+    if (deleteKuriError) {
+        console.warn('Note: Could not delete KURI strategies, they might not exist:', deleteKuriError.message);
+    } else {
+        console.log('✅ Deleted any legacy KURI strategies');
+    }
+
+    // 2. Clear out any built-ins that used kuriScript
+    const { error: deleteOldBuiltinsError } = await supabase
+        .from('strategies')
+        .delete()
+        .in('id', BUILT_IN_STRATEGIES.map(s => s.id));
+
+    if (deleteOldBuiltinsError) {
+        console.warn('Note: Resetting old built-ins encountered an issue:', deleteOldBuiltinsError.message);
+    } else {
+        console.log('✅ Cleared old built-ins to pave way for Rule-based strategies');
+    }
+
     console.log('🌱 Seeding Backend Strategies to satisfy FK...');
 
-    // We assume the user ID is not strictly needed for system strategies, 
-    // OR we need to assign them to a system user.
-    // Usually system strategies exist globally or we fetch a user?
-    // Let's check table schema? 'user_id' usually required.
-    // We will try to fetch the first user found or use a nil UUID if allowed.
+    // Fetch the first profile to attach the system strategies to
+    const { data: profiles, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1);
 
-    // Fetch a user
-    const userId = '9d26ad9c-949e-4aec-8a24-91c6fc122afd';
-    // If no users, we might fail on user_id FK if it exists. 
-    // But 'strategies' table usually has user_id.
+    if (profileErr || !profiles || profiles.length === 0) {
+        console.error('❌ Could not find a user profile to map the strategies. Please sign up at least once.');
+        return;
+    }
+
+    const userId = profiles[0].id;
 
     for (const strat of BUILT_IN_STRATEGIES) {
         const payload = {
@@ -37,18 +66,18 @@ const seedBackendStrategies = async () => {
             name: strat.name,
             description: strat.description,
             type: 'STRATEGY',
-            timeframe: '1H', // Default
+            timeframe: '1H',
             symbol_scope: [],
             indicators: strat.indicators,
             entry_rules: strat.entryRules,
-            exit_rules: [],
+            exit_rules: strat.exitRules || [],
             is_active: true,
             content: strat
         };
 
         const { error } = await supabase
             .from('strategies')
-            .upsert(payload)
+            .upsert(payload, { onConflict: 'id' })
             .select()
             .single();
 
@@ -58,6 +87,7 @@ const seedBackendStrategies = async () => {
             console.log(`✅ Seeded ${strat.name}`);
         }
     }
+    console.log('🎉 Done checking and updating Supabase successfully!');
 };
 
 seedBackendStrategies();

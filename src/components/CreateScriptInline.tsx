@@ -50,7 +50,7 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
             // Assuming strategies have type 'STRATEGY' or similar for custom ones
             // and we want to list their names.
             const customNames = strategies
-                .filter((s: any) => s.type === 'STRATEGY' || s.type === 'KURI') // Adjust type check based on Strategy definition
+                .filter((s: any) => s.type === 'STRATEGY') // Adjust type check based on Strategy definition
                 .map((s: any) => s.name);
 
             setCustomStrategies(customNames);

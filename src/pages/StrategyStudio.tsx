@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { useMonaco } from '@monaco-editor/react';
 import { validateStrategyJson, saveStrategy, getStrategies, deleteStrategy } from '../services/strategyService';
 import { Strategy } from '../types';
-import { BUILT_IN_INDICATORS, indicatorToJSON, indicatorToKuri } from '../services/builtInIndicators';
+import { BUILT_IN_INDICATORS, indicatorToJSON } from '../services/builtInIndicators';
 import { BUILTIN_STRATEGY_NAMES } from '../constants';
 
 // --- Components ---
 import { TopToolbar } from '../components/strategy-studio/TopToolbar';
 import { BottomConsole } from '../components/strategy-studio/BottomConsole';
 import { OpenScriptModal } from '../components/strategy-studio/OpenScriptModal';
+import { TutorialPanel } from '../components/strategy-studio/TutorialPanel';
 
 // Icons (keep CodeIcon for empty state)
 const CodeIcon = ({ className }: { className?: string }) => (
@@ -20,7 +21,7 @@ const CodeIcon = ({ className }: { className?: string }) => (
 
 const StrategyStudio = () => {
     // Editor State - Persisted
-    const [kuriContent, setKuriContent] = useState(() => localStorage.getItem('strategyStudio_kuriContent') || '');
+    const [editorContent, setEditorContent] = useState(() => localStorage.getItem('strategyStudio_editorContent') || '');
     const [strategyName, setStrategyName] = useState(() => localStorage.getItem('strategyStudio_strategyName') || 'Untitled');
     const [isDirty, setIsDirty] = useState(() => localStorage.getItem('strategyStudio_isDirty') === 'true');
     const [activeScript, setActiveScript] = useState<string | null>(() => localStorage.getItem('strategyStudio_activeScript'));
@@ -29,7 +30,7 @@ const StrategyStudio = () => {
     const [logs, setLogs] = useState<{ timestamp: string, message: string, type: 'info' | 'error' | 'success' }[]>([]);
     const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
 
-    // Modal State (Replaces Sidebar)
+    // Modal State
     const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
 
     // Deletion State
@@ -48,9 +49,32 @@ const StrategyStudio = () => {
 
     // Loading States
     const [isSaving, setIsSaving] = useState(false);
+    const [isTutorialOpen, setIsTutorialOpen] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
+    // Monaco Hook
+    const monaco = useMonaco();
+
     // --- Effects ---
+
+    useEffect(() => {
+        if (monaco) {
+            // Define custom dark theme for Strategy Studio
+            monaco.editor.defineTheme('strategy-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'keyword', foreground: 'C586C0' },
+                    { token: 'type', foreground: '4EC9B0' },
+                    { token: 'identifier', foreground: '9CDCFE' },
+                    { token: 'string', foreground: 'CE9178' },
+                    { token: 'number', foreground: 'B5CEA8' },
+                    { token: 'comment', foreground: '6A9955' },
+                ],
+                colors: {}
+            });
+        }
+    }, [monaco]);
 
     useEffect(() => {
         localStorage.setItem('strategyStudio_consoleHeight', consoleHeight.toString());
@@ -63,16 +87,16 @@ const StrategyStudio = () => {
     useEffect(() => {
         if (activeScript) {
             localStorage.setItem('strategyStudio_activeScript', activeScript);
-            localStorage.setItem('strategyStudio_kuriContent', kuriContent);
+            localStorage.setItem('strategyStudio_editorContent', editorContent);
             localStorage.setItem('strategyStudio_strategyName', strategyName);
             localStorage.setItem('strategyStudio_isDirty', String(isDirty));
         } else {
             localStorage.removeItem('strategyStudio_activeScript');
-            localStorage.removeItem('strategyStudio_kuriContent');
+            localStorage.removeItem('strategyStudio_editorContent');
             localStorage.removeItem('strategyStudio_strategyName');
             localStorage.removeItem('strategyStudio_isDirty');
         }
-    }, [activeScript, kuriContent, strategyName, isDirty]);
+    }, [activeScript, editorContent, strategyName, isDirty]);
 
     useEffect(() => {
         if (lastActiveScript) {
@@ -86,9 +110,6 @@ const StrategyStudio = () => {
         loadHistory();
         addLog('Strategy Studio initialized. Ready.', 'info');
     }, []);
-
-    // Auto-update name from Kuri script comments
-    // Future: Parse // @name directive
 
     // --- Handlers ---
 
@@ -138,16 +159,32 @@ const StrategyStudio = () => {
         setLogs(prev => [...prev, { timestamp, message, type }]);
     };
 
+    const handleInjectCode = (code: string) => {
+        if (!activeScript) {
+            createNew();
+        }
+        setEditorContent(code);
+        setIsDirty(true);
+        addLog('Tutorial code loaded into editor', 'info');
+    };
+
     const createNew = () => {
-        setKuriContent('');
+        setEditorContent('');
         setStrategyName("New Strategy");
         setActiveScript('new-' + Date.now());
         setIsDirty(true);
-        addLog(`Created new Kuri strategy.`, 'success');
+        addLog(`Created new strategy.`, 'success');
     };
 
     const loadStrategy = (s: Strategy) => {
-        setKuriContent(s.kuriScript || '');
+        // Load as JSON content for editing
+        const content = JSON.stringify({
+            name: s.name,
+            indicators: s.indicators || [],
+            entryRules: s.entryRules || [],
+            exitRules: s.exitRules || [],
+        }, null, 2);
+        setEditorContent(content);
         setStrategyName(s.name);
         setActiveScript(s.id);
         setIsDirty(false);
@@ -156,54 +193,56 @@ const StrategyStudio = () => {
 
     const loadHelper = (json: string, name: string, id: string) => {
         try {
-            // Parse the JSON representation of the built-in indicator
-            const indicator = JSON.parse(json);
-
-            // Generate valid Kuri code
-            // Note: We need to import indicatorToKuri first (I'll add the import in a separate edit or verify it's there)
-            // Wait, I need to add the import to the top of the file as well.
-            // Since replace_file_content does one contiguous block, I should check if I can do both.
-            // I'll do the import update first, then this function. 
-            // Or I can just do this function assuming I update import later.
-            // I'll assume the helper function `indicatorToKuri` is available if imported.
-
-            // Wait, I cannot add import easily with single block replace if lines are far apart.
-            // Helper logic:
-            const code = indicatorToKuri(indicator);
-
-            setKuriContent(code);
+            setEditorContent(json);
             setStrategyName(name);
             setActiveScript(id);
-            setIsDirty(true); // Treat as new/unsaved changes so user can save a copy if desired
+            setIsDirty(true);
             addLog(`Loaded built-in indicator: ${name}`, 'success');
         } catch (e) {
             addLog(`Failed to load indicator: ${(e as Error).message}`, 'error');
         }
     };
 
+    const loadTemplate = (code: string, name: string, id: string) => {
+        setEditorContent(code.trim());
+        setStrategyName(name);
+        setActiveScript(id);
+        setIsDirty(true);
+        addLog(`Loaded template: ${name}`, 'success');
+    };
+
     const requestSave = async () => {
         try {
-            if (!kuriContent.trim()) throw new Error("Script is empty");
+            if (!editorContent.trim()) throw new Error("Strategy content is empty");
 
             setIsSaving(true);
+
+            // Parse JSON content to extract strategy definition
+            let parsedContent: any = {};
+            try {
+                parsedContent = JSON.parse(editorContent);
+            } catch {
+                // Treat as plain text content
+                parsedContent = { code: editorContent };
+            }
+
             const strategyToSave = {
                 name: strategyName,
-                description: `Kuri strategy: ${strategyName}`,
-                type: 'KURI' as const,
+                description: `Strategy: ${strategyName}`,
+                type: 'STRATEGY' as const,
                 id: (activeScript && !activeScript.startsWith('new-') && !activeScript.startsWith('builtin-')) ? activeScript : undefined,
-                kuriScript: kuriContent,
-                // Empty JSON fields for backwards compatibility
                 timeframe: '1h',
                 symbolScope: [],
-                indicators: [],
-                entryRules: [],
-                exitRules: [],
-                isActive: false
+                indicators: parsedContent.indicators || [],
+                entryRules: parsedContent.entryRules || [],
+                exitRules: parsedContent.exitRules || [],
+                isActive: false,
+                content: parsedContent
             };
 
             await saveStrategy(strategyToSave);
 
-            addLog('Kuri strategy saved successfully to cloud!', 'success');
+            addLog('Strategy saved successfully to cloud!', 'success');
             loadHistory();
             setIsDirty(false);
         } catch (e) {
@@ -218,7 +257,7 @@ const StrategyStudio = () => {
             await deleteStrategy(strategy.id);
             addLog(`Deleted strategy: ${strategy.name}`, 'success');
             if (activeScript === strategy.id) {
-                setKuriContent('');
+                setEditorContent('');
                 setStrategyName("New Strategy");
                 setActiveScript(null);
             }
@@ -230,7 +269,7 @@ const StrategyStudio = () => {
 
     return (
         <>
-            {/* Desktop Restriction Message (Optional - can be kept or removed) */}
+            {/* Desktop Restriction Message */}
             <div className="lg:hidden flex items-center justify-center h-full bg-dark-bg p-6 text-white">
                 Desktop View Only
             </div>
@@ -247,20 +286,21 @@ const StrategyStudio = () => {
                     onOpenScript={() => setIsScriptModalOpen(true)}
                     onRun={() => addLog('Add to chart functionality coming soon...', 'info')}
                     onCreateNew={createNew}
+                    onToggleTutorial={() => setIsTutorialOpen(!isTutorialOpen)}
                 />
 
-                {/* Main Editor Area - Kuri Only */}
+                {/* Main Editor Area - JSON Strategy Editor */}
                 <div className="flex-1 overflow-hidden relative">
                     {activeScript ? (
                         <Editor
                             height="100%"
-                            defaultLanguage="python"
-                            language="python"
-                            value={kuriContent}
-                            theme="vs-dark"
+                            defaultLanguage="json"
+                            language="json"
+                            value={editorContent}
+                            theme="strategy-dark"
                             onChange={(value) => {
                                 if (value !== undefined) {
-                                    setKuriContent(value);
+                                    setEditorContent(value);
                                     setIsDirty(true);
                                 }
                             }}
@@ -276,8 +316,8 @@ const StrategyStudio = () => {
                         />
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                            <div className="mb-4 text-6xl opacity-10">Waiting for Script</div>
-                            <h2 className="text-xl font-medium mb-4">No Script Selected</h2>
+                            <div className="mb-4 text-6xl opacity-10">Waiting for Strategy</div>
+                            <h2 className="text-xl font-medium mb-4">No Strategy Selected</h2>
                             <div className="flex gap-4">
                                 <button
                                     onClick={createNew}
@@ -313,8 +353,15 @@ const StrategyStudio = () => {
                     savedStrategies={savedStrategies}
                     onLoadStrategy={loadStrategy}
                     onLoadHelper={loadHelper}
+                    onLoadTemplate={loadTemplate}
                     onDelete={deleteStrategyHandler}
                     loading={loadingHistory}
+                />
+
+                <TutorialPanel
+                    isOpen={isTutorialOpen}
+                    onClose={() => setIsTutorialOpen(false)}
+                    onInjectCode={handleInjectCode}
                 />
 
             </div>

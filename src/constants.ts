@@ -174,6 +174,39 @@ export const BUILTIN_STRATEGY_NAMES = [
     'EMA Trend Strategy'
 ];
 
+export const SCRIPT_TEMPLATES: Record<string, string> = {
+    'Simple MA Crossover': JSON.stringify({
+        name: 'Simple MA Crossover',
+        indicators: [
+            { id: 'fast_ma', type: 'SMA', params: { period: 10, source: 'close' } },
+            { id: 'slow_ma', type: 'SMA', params: { period: 20, source: 'close' } }
+        ],
+        entryRules: [
+            { condition: 'CROSSES_ABOVE', indicator1: 'fast_ma', indicator2: 'slow_ma', direction: 'BUY' },
+            { condition: 'CROSSES_BELOW', indicator1: 'fast_ma', indicator2: 'slow_ma', direction: 'SELL' }
+        ],
+        exitRules: [
+            { id: 'sl', type: 'STOP_LOSS', value: 2.0, unit: 'PERCENTAGE' },
+            { id: 'tp', type: 'TAKE_PROFIT', value: 4.0, unit: 'PERCENTAGE' }
+        ]
+    }, null, 2),
+
+    'RSI Overbought/Oversold': JSON.stringify({
+        name: 'RSI Mean Reversion',
+        indicators: [
+            { id: 'rsi', type: 'RSI', params: { period: 14 } }
+        ],
+        entryRules: [
+            { condition: 'LESS_THAN', indicator1: 'rsi', value: 30, direction: 'BUY' },
+            { condition: 'GREATER_THAN', indicator1: 'rsi', value: 70, direction: 'SELL' }
+        ],
+        exitRules: [
+            { id: 'sl', type: 'STOP_LOSS', value: 1.5, unit: 'PERCENTAGE' },
+            { id: 'tp', type: 'TAKE_PROFIT', value: 2.5, unit: 'PERCENTAGE' }
+        ]
+    }, null, 2)
+};
+
 // The types below are exported for use in components that previously consumed dummy data.
 // In a real application, these might be defined in a shared types file.
 export interface PerformanceData {

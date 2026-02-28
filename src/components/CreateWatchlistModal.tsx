@@ -6,16 +6,18 @@ import { AVAILABLE_STRATEGIES } from '../constants';
 interface CreateWatchlistModalProps {
     onClose: () => void;
     onCreate: (name: string, type: AccountType, strategy: string, tradingMode: 'paper' | 'live') => void;
+    simple?: boolean;
+    defaultType?: AccountType;
 }
 
-export default function CreateWatchlistModal({ onClose, onCreate }: CreateWatchlistModalProps) {
-    const [step, setStep] = useState("choose"); // choose | form
+export default function CreateWatchlistModal({ onClose, onCreate, simple, defaultType }: CreateWatchlistModalProps) {
+    const [step, setStep] = useState(simple ? "form" : "choose");
 
     const [form, setForm] = useState({
         name: "",
         mode: "Paper",
         account: "Demo",
-        market: "Crypto",
+        market: defaultType || "Crypto",
         strategy: "Trend",
     });
 

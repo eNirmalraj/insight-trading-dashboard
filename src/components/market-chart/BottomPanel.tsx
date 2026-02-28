@@ -7,6 +7,7 @@ import {
     PencilIcon, IndicatorIcon, WatchlistIcon, MoreHorizontalIcon,
     UndoIcon, RedoIcon, SettingsIcon
 } from '../IconComponents';
+import { normalizeSymbol } from '@insight/computation';
 
 interface EditableRowProps {
     position: Position;
@@ -164,11 +165,11 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
     };
 
     const { positionsToDisplay, statusFilter } = useMemo(() => {
-        const normalizedSymbol = symbol.replace('/', '').toUpperCase();
+        const ns = normalizeSymbol(symbol);
 
-        if (activeTab === 'Positions') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.OPEN && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.OPEN };
-        if (activeTab === 'Pending Orders') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.PENDING && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.PENDING };
-        if (activeTab === 'History') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.CLOSED && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.CLOSED };
+        if (activeTab === 'Positions') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.OPEN && normalizeSymbol(p.symbol) === ns), statusFilter: PositionStatus.OPEN };
+        if (activeTab === 'Pending Orders') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.PENDING && normalizeSymbol(p.symbol) === ns), statusFilter: PositionStatus.PENDING };
+        if (activeTab === 'History') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.CLOSED && normalizeSymbol(p.symbol) === ns), statusFilter: PositionStatus.CLOSED };
 
         return { positionsToDisplay: [], statusFilter: PositionStatus.OPEN };
     }, [activeTab, symbol, positions]);

@@ -35,6 +35,7 @@ import { AlertMarkers } from './AlertMarkers'; // Import AlertMarkers
 import { MobileDrawingToolsModal, MobileMoreMenu } from './mobile';
 import { useResponsive } from '../../hooks/useResponsive';
 import { getIndicatorDefinition } from '../../data/builtInIndicators';
+import { normalizeSymbol } from '@insight/computation';
 
 const FIB_LEVEL_COLORS = [
     'rgba(128, 0, 128, 0.2)',    // Purple for 0-0.236
@@ -575,10 +576,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     }, [props.symbol]);
 
     const openPositions = useMemo(() => {
-        const normalizedSymbol = props.symbol.replace('/', '').toUpperCase();
+        const normalizedSymbol = normalizeSymbol(props.symbol);
         return positions.filter(p =>
             p.status === PositionStatus.OPEN &&
-            p.symbol.replace('/', '').toUpperCase() === normalizedSymbol
+            normalizeSymbol(p.symbol) === normalizedSymbol
         );
     }, [props.symbol, positions]);
 

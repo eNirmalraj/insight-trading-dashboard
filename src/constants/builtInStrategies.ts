@@ -1,56 +1,26 @@
-import { Strategy, StrategyCategory, TradeDirection } from '../types';
+// src/constants/builtInStrategies.ts
+// Re-exports from shared package — single source of truth.
 
-export const BUILT_IN_STRATEGIES: Strategy[] = [
-    {
-        id: '11111111-1111-1111-1111-111111111111', // Matches Backend UUID
-        name: 'SMA Trend Strategy',
-        description: 'Simple Moving Average Trend Following Strategy. Buys when price closes above SMA 20, Sells when price closes below SMA 20.',
-        type: 'KURI',
-        category: StrategyCategory.TREND_FOLLOWING,
-        symbolScope: [],
-        timeframe: '1H',
-        isActive: true,
-        indicators: [],
-        entryRules: [],
-        exitRules: [],
-        parameters: [],
-        content: {
-            code: `// SMA Trend Strategy
-// Buys when price closes above SMA 20
-// Sells when price closes below SMA 20
+import { BUILT_IN_STRATEGIES } from '@insight/computation';
+import { Strategy, StrategyCategory } from '../types';
 
-ma = sma(close, 20)
+// Re-export the shared strategies adapted to frontend's Strategy type
+export const FRONTEND_BUILT_IN_STRATEGIES: Strategy[] = BUILT_IN_STRATEGIES.map(s => ({
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    type: 'STRATEGY' as const,
+    category: s.category as StrategyCategory,
+    symbolScope: [],
+    timeframe: '1H',
+    isActive: true,
+    indicators: s.indicators || [],
+    entryRules: s.entryRules || [],
+    exitRules: s.exitRules || [],
+    parameters: [],
+    content: {}
+}));
 
-// Entry Conditions
-buy = crossover(close, ma)
-sell = crossunder(close, ma)
-`
-        }
-    },
-    {
-        id: '22222222-2222-2222-2222-222222222222', // Matches Backend UUID
-        name: 'EMA Trend Strategy',
-        description: 'Exponential Moving Average Trend Following Strategy. Buys when price closes above EMA 20, Sells when price closes below EMA 20.',
-        type: 'KURI',
-        category: StrategyCategory.TREND_FOLLOWING,
-        symbolScope: [],
-        timeframe: '1H',
-        isActive: true,
-        indicators: [],
-        entryRules: [],
-        exitRules: [],
-        parameters: [],
-        content: {
-            code: `// EMA Trend Strategy
-// Buys when price closes above EMA 20
-// Sells when price closes below EMA 20
-
-ma = ema(close, 20)
-
-// Entry Conditions
-buy = crossover(close, ma)
-sell = crossunder(close, ma)
-`
-        }
-    }
-];
+// Backward-compatible default export
+export const BUILT_IN_STRATEGIES_FRONTEND = FRONTEND_BUILT_IN_STRATEGIES;
+export { BUILT_IN_STRATEGIES } from '@insight/computation';

@@ -2,7 +2,9 @@
 import { PriceAlert, Drawing, TrendLineDrawing, RayDrawing, HorizontalLineDrawing, HorizontalRayDrawing, ParallelChannelDrawing, FibonacciRetracementDrawing, RectangleDrawing } from '../components/market-chart/types';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import { getAlerts, markTriggered, subscribe as subscribeToAlerts, saveAlert } from '../services/alertService';
-import { evaluateExpression, EvaluationContext } from './expressionEvaluator';
+import { evaluateExpression } from './expressionEvaluator';
+import type { EvaluationContext } from './expressionEvaluator';
+import { checkPriceAlert } from '@insight/computation';
 
 class AlertEngine {
     private activeAlerts: PriceAlert[] = [];
@@ -422,26 +424,14 @@ class StatefulAlertEngine {
         // === STANDARD PRICE/DRAWING ALERT EVALUATION ===
         // Only evaluate if not an indicator alert
         if (!alert.indicatorId) {
-            if (alert.condition === 'Greater Than') {
-                if (!alert.drawingId && alert.value !== undefined && currentPrice > alert.value) shouldTrigger = true;
-            } else if (alert.condition === 'Less Than') {
-                if (!alert.drawingId && alert.value !== undefined && currentPrice < alert.value) shouldTrigger = true;
-            } else if (alert.condition === 'Crossing') {
-                if (!alert.drawingId && alert.value !== undefined && prevPrice !== undefined) {
-                    const wasBelow = prevPrice < alert.value;
-                    const isAbove = currentPrice >= alert.value;
-                    const wasAbove = prevPrice > alert.value;
-                    const isBelow = currentPrice <= alert.value;
-                    if ((wasBelow && isAbove) || (wasAbove && isBelow)) shouldTrigger = true;
-                }
-            } else if (alert.condition === 'Crossing Up') {
-                if (!alert.drawingId && alert.value !== undefined && prevPrice !== undefined) {
-                    if (prevPrice < alert.value && currentPrice >= alert.value) shouldTrigger = true;
-                }
-            } else if (alert.condition === 'Crossing Down') {
-                if (!alert.drawingId && alert.value !== undefined && prevPrice !== undefined) {
-                    if (prevPrice > alert.value && currentPrice <= alert.value) shouldTrigger = true;
-                }
+            // Use shared computation for standard price alerts (no drawing)
+            if (!alert.drawingId && alert.value !== undefined) {
+                const result = checkPriceAlert(
+                    { condition: alert.condition, price: alert.value },
+                    currentPrice,
+                    prevPrice
+                );
+                shouldTrigger = result.triggered;
             }
 
             // --- DYNAMIC DRAWING CHECK ---

@@ -3,6 +3,7 @@
 
 import { Candle } from '../types/market';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { normalizeSymbol } from '@insight/computation';
 
 const DB_NAME = 'InsightMarketCache';
 const DB_VERSION = 1;
@@ -150,7 +151,7 @@ export const persistToSupabase = async (
     try {
         // Only persist the last 500 candles to Supabase (most recent data)
         const recentCandles = candles.slice(-500);
-        const normalizedSymbol = symbol.replace('/', '').toUpperCase();
+        const normalizedSymbol = normalizeSymbol(symbol);
 
         // Use upsert with ON CONFLICT
         const rows = recentCandles.map(c => ({
@@ -198,7 +199,7 @@ export const loadFromSupabase = async (
     if (!isSupabaseConfigured() || !supabase) return [];
 
     try {
-        const normalizedSymbol = symbol.replace('/', '').toUpperCase();
+        const normalizedSymbol = normalizeSymbol(symbol);
 
         const { data, error } = await supabase
             .from('market_data_cache')

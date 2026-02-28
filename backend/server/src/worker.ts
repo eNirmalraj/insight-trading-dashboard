@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { supabaseAdmin } from './services/supabaseAdmin';
 import { startCryptoEngine, stopCryptoEngine, getCryptoEngineStatus } from './engine/cryptoEngine';
+import { initAlertEngine } from './engine/alertEngine';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ async function startWorker() {
     // Start Engine
     // UPDATED: Re-enabled with Futures Support
     await startCryptoEngine();
+    await initAlertEngine();
     // console.log('[Worker] ⏸️ Engine startup PAUSED (Migration in progress)');
 
     // Heartbeat Loop

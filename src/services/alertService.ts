@@ -226,18 +226,4 @@ export const markTriggered = async (id: string): Promise<boolean> => {
     }
 };
 
-// Legacy Condition Checker (Needed by CandlestickChart if it still does some drawing checks, 
-// OR if I didn't clean up all usages. Engine uses its own checkCondition, but simpler. 
-// Ideally export checkCondition from Engine or here to avoid dup, but for now strict copy is safe).
-
-export const checkAlertCondition = (alert: PriceAlert, currentPrice: number, lastCandle: Candle, drawing?: Drawing): boolean => {
-    // Basic implementation for legacy compatibility if called
-    if (alert.triggered) return false;
-    if (alert.value !== undefined) {
-        const target = alert.value;
-        if (alert.condition === 'Greater Than') return currentPrice > target;
-        if (alert.condition === 'Less Than') return currentPrice < target;
-        // ... simplified
-    }
-    return false;
-};
+// Alert condition checking is now handled by @insight/computation's checkPriceAlert()

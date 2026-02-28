@@ -1,6 +1,10 @@
 // src/services/marketDataService.ts
 import { Candle } from '../types/market';
 import { getCachedCandles, saveCandles, persistToSupabase, loadFromSupabase } from './marketCacheService';
+import { normalizeSymbol } from '@insight/computation';
+
+// Re-export for backward compatibility
+export { normalizeSymbol };
 
 const BINANCE_API_URL = '/api/binance/v3/klines';
 
@@ -11,13 +15,6 @@ interface CacheEntry {
 }
 const cache: Record<string, CacheEntry> = {};
 const CACHE_TTL = 60000; // 1 minute for in-memory (IndexedDB handles longer persistence)
-
-/**
- * Normalizes symbol to Binance format (e.g., "BTC/USDT" -> "BTCUSDT")
- */
-export const normalizeSymbol = (symbol: string): string => {
-    return symbol.replace('/', '').toUpperCase();
-};
 
 /**
  * Normalizes timeframe to Binance format (e.g., "1H" -> "1h")

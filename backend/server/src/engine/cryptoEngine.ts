@@ -2,23 +2,25 @@
 // Main Crypto Signal Engine Orchestrator
 
 import ccxt from 'ccxt';
-import { Candle } from './indicators';
+import { Candle } from '@insight/types';
 import { runAllBuiltInStrategies, calculateRiskLevels } from './strategyEngine';
 import { saveSignal } from '../services/signalStorage';
 import { binanceStream } from '../services/binanceStream';
 import { TradeDirection, StrategyCategory } from '../constants/builtInStrategies';
 import { eventBus, EngineEvents } from '../utils/eventBus';
-import { loadMonitoredSignals, initSignalMonitor } from './signalMonitor';
+import { loadMonitoredSignals, initSignalMonitor, getMonitoredSymbols } from './signalMonitor';
 
 // In-memory candle buffer for each symbol/timeframe
 const candleBuffer: Map<string, Candle[]> = new Map();
 const BUFFER_SIZE = 200; // Keep last 200 candles for indicator calculations
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Binance exchange instance (can switch to US)
 // UPDATED: Default to Futures (Perpetual)
 let exchange = new ccxt.binance({
     enableRateLimit: true,
-    timeout: 5000, // Fail fast on network blocks
+    timeout: 20000, // Fail fast on network blocks
     options: { defaultType: 'future' }
 });
 
@@ -246,10 +248,35 @@ export const startCryptoEngine = async (): Promise<void> => {
         await loadMonitoredSignals();
 
         // Fetch all crypto symbols
-        const symbols = await fetchAllCryptoSymbols();
+        // Fetch all crypto symbols with retry logic
+        let symbols: string[] = [];
+        let attempts = 0;
+        while (symbols.length === 0 && attempts < 5) {
+            symbols = await fetchAllCryptoSymbols();
+            if (symbols.length === 0) {
+                attempts++;
+                console.warn(`[CryptoEngine] Failed to fetch symbols (Attempt ${attempts}/5). Retrying in 5s...`);
+                await delay(5000);
+            }
+        }
 
         if (symbols.length === 0) {
-            console.error('[CryptoEngine] No symbols found, engine not started');
+            console.error('[CryptoEngine] ❌ Critical: Failed to fetch symbols after multiple attempts. Engine streaming will not start for new signals.');
+            // We should still monitor existing active signals though!
+        }
+
+        // Add active signals to the list if they are not present
+        // This ensures we continue monitoring open trades even if they fell out of top 100
+        const monitoredSymbols = getMonitoredSymbols();
+        for (const s of monitoredSymbols) {
+            if (!symbols.includes(s)) {
+                console.log(`[CryptoEngine] Adding monitored symbol ${s} to subscription list`);
+                symbols.push(s);
+            }
+        }
+
+        if (symbols.length === 0) {
+            console.error('[CryptoEngine] No symbols to monitor. Aborting startup.');
             return;
         }
 
@@ -281,6 +308,9 @@ export const startCryptoEngine = async (): Promise<void> => {
 
     } catch (error) {
         console.error('[CryptoEngine] Failed to start:', error);
+        console.log('[CryptoEngine] 🔄 Retrying startup in 10 seconds...');
+        await delay(10000);
+        return startCryptoEngine();
     }
 };
 

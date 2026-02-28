@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Strategy } from '../../types';
 import { BUILT_IN_INDICATORS, indicatorToJSON } from '../../services/builtInIndicators';
-import { BUILTIN_STRATEGY_NAMES } from '../../constants';
+import { BUILTIN_STRATEGY_NAMES, SCRIPT_TEMPLATES } from '../../constants';
+import { BookOpen } from 'lucide-react';
 
 // Reusing Icons
 const FolderOpenIcon = ({ className }: { className?: string }) => (
@@ -37,6 +38,7 @@ interface OpenScriptModalProps {
     savedStrategies: Strategy[];
     onLoadStrategy: (strategy: Strategy) => void;
     onLoadHelper: (json: string, name: string, id: string) => void;
+    onLoadTemplate: (code: string, name: string, id: string) => void;
     onDelete: (strategy: Strategy) => void;
     loading: boolean;
 }
@@ -47,6 +49,7 @@ export const OpenScriptModal: React.FC<OpenScriptModalProps> = ({
     savedStrategies,
     onLoadStrategy,
     onLoadHelper,
+    onLoadTemplate,
     onDelete,
     loading
 }) => {
@@ -73,8 +76,8 @@ export const OpenScriptModal: React.FC<OpenScriptModalProps> = ({
                     <button
                         onClick={() => setView('BUILT_IN')}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${view === 'BUILT_IN'
-                                ? 'border-purple-500 text-purple-400'
-                                : 'border-transparent text-gray-400 hover:text-white'
+                            ? 'border-purple-500 text-purple-400'
+                            : 'border-transparent text-gray-400 hover:text-white'
                             }`}
                     >
                         Built-in
@@ -82,8 +85,8 @@ export const OpenScriptModal: React.FC<OpenScriptModalProps> = ({
                     <button
                         onClick={() => setView('MY_SCRIPTS')}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${view === 'MY_SCRIPTS'
-                                ? 'border-blue-500 text-blue-400'
-                                : 'border-transparent text-gray-400 hover:text-white'
+                            ? 'border-blue-500 text-blue-400'
+                            : 'border-transparent text-gray-400 hover:text-white'
                             }`}
                     >
                         My Scripts
@@ -106,6 +109,26 @@ export const OpenScriptModal: React.FC<OpenScriptModalProps> = ({
                                         >
                                             <span className="text-gray-200 text-sm font-medium">{s.name}</span>
                                             <span className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Templates */}
+                            <div className="mb-6">
+                                <div className="text-xs font-bold tracking-wider text-gray-500 uppercase mb-3">Templates</div>
+                                <div className="space-y-1">
+                                    {Object.entries(SCRIPT_TEMPLATES).map(([name, code]) => (
+                                        <button
+                                            key={name}
+                                            onClick={() => {
+                                                onLoadTemplate(code, name, 'template-' + name.toLowerCase().replace(/\s+/g, '-'));
+                                                onClose();
+                                            }}
+                                            className="w-full text-left px-4 py-3 rounded-md bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between group"
+                                        >
+                                            <span className="text-gray-200 text-sm font-medium">{name}</span>
+                                            <span className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">Use Template</span>
                                         </button>
                                     ))}
                                 </div>

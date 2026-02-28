@@ -7,6 +7,8 @@ import { loadActiveStrategies, runAllStrategies, RiskSettings } from './strategy
 import { getSignals, updateSignalStatus, cleanupOldSignals } from '../services/signalService';
 import { getWatchlists } from '../services/watchlistService';
 import { SignalStatus, EntryType } from '../types';
+import { evaluateSignalAtPrice, checkEntryTrigger, normalizeSymbol } from '@insight/computation';
+import type { SignalInput } from '@insight/computation';
 
 // Engine configuration
 const SIGNAL_GENERATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -242,7 +244,7 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
                     // Only use settings if auto-trade is enabled for this item
                     // Global Risk Settings from Watchlist apply to all items
                     if (item.autoTradeEnabled) {
-                        riskSettingsMap[item.symbol.replace('/', '').toUpperCase()] = {
+                        riskSettingsMap[normalizeSymbol(item.symbol)] = {
                             lot_size: wl.lotSize,
                             risk_percent: wl.riskPercent,
                             take_profit_distance: wl.takeProfitDistance,
@@ -271,7 +273,7 @@ export const runSignalGeneration = async (): Promise<EngineRunStats> => {
                     }
 
                     // Run all strategies against this data
-                    const normalizedSymbol = symbol.replace('/', '').toUpperCase();
+                    const normalizedSymbol = normalizeSymbol(symbol);
                     const riskSettings = riskSettingsMap[normalizedSymbol] || null;
 
                     const result = await runAllStrategies(symbol, timeframe, candles, strategies, riskSettings);
@@ -315,6 +317,14 @@ export const updateSignalStatuses = async (): Promise<void> => {
     try {
         const signals = await getSignals();
 
+        // Helper: fetch latest price for a symbol (Real-Time WebSocket > HTTP Cache)
+        const fetchPrice = async (pair: string, timeframe: string): Promise<number | null> => {
+            const realtimePrice = marketRealtimeService.getLastPrice(pair);
+            if (realtimePrice) return realtimePrice;
+            const candles = await getCandles(pair, timeframe, 1);
+            return candles.length > 0 ? candles[0].close : null;
+        };
+
         // ----- PHASE 1: Check PENDING signals for entry trigger -----
         const pendingSignals = signals.filter(s => s.status === SignalStatus.PENDING);
 
@@ -323,56 +333,27 @@ export const updateSignalStatuses = async (): Promise<void> => {
 
             for (const signal of pendingSignals) {
                 try {
-                    // Fetch latest price (Prefer Real-Time WebSocket > HTTP Cache)
-                    let currentPrice: number | null = null;
-                    const realtimePrice = marketRealtimeService.getLastPrice(signal.pair);
+                    const currentPrice = await fetchPrice(signal.pair, signal.timeframe);
+                    if (currentPrice === null) continue;
 
-                    if (realtimePrice) {
-                        currentPrice = realtimePrice;
-                    } else {
-                        const candles = await getCandles(signal.pair, signal.timeframe, 1);
-                        if (candles.length > 0) {
-                            currentPrice = candles[0].close;
-                        }
-                    }
+                    // Use shared computation for entry trigger checking
+                    const signalInput: SignalInput = {
+                        id: signal.id,
+                        symbol: signal.pair,
+                        direction: signal.direction as 'BUY' | 'SELL',
+                        entry_price: signal.entry,
+                        stop_loss: signal.stopLoss,
+                        take_profit: signal.takeProfit,
+                        status: 'Pending',
+                        entryType: (signal.entryType || 'MARKET').toString().toUpperCase() as 'MARKET' | 'LIMIT' | 'STOP',
+                    };
 
-                    if (currentPrice === null) {
-                        continue;
-                    }
-                    const isBuy = signal.direction === 'BUY';
-
-                    // Check entry trigger based on order type
-                    let entryTriggered = false;
-
-                    if (signal.entryType === EntryType.LIMIT) {
-                        // LIMIT ORDER: Buy low, sell high
-                        // BUY LIMIT: Entry when price falls to or below entry
-                        // SELL LIMIT: Entry when price rises to or above entry
-                        entryTriggered = isBuy
-                            ? currentPrice <= signal.entry
-                            : currentPrice >= signal.entry;
-
-                    } else if (signal.entryType === EntryType.STOP) {
-                        // STOP ORDER: Breakout/breakdown
-                        // BUY STOP: Entry when price rises to or above entry (breakout)
-                        // SELL STOP: Entry when price falls to or below entry (breakdown)
-                        entryTriggered = isBuy
-                            ? currentPrice >= signal.entry
-                            : currentPrice <= signal.entry;
-
-                    } else if (signal.entryType === EntryType.MARKET) {
-                        // MARKET orders should be Active immediately. 
-                        // If found in Pending, activate it now.
-                        entryTriggered = true;
-                        console.log(`[SignalEngine] ⚡ Activating pending Market signal: ${signal.pair}`);
-                    }
-                    // MARKET orders never reach here (already ACTIVE)
+                    const entryTriggered = checkEntryTrigger(signalInput, currentPrice);
 
                     if (entryTriggered) {
                         console.log(`[SignalEngine] 🎯 Entry triggered: ${signal.pair} ${signal.direction} @ ${currentPrice.toFixed(2)} (Entry: ${signal.entry.toFixed(2)})`);
                         await updateSignalStatus(signal.id, SignalStatus.ACTIVE);
                     }
-
                 } catch (error: any) {
                     console.error(`[SignalEngine] Error checking pending signal ${signal.id}:`, error.message);
                 }
@@ -382,74 +363,42 @@ export const updateSignalStatuses = async (): Promise<void> => {
         // ----- PHASE 2: Check ACTIVE signals for TP/SL hits -----
         const activeSignals = signals.filter(s => s.status === SignalStatus.ACTIVE);
 
-        if (activeSignals.length === 0) {
-            return;
-        }
+        if (activeSignals.length === 0) return;
 
         console.log(`[SignalEngine] Monitoring ${activeSignals.length} active signals for TP/SL...`);
 
         for (const signal of activeSignals) {
             try {
-                // Fetch latest price (Prefer Real-Time WebSocket > HTTP Cache)
-                let currentPrice: number | null = null;
-                const realtimePrice = marketRealtimeService.getLastPrice(signal.pair);
+                const currentPrice = await fetchPrice(signal.pair, signal.timeframe);
+                if (currentPrice === null) continue;
 
-                if (realtimePrice) {
-                    currentPrice = realtimePrice;
-                } else {
-                    const candles = await getCandles(signal.pair, signal.timeframe, 1);
-                    if (candles.length > 0) {
-                        currentPrice = candles[0].close;
-                    }
-                }
+                // Use shared computation for TP/SL + trailing SL evaluation
+                const signalInput: SignalInput = {
+                    id: signal.id,
+                    symbol: signal.pair,
+                    direction: signal.direction as 'BUY' | 'SELL',
+                    entry_price: signal.entry,
+                    stop_loss: signal.stopLoss,
+                    take_profit: signal.takeProfit,
+                    status: 'Active',
+                    trailing_stop_loss: signal.trailingStopLoss,
+                };
 
-                if (currentPrice === null) {
-                    continue;
-                }
+                const result = evaluateSignalAtPrice(signalInput, currentPrice);
 
-                // Check if TP or SL hit
-                const isBuy = signal.direction === 'BUY';
-                const tpHit = isBuy
-                    ? currentPrice >= signal.takeProfit
-                    : currentPrice <= signal.takeProfit;
-                const slHit = isBuy
-                    ? currentPrice <= signal.stopLoss
-                    : currentPrice >= signal.stopLoss;
-
-                if (tpHit) {
+                if (result.action === 'CLOSE_TP') {
                     console.log(`[SignalEngine] ✅ Take Profit hit for ${signal.pair} signal ${signal.id}`);
                     const { closeSignal } = await import('../services/signalService');
-                    await closeSignal(signal.id, 'TP', 0); // PnL 0 for now, paperTradingService calculates it
-                } else if (slHit) {
+                    await closeSignal(signal.id, 'TP', result.profitLoss || 0);
+                } else if (result.action === 'CLOSE_SL') {
                     console.log(`[SignalEngine] ❌ Stop Loss hit for ${signal.pair} signal ${signal.id}`);
                     const { closeSignal } = await import('../services/signalService');
-                    await closeSignal(signal.id, 'SL', 0);
-                } else if (signal.trailingStopLoss && signal.trailingStopLoss > 0) {
-                    // Trailing Stop Loss logic
-                    const distance = signal.trailingStopLoss;
-                    let newSL = signal.stopLoss;
-
-                    if (isBuy) {
-                        // For BUY: If Price - Distance > current SL, move SL up
-                        const potentialSL = currentPrice - distance;
-                        if (potentialSL > signal.stopLoss) {
-                            newSL = potentialSL;
-                        }
-                    } else {
-                        // For SELL: If Price + Distance < current SL, move SL down
-                        const potentialSL = currentPrice + distance;
-                        if (potentialSL < signal.stopLoss) {
-                            newSL = potentialSL;
-                        }
-                    }
-
-                    if (newSL !== signal.stopLoss) {
-                        console.log(`[SignalEngine] 🛡️ Trailing SL adjusted for ${signal.pair} from ${signal.stopLoss.toFixed(2)} to ${newSL.toFixed(2)}`);
-                        const { updateSignalRiskLevels } = await import('../services/signalService');
-                        await updateSignalRiskLevels(signal.id, { stopLoss: newSL });
-                    }
+                    await closeSignal(signal.id, 'SL', result.profitLoss || 0);
+                } else if (result.action === 'TRAIL_SL' && result.newStopLoss !== undefined) {
+                    console.log(`[SignalEngine] 🛡️ Trailing SL adjusted for ${signal.pair} from ${signal.stopLoss.toFixed(2)} to ${result.newStopLoss.toFixed(2)}`);
+                    const { updateSignalRiskLevels } = await import('../services/signalService');
+                    await updateSignalRiskLevels(signal.id, { stopLoss: result.newStopLoss });
                 }
-
             } catch (error: any) {
                 console.error(`[SignalEngine] Error updating signal ${signal.id}:`, error.message);
             }

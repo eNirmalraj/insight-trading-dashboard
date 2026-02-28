@@ -34,7 +34,7 @@ interface StreamShard {
 export class BinanceStreamManager {
     // Configuration
     private baseUrl = 'wss://fstream.binance.com/stream?streams=';
-    private readonly STREAMS_PER_CONNECTION = 200;
+    private readonly STREAMS_PER_CONNECTION = 50;
     private readonly MAX_RECONNECT_DELAY = 60000; // 60 seconds max backoff
 
     // State
