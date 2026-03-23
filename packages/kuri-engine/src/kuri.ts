@@ -6,6 +6,8 @@ import { TypeChecker } from './typeChecker';
 import { Optimizer } from './optimizer';
 import { ScriptCache } from './cache/scriptCache';
 import { RUNTIME_LIMITS, RuntimeLimitError } from './runtimeLimits';
+import { createKuriError } from './errors';
+import type { KuriError } from './errors';
 import {
     ASTNode,
     Program,
@@ -578,34 +580,28 @@ export class Kuri {
      * Provide diagnostics (errors/warnings) for a Kuri script without executing it.
      * Returns structured error info with line/column for Monaco marker integration.
      */
-    public static provideDiagnostics(script: string): KuriDiagnostic[] {
-        const diagnostics: KuriDiagnostic[] = [];
+    public static provideDiagnostics(script: string): KuriError[] {
+        const diagnostics: KuriError[] = [];
 
         if (!script || script.trim().length === 0) return diagnostics;
 
         // Check script size limits
         if (script.length > RUNTIME_LIMITS.MAX_SCRIPT_SIZE_BYTES) {
-            diagnostics.push({
-                line: 1,
-                column: 1,
-                endLine: 1,
-                endColumn: 1,
-                message: `Script size exceeds maximum (${RUNTIME_LIMITS.MAX_SCRIPT_SIZE_BYTES} bytes)`,
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K607', {
+                    message: `Script size exceeds maximum (${RUNTIME_LIMITS.MAX_SCRIPT_SIZE_BYTES} bytes)`,
+                })
+            );
             return diagnostics;
         }
 
         const lineCount = script.split('\n').length;
         if (lineCount > RUNTIME_LIMITS.MAX_LINES) {
-            diagnostics.push({
-                line: 1,
-                column: 1,
-                endLine: 1,
-                endColumn: 1,
-                message: `Script exceeds maximum line count (${RUNTIME_LIMITS.MAX_LINES} lines)`,
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K608', {
+                    message: `Script exceeds maximum line count (${RUNTIME_LIMITS.MAX_LINES} lines)`,
+                })
+            );
             return diagnostics;
         }
 
@@ -616,11 +612,13 @@ export class Kuri {
             tokens = lexer.tokenize();
         } catch (e: any) {
             const loc = this.extractErrorLocation(e.message, script);
-            diagnostics.push({
-                ...loc,
-                message: e.message,
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K000', {
+                    message: e.message,
+                    category: 'syntax',
+                    ...loc,
+                })
+            );
             return diagnostics;
         }
 
@@ -632,38 +630,29 @@ export class Kuri {
             ast = parser.parse();
         } catch (e: any) {
             const loc = this.extractErrorLocation(e.message, script);
-            diagnostics.push({
-                ...loc,
-                message: e.message,
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K000', {
+                    message: e.message,
+                    category: 'syntax',
+                    ...loc,
+                })
+            );
             return diagnostics;
         }
 
         // Phase 3: Type checker — errors are real errors, not warnings
         try {
             const checker = new TypeChecker();
-            const errors = checker.check(ast);
-            for (const err of errors) {
-                diagnostics.push({
-                    line: err.line,
-                    column: err.column,
-                    endLine: err.endLine,
-                    endColumn: err.endColumn,
-                    message: err.message,
-                    severity: err.severity,
-                });
-            }
+            const typeErrors = checker.check(ast);
+            diagnostics.push(...typeErrors);
         } catch (e: any) {
             // Type checker crash — report as warning (checker itself broke, not the script)
-            diagnostics.push({
-                line: 1,
-                column: 1,
-                endLine: 1,
-                endColumn: 1,
-                message: `Type checker error: ${e.message}`,
-                severity: 'warning',
-            });
+            diagnostics.push(
+                createKuriError('K500', {
+                    message: `Type checker error: ${e.message}`,
+                    severity: 'warning',
+                })
+            );
         }
 
         // Phase 4: IR transformation + validation
@@ -672,27 +661,20 @@ export class Kuri {
             ir = this.transformToIR(ast);
         } catch (e: any) {
             const loc = this.extractErrorLocation(e.message, script);
-            diagnostics.push({
-                ...loc,
-                message: e.message,
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K000', {
+                    message: e.message,
+                    category: 'syntax',
+                    ...loc,
+                })
+            );
         }
 
         // Phase 4b: IR structural validation
         if (ir) {
             try {
                 const irIssues = validateIR(ir);
-                for (const issue of irIssues) {
-                    diagnostics.push({
-                        line: issue.line || 1,
-                        column: issue.column || 1,
-                        endLine: issue.line || 1,
-                        endColumn: (issue.column || 1) + 1,
-                        message: issue.message,
-                        severity: issue.severity,
-                    });
-                }
+                diagnostics.push(...irIssues);
             } catch (_) {
                 // IR validator crash — don't block
             }
@@ -702,30 +684,15 @@ export class Kuri {
         // na comparison, duplicate vars, argument count validation
         try {
             const semanticIssues = validateSemantics(ast);
-            for (const issue of semanticIssues) {
-                const lines = script.split('\n');
-                const lineContent = lines[issue.line - 1] || '';
-                diagnostics.push({
-                    line: issue.line,
-                    column: issue.column,
-                    endLine: issue.line,
-                    endColumn: lineContent.length + 1,
-                    message: issue.code ? `[${issue.code}] ${issue.message}` : issue.message,
-                    severity: issue.severity,
-                    code: issue.code,
-                    suggestion: issue.suggestion,
-                });
-            }
+            diagnostics.push(...semanticIssues);
         } catch (e: any) {
             // Semantic validator crash — report as warning, don't block
-            diagnostics.push({
-                line: 1,
-                column: 1,
-                endLine: 1,
-                endColumn: 1,
-                message: `Semantic validation error: ${e.message}`,
-                severity: 'warning',
-            });
+            diagnostics.push(
+                createKuriError('K500', {
+                    message: `Semantic validation error: ${e.message}`,
+                    severity: 'warning',
+                })
+            );
         }
 
         // Phase 6: Script structure validation
@@ -735,15 +702,12 @@ export class Kuri {
         const hasStrategyDecl = /\bstrategy\s*\(/.test(scriptText);
 
         if (!hasIndicatorDecl && !hasStrategyDecl) {
-            diagnostics.push({
-                line: 1,
-                column: 1,
-                endLine: 1,
-                endColumn: 1,
-                message:
-                    'Missing script declaration. Start with indicator("Name") or strategy("Name").',
-                severity: 'error',
-            });
+            diagnostics.push(
+                createKuriError('K061', {
+                    message:
+                        'Missing script declaration. Start with indicator("Name") or strategy("Name").',
+                })
+            );
         }
 
         if (hasIndicatorDecl && !hasStrategyDecl) {
@@ -753,15 +717,12 @@ export class Kuri {
                     scriptText
                 );
             if (!hasVisualOutput) {
-                diagnostics.push({
-                    line: 1,
-                    column: 1,
-                    endLine: 1,
-                    endColumn: 1,
-                    message:
-                        'Indicator scripts must have at least one plot() or drawing call (line.new, label.new) to display on the chart.',
-                    severity: 'error',
-                });
+                diagnostics.push(
+                    createKuriError('K063', {
+                        message:
+                            'Indicator scripts must have at least one plot() or drawing call (line.new, label.new) to display on the chart.',
+                    })
+                );
             }
         }
 
@@ -769,19 +730,24 @@ export class Kuri {
             // Strategy must have at least one strategy.entry() call
             const hasEntry = /\bstrategy\.(entry|order)\s*\(/.test(scriptText);
             if (!hasEntry) {
-                diagnostics.push({
-                    line: 1,
-                    column: 1,
-                    endLine: 1,
-                    endColumn: 1,
-                    message:
-                        'Strategy scripts must have at least one strategy.entry() call to generate signals.',
-                    severity: 'error',
-                });
+                diagnostics.push(
+                    createKuriError('K062', {
+                        message:
+                            'Strategy scripts must have at least one strategy.entry() call to generate signals.',
+                    })
+                );
             }
         }
 
-        return diagnostics;
+        // Deduplication: remove duplicate diagnostics at the same location with same code
+        const seen = new Set<string>();
+        const deduped = diagnostics.filter((d) => {
+            const key = `${d.code}:${d.line}:${d.column}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        return deduped;
     }
 
     /**
@@ -818,13 +784,4 @@ export class Kuri {
     }
 }
 
-export interface KuriDiagnostic {
-    line: number;
-    column: number;
-    endLine: number;
-    endColumn: number;
-    message: string;
-    severity: 'error' | 'warning' | 'info';
-    code?: string; // Error code (K001, K010, etc.)
-    suggestion?: string; // Suggested fix
-}
+export type { KuriDiagnostic } from './errors';
