@@ -11,8 +11,8 @@ import { Candle } from '../types/market';
  */
 const generateMockCandles = (): Candle[] => {
     const candles: Candle[] = [];
-    const baseTime = Math.floor(Date.now() / 1000) - (100 * 3600); // 100 hours ago
-    let price = 1.1000;
+    const baseTime = Math.floor(Date.now() / 1000) - 100 * 3600; // 100 hours ago
+    let price = 1.1;
 
     for (let i = 0; i < 100; i++) {
         // Create trending price movement with some noise
@@ -20,18 +20,18 @@ const generateMockCandles = (): Candle[] => {
         const noise = (Math.random() - 0.5) * 0.0004;
         price += trend + noise;
 
-        const high = price + Math.random() * 0.0010;
-        const low = price - Math.random() * 0.0010;
+        const high = price + Math.random() * 0.001;
+        const low = price - Math.random() * 0.001;
         const open = price + (Math.random() - 0.5) * 0.0005;
         const close = price;
 
         candles.push({
-            time: baseTime + (i * 3600), // 1 hour intervals
+            time: baseTime + i * 3600, // 1 hour intervals
             open,
             high,
             low,
             close,
-            volume: Math.random() * 1000 + 500
+            volume: Math.random() * 1000 + 500,
         });
     }
 
@@ -49,25 +49,25 @@ const createSMACrossStrategy = (): Strategy => ({
     symbolScope: ['EURUSD', 'GBPUSD'],
     indicators: [
         { type: 'MA', parameters: { period: 20 } },
-        { type: 'MA', parameters: { period: 50 } }
+        { type: 'MA', parameters: { period: 50 } },
     ],
     entryRules: [
         {
             condition: 'crossover',
             indicator1: 'MA_20',
             indicator2: 'MA_50',
-            direction: TradeDirection.BUY
+            direction: TradeDirection.BUY,
         },
         {
             condition: 'crossunder',
             indicator1: 'MA_20',
             indicator2: 'MA_50',
-            direction: TradeDirection.SELL
-        }
+            direction: TradeDirection.SELL,
+        },
     ],
     exitRules: [],
     isActive: true,
-    type: 'STRATEGY'
+    type: 'STRATEGY',
 });
 
 /**
@@ -79,26 +79,24 @@ const createRSIStrategy = (): Strategy => ({
     description: 'Buy when RSI < 30, Sell when RSI > 70',
     timeframe: '1H',
     symbolScope: ['EURUSD'],
-    indicators: [
-        { type: 'RSI', parameters: { period: 14 } }
-    ],
+    indicators: [{ type: 'RSI', parameters: { period: 14 } }],
     entryRules: [
         {
             condition: 'less_than',
             indicator1: 'RSI_14',
             value: 30,
-            direction: TradeDirection.BUY
+            direction: TradeDirection.BUY,
         },
         {
             condition: 'greater_than',
             indicator1: 'RSI_14',
             value: 70,
-            direction: TradeDirection.SELL
-        }
+            direction: TradeDirection.SELL,
+        },
     ],
     exitRules: [],
     isActive: true,
-    type: 'STRATEGY'
+    type: 'STRATEGY',
 });
 
 /**
@@ -111,16 +109,23 @@ export const testSMACrossStrategy = async () => {
     const candles = generateMockCandles();
 
     console.log(`Generated ${candles.length} candles`);
-    console.log(`Price range: ${candles[0].close.toFixed(5)} -> ${candles[candles.length - 1].close.toFixed(5)}`);
+    console.log(
+        `Price range: ${candles[0].close.toFixed(5)} -> ${candles[candles.length - 1].close.toFixed(5)}`
+    );
 
-    const results = await runStrategy(strategy, candles);
+    const result = await runStrategy(strategy, candles);
 
-    console.log(`\\nStrategy evaluated: ${results.length} signals detected`);
-    results.forEach(result => {
-        console.log(`  - ${result.direction}: ${result.reason}`);
+    if (!result.ok) {
+        console.log(`\\nStrategy failed: ${result.error}`);
+        return false;
+    }
+
+    console.log(`\\nStrategy evaluated: ${result.signals.length} signals detected`);
+    result.signals.forEach((sig) => {
+        console.log(`  - ${sig.direction}: ${sig.reason}`);
     });
 
-    return results.length > 0;
+    return result.signals.length > 0;
 };
 
 /**
@@ -132,14 +137,19 @@ export const testRSIStrategy = async () => {
     const strategy = createRSIStrategy();
     const candles = generateMockCandles();
 
-    const results = await runStrategy(strategy, candles);
+    const result = await runStrategy(strategy, candles);
 
-    console.log(`\\nStrategy evaluated: ${results.length} signals detected`);
-    results.forEach(result => {
-        console.log(`  - ${result.direction}: ${result.reason}`);
+    if (!result.ok) {
+        console.log(`\\nStrategy failed: ${result.error}`);
+        return false;
+    }
+
+    console.log(`\\nStrategy evaluated: ${result.signals.length} signals detected`);
+    result.signals.forEach((sig) => {
+        console.log(`  - ${sig.direction}: ${sig.reason}`);
     });
 
-    return results.length >= 0; // May or may not generate signals
+    return result.signals.length >= 0; // May or may not generate signals
 };
 
 /**
@@ -158,7 +168,7 @@ export const testRunAllStrategies = async () => {
     console.log(`  Success: ${result.success}`);
     console.log(`  Signals created: ${result.signalsCreated}`);
     console.log(`  Errors: ${result.errors.length}`);
-    result.errors.forEach(err => console.log(`    - ${err}`));
+    result.errors.forEach((err) => console.log(`    - ${err}`));
 
     return result.success;
 };
@@ -174,7 +184,7 @@ export const runAllTests = async () => {
     const tests = [
         { name: 'SMA Cross Strategy', fn: testSMACrossStrategy },
         { name: 'RSI Strategy', fn: testRSIStrategy },
-        { name: 'Run All Strategies', fn: testRunAllStrategies }
+        { name: 'Run All Strategies', fn: testRunAllStrategies },
     ];
 
     const results = [];
@@ -192,7 +202,7 @@ export const runAllTests = async () => {
     console.log('║  Test Results                            ║');
     console.log('╚══════════════════════════════════════════╝\\n');
 
-    results.forEach(result => {
+    results.forEach((result) => {
         const status = result.passed ? '✓ PASS' : '✗ FAIL';
         console.log(`${status} - ${result.name}`);
         if (result.error) {
@@ -200,7 +210,7 @@ export const runAllTests = async () => {
         }
     });
 
-    const passCount = results.filter(r => r.passed).length;
+    const passCount = results.filter((r) => r.passed).length;
     console.log(`\\n${passCount}/${results.length} tests passed\\n`);
 
     return passCount === results.length;
@@ -208,7 +218,7 @@ export const runAllTests = async () => {
 
 // Auto-run tests if this file is executed directly
 if (require.main === module) {
-    runAllTests().then(success => {
+    runAllTests().then((success) => {
         process.exit(success ? 0 : 1);
     });
 }
