@@ -28,6 +28,7 @@ import { getCandles, getCandlesWithCache } from '../services/marketDataService';
 import { preloadCommonSymbols } from '../services/marketCacheService';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import { alertEngine } from '../engine/alertEngine';
+import { setSignalErrorCallback } from '../engine/signalEngine';
 import {
     loadMarketState,
     saveMarketState,
@@ -75,6 +76,7 @@ class ChartErrorBoundary extends React.Component<
                     </svg>
                     <p className="error-boundary-text">Chart failed to load</p>
                     <button
+                        type="button"
                         onClick={() => this.setState({ hasError: false, error: null })}
                         className="error-boundary-btn"
                     >
@@ -270,6 +272,16 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
             setChartErrors([]);
         }
     }, []);
+
+    // Wire signal engine errors to the error banner
+    useEffect(() => {
+        setSignalErrorCallback((errors) => {
+            errors.forEach((msg) => {
+                addChartError(toChartErrorFromString(msg, 'Signal Engine', 'warning'));
+            });
+        });
+        return () => setSignalErrorCallback(null);
+    }, [addChartError]);
 
     // Detect ?addScript=<id> from URL (sent by Strategy Studio "Add to chart")
     useEffect(() => {
