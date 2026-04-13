@@ -23,6 +23,7 @@ export interface DbWatchlist {
     market_type: string | null;
     risk_method: string | null;
     auto_leverage_enabled: boolean;
+    strategy_ids: string[] | null;
 }
 
 interface DbWatchlistItem {
@@ -70,10 +71,7 @@ const mapDbItemToWatchlistItem = (item: DbWatchlistItem): WatchlistItem => ({
 /**
  * Convert DB watchlist with items to frontend Watchlist type
  */
-const mapDbToWatchlist = (
-    row: DbWatchlist,
-    items: DbWatchlistItem[]
-): Watchlist => {
+const mapDbToWatchlist = (row: DbWatchlist, items: DbWatchlistItem[]): Watchlist => {
     let accountType: AccountType = AccountType.FOREX;
     if (row.account_type === 'crypto') accountType = AccountType.CRYPTO;
     else if (row.account_type === 'indian') accountType = AccountType.INDIAN;
@@ -98,6 +96,7 @@ const mapDbToWatchlist = (
         marketType: (row.market_type as 'spot' | 'futures') || undefined,
         riskMethod: (row.risk_method as 'fixed' | 'percent') || 'fixed',
         autoLeverageEnabled: row.auto_leverage_enabled ?? false,
+        strategyIds: row.strategy_ids || [],
     };
 };
 
@@ -109,7 +108,9 @@ const mapDbToWatchlist = (
 export const getWatchlists = async (): Promise<Watchlist[]> => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return [];
 
     // Fetch watchlists for this user only
@@ -161,7 +162,9 @@ export const createWatchlist = async (
     if (!supabase) throw new Error('Supabase not configured');
 
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
     const { data, error } = await supabase
@@ -184,7 +187,7 @@ export const createWatchlist = async (
             manual_risk_enabled: false,
             market_type: marketType || null,
             risk_method: riskMethod || 'fixed',
-            auto_leverage_enabled: autoLeverageEnabled || false
+            auto_leverage_enabled: autoLeverageEnabled || false,
         })
         .select()
         .single();
@@ -228,14 +231,20 @@ export const updateWatchlist = async (
     if (payload.lotSize !== undefined) updateData.lot_size = payload.lotSize;
     if (payload.riskPercent !== undefined) updateData.risk_percent = payload.riskPercent;
     if (payload.leverage !== undefined) updateData.leverage = payload.leverage;
-    if (payload.stopLossDistance !== undefined) updateData.stop_loss_distance = payload.stopLossDistance;
-    if (payload.takeProfitDistance !== undefined) updateData.take_profit_distance = payload.takeProfitDistance;
-    if (payload.trailingStopLossDistance !== undefined) updateData.trailing_stop_loss_distance = payload.trailingStopLossDistance;
-    if (payload.executionTimeframes !== undefined) updateData.execution_timeframes = payload.executionTimeframes;
-    if (payload.manualRiskEnabled !== undefined) updateData.manual_risk_enabled = payload.manualRiskEnabled;
+    if (payload.stopLossDistance !== undefined)
+        updateData.stop_loss_distance = payload.stopLossDistance;
+    if (payload.takeProfitDistance !== undefined)
+        updateData.take_profit_distance = payload.takeProfitDistance;
+    if (payload.trailingStopLossDistance !== undefined)
+        updateData.trailing_stop_loss_distance = payload.trailingStopLossDistance;
+    if (payload.executionTimeframes !== undefined)
+        updateData.execution_timeframes = payload.executionTimeframes;
+    if (payload.manualRiskEnabled !== undefined)
+        updateData.manual_risk_enabled = payload.manualRiskEnabled;
     if (payload.marketType !== undefined) updateData.market_type = payload.marketType;
     if (payload.riskMethod !== undefined) updateData.risk_method = payload.riskMethod;
-    if (payload.autoLeverageEnabled !== undefined) updateData.auto_leverage_enabled = payload.autoLeverageEnabled;
+    if (payload.autoLeverageEnabled !== undefined)
+        updateData.auto_leverage_enabled = payload.autoLeverageEnabled;
 
     const { data, error } = await supabase
         .from('watchlists')
@@ -261,10 +270,7 @@ export const updateWatchlist = async (
 export const deleteWatchlist = async (id: string): Promise<{ success: boolean }> => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { error } = await supabase
-        .from('watchlists')
-        .delete()
-        .eq('id', id);
+    const { error } = await supabase.from('watchlists').delete().eq('id', id);
 
     if (error) throw new Error(error.message);
 
@@ -281,20 +287,19 @@ export const addSymbol = async (
     if (!supabase) throw new Error('Supabase not configured');
 
     // Insert new item with ZERO defaults (realtime service will update)
-    const { error: insertError } = await supabase
-        .from('watchlist_items')
-        .insert({
-            watchlist_id: watchlistId,
-            symbol,
-            price: 0,
-            change: 0,
-            percent_change: 0,
-            pnl: 0,
-            auto_trade_enabled: false,
-        });
+    const { error: insertError } = await supabase.from('watchlist_items').insert({
+        watchlist_id: watchlistId,
+        symbol,
+        price: 0,
+        change: 0,
+        percent_change: 0,
+        pnl: 0,
+        auto_trade_enabled: false,
+    });
 
     if (insertError) {
-        if (insertError.code === '23505') { // Unique constraint violation
+        if (insertError.code === '23505') {
+            // Unique constraint violation
             throw new Error('Symbol already exists in this watchlist.');
         }
         throw new Error(insertError.message);
@@ -326,10 +331,7 @@ export const removeSymbol = async (
 ): Promise<{ success: boolean }> => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { error } = await supabase
-        .from('watchlist_items')
-        .delete()
-        .eq('id', itemId);
+    const { error } = await supabase.from('watchlist_items').delete().eq('id', itemId);
 
     if (error) throw new Error(error.message);
 
@@ -404,14 +406,130 @@ export const updateWatchlistItemRiskSettings = async (
 ): Promise<{ success: boolean }> => {
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { error } = await supabase
-        .from('watchlist_items')
-        .update(settings)
-        .eq('id', itemId);
+    const { error } = await supabase.from('watchlist_items').update(settings).eq('id', itemId);
 
     if (error) throw new Error(error.message);
 
     return { success: true };
+};
+
+/**
+ * Update assigned strategies for a watchlist
+ */
+export const updateWatchlistStrategies = async (
+    watchlistId: string,
+    strategyIds: string[]
+): Promise<{ success: boolean }> => {
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const { error } = await supabase
+        .from('watchlists')
+        .update({ strategy_ids: strategyIds })
+        .eq('id', watchlistId);
+
+    if (error) throw new Error(error.message);
+
+    return { success: true };
+};
+
+// ──────────────────────────────────────────────────────────────
+//  watchlist_strategies CRUD (per-assignment params + risk)
+// ──────────────────────────────────────────────────────────────
+
+export interface WatchlistStrategyAssignment {
+    id: string;
+    watchlistId: string;
+    strategyId: string;
+    params: Record<string, any>;
+    timeframe: string;
+    riskSettings: Record<string, any>;
+    lastError: string | null;
+    lastErrorAt: string | null;
+}
+
+/** Fetch all strategy assignments for a watchlist. */
+export const getWatchlistStrategies = async (
+    watchlistId: string
+): Promise<WatchlistStrategyAssignment[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+        .from('watchlist_strategies')
+        .select('*')
+        .eq('watchlist_id', watchlistId);
+    if (error) {
+        console.warn('[watchlistService] getWatchlistStrategies failed:', error.message);
+        return [];
+    }
+    return (data || []).map((r: any) => ({
+        id: r.id,
+        watchlistId: r.watchlist_id,
+        strategyId: r.strategy_id,
+        params: r.params || {},
+        timeframe: r.timeframe,
+        riskSettings: r.risk_settings || {},
+        lastError: r.last_error,
+        lastErrorAt: r.last_error_at,
+    }));
+};
+
+/** Add a new strategy assignment to a watchlist. Returns the new id. */
+export const addWatchlistStrategy = async (
+    watchlistId: string,
+    strategyId: string,
+    params: Record<string, any>,
+    timeframe: string,
+    riskSettings: Record<string, any> = {}
+): Promise<string> => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase
+        .from('watchlist_strategies')
+        .insert({
+            watchlist_id: watchlistId,
+            strategy_id: strategyId,
+            params,
+            timeframe,
+            risk_settings: riskSettings,
+        })
+        .select('id')
+        .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+};
+
+/** Update only the params of an existing assignment. */
+export const updateWatchlistStrategyParams = async (
+    assignmentId: string,
+    params: Record<string, any>
+): Promise<void> => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase
+        .from('watchlist_strategies')
+        .update({ params, updated_at: new Date().toISOString() })
+        .eq('id', assignmentId);
+    if (error) throw new Error(error.message);
+};
+
+/** Update risk settings on an existing assignment. */
+export const updateWatchlistStrategyRiskSettings = async (
+    assignmentId: string,
+    riskSettings: Record<string, any>
+): Promise<void> => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase
+        .from('watchlist_strategies')
+        .update({ risk_settings: riskSettings, updated_at: new Date().toISOString() })
+        .eq('id', assignmentId);
+    if (error) throw new Error(error.message);
+};
+
+/** Remove a strategy assignment (execution rows are cascade-set-null on watchlist_strategy_id). */
+export const removeWatchlistStrategy = async (assignmentId: string): Promise<void> => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase
+        .from('watchlist_strategies')
+        .delete()
+        .eq('id', assignmentId);
+    if (error) throw new Error(error.message);
 };
 
 export default {
@@ -424,5 +542,12 @@ export default {
     toggleMasterAutoTrade,
     toggleItemAutoTrade,
     toggleAutoTrade,
-    updateWatchlistItemRiskSettings
+    updateWatchlistItemRiskSettings,
+    updateWatchlistStrategies,
+    // New watchlist_strategies API
+    getWatchlistStrategies,
+    addWatchlistStrategy,
+    updateWatchlistStrategyParams,
+    updateWatchlistStrategyRiskSettings,
+    removeWatchlistStrategy,
 };
