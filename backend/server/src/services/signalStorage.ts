@@ -1,160 +1,105 @@
 // backend/server/src/services/signalStorage.ts
-// Signal Persistence Service using Supabase
+// Writes event rows to the signals table.
+// Execution state (SL, TP, status, close_reason, P&L) lives in signal_executions now.
+// Legacy columns still exist on signals and are populated for compatibility until
+// migration 054 drops them in Phase 5.
 
 import { supabaseAdmin } from './supabaseAdmin';
-import { TradeDirection, StrategyCategory } from '../constants/builtInStrategies';
 import { eventBus } from '../utils/eventBus';
-import { createAlert } from './alertService';
+import { TradeDirection, Market } from '../constants/enums';
 
-export interface SignalData {
-    symbol: string;
-    strategy: string;
-    strategyId: string;
-    strategyCategory: string;
+export interface InsertSignalInput {
+    strategyId: string;          // uuid — use builtinStrategyUuid() for built-ins
+    strategyName: string;        // legacy signals.strategy column (NOT NULL until 054)
+    symbol: string;              // Binance-native, e.g. 'BTCUSDT'
+    market: Market;
     direction: TradeDirection;
     entryPrice: number;
-    stopLoss: number | null;
-    takeProfit: number | null;
     timeframe: string;
-    status: string;
+    candleTime: string;          // ISO timestamp of the triggering candle
+    paramsSnapshot: Record<string, any>;
+    templateVersion: string;     // 8-char hash from strategyLoader
+}
+
+export interface SignalRow {
+    id: string;
+    strategy_id: string;
+    symbol: string;
+    market: string;
+    direction: string;
+    entry_price: number;
+    timeframe: string;
+    candle_time: string;
+    params_snapshot: Record<string, any>;
+    template_version: string | null;
+    created_at: string;
 }
 
 /**
- * Check if a duplicate signal exists within lookback period
+ * Insert a new signal event row.
+ * Returns the inserted row, or null if deduped by the unique index.
+ *
+ * The unique index (strategy_id, params_snapshot, symbol, timeframe, candle_time)
+ * guarantees one row per trigger event across cold-start, restart-replay, and
+ * concurrent writes. Duplicate inserts are silently rejected (Postgres 23505).
  */
-export const isDuplicateSignal = async (
-    strategyId: string,
-    symbol: string,
-    direction: string,
-    lookbackMinutes: number = 60
-): Promise<boolean> => {
-    try {
-        const lookbackTime = new Date(Date.now() - lookbackMinutes * 60 * 1000).toISOString();
+export async function insertSignal(input: InsertSignalInput): Promise<SignalRow | null> {
+    // Populate legacy NOT-NULL columns (strategy, status) for compatibility with
+    // the unmerged pre-054 schema. They're ignored by the new engine.
+    const payload: Record<string, any> = {
+        strategy_id: input.strategyId,
+        strategy: input.strategyName, // legacy, NOT NULL until 054
+        symbol: input.symbol,
+        market: input.market,
+        direction: input.direction,
+        entry_price: input.entryPrice,
+        timeframe: input.timeframe,
+        candle_time: input.candleTime,
+        params_snapshot: input.paramsSnapshot,
+        template_version: input.templateVersion,
+        // status relies on DB default 'pending' — event has no status
+        // entry_type relies on DB default 'market'
+    };
 
-        const { data, error } = await supabaseAdmin
-            .from('signals')
-            .select('id')
-            .eq('strategy_id', strategyId)
-            .eq('symbol', symbol)
-            .eq('direction', direction)
-            .gte('created_at', lookbackTime)
-            .limit(1);
+    const { data, error } = await supabaseAdmin
+        .from('signals')
+        .insert(payload)
+        .select('*')
+        .maybeSingle();
 
-        if (error) {
-            console.error('Error checking duplicate signal:', error);
-            return false; // Fail open to allow signal creation
-        }
-
-        return (data?.length || 0) > 0;
-    } catch (error) {
-        console.error('Error in isDuplicateSignal:', error);
-        return false;
-    }
-};
-
-/**
- * Save a new signal to the database
- */
-export const saveSignal = async (signal: SignalData): Promise<string | null> => {
-    // console.log('[TRACE] Attempting DB insert:', signal.symbol, signal.strategy);
-    try {
-        // Check for duplicate first
-        // TEMPORARY: Disabled for testing as per user request
-        /*
-        const isDupe = await isDuplicateSignal(
-            signal.strategyId,
-            signal.symbol,
-            signal.direction,
-            60 // 1 hour lookback
-        );
-
-        if (isDupe) {
-            console.log(`[SignalStorage] Duplicate signal prevented for ${signal.symbol} ${signal.strategy}`);
+    if (error) {
+        // 23505 = unique violation (dedupe) — silent skip, not an error
+        if (error.code === '23505') {
             return null;
         }
-        */
-
-        const { data, error } = await supabaseAdmin
-            .from('signals')
-            .insert({
-                symbol: signal.symbol,
-                strategy: signal.strategy,
-                strategy_id: signal.strategyId,
-                strategy_category: signal.strategyCategory,
-                direction: signal.direction,
-                entry_price: signal.entryPrice,
-                stop_loss: signal.stopLoss,
-                take_profit: signal.takeProfit,
-                timeframe: signal.timeframe,
-                status: signal.status,
-                entry_type: 'Market',
-                activated_at: signal.status === 'Active' ? new Date().toISOString() : null
-            })
-            .select('id')
-            .single();
-
-        // console.log('[TRACE] Insert result:', data?.id, JSON.stringify(data));
-        // console.log('[TRACE] Insert error:', error);
-
-        if (error) {
-            console.error('Error saving signal:', error);
-            return null;
-        }
-
-        console.log(`[SignalStorage] ✅ Signal saved: ${signal.symbol} ${signal.direction} ${signal.strategy}`);
-
-        // Notify via EventBus
-        eventBus.emitSignalCreated(data.id, signal);
-
-        // Notify via AlertSystem
-        await createAlert(data.id, 'CREATED', signal.symbol, {
-            direction: signal.direction,
-            entry_price: signal.entryPrice
-        });
-
-        return data?.id || null;
-    } catch (error) {
-        console.error('Error in saveSignal:', error);
+        console.error('[signalStorage] insertSignal failed:', error.message);
         return null;
     }
-};
 
-/**
- * Update signal status
- */
-export const updateSignalStatus = async (
-    signalId: string,
-    status: string,
-    closeReason?: string,
-    profitLoss?: number
-): Promise<boolean> => {
-    try {
-        const updateData: Record<string, any> = { status };
-
-        if (status === 'Closed') {
-            updateData.closed_at = new Date().toISOString();
-            if (closeReason) updateData.close_reason = closeReason;
-            if (profitLoss !== undefined) updateData.profit_loss = profitLoss;
-        } else if (status === 'Active') {
-            updateData.activated_at = new Date().toISOString();
-        }
-
-        const { error } = await supabaseAdmin
-            .from('signals')
-            .update(updateData)
-            .eq('id', signalId);
-
-        if (error) {
-            console.error('Error updating signal status:', error);
-            return false;
-        }
-
-        // Notify via EventBus
-        eventBus.emitSignalStatusChanged(signalId, status);
-
-        return true;
-    } catch (error) {
-        console.error('Error in updateSignalStatus:', error);
-        return false;
+    if (!data) {
+        return null;
     }
-};
+
+    const row: SignalRow = {
+        id: data.id,
+        strategy_id: data.strategy_id,
+        symbol: data.symbol,
+        market: data.market,
+        direction: data.direction,
+        entry_price: data.entry_price,
+        timeframe: data.timeframe,
+        candle_time: data.candle_time,
+        params_snapshot: data.params_snapshot || {},
+        template_version: data.template_version,
+        created_at: data.created_at,
+    };
+
+    console.log(
+        `[SignalStorage] ✅ Signal event: ${row.symbol} ${row.direction} strategy=${input.strategyName}`,
+    );
+
+    // Notify Execution Engine via event bus (uses new single-arg signature)
+    eventBus.emitSignalCreated(row, 'candle');
+
+    return row;
+}
