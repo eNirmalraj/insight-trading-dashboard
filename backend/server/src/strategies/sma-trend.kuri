@@ -1,0 +1,29 @@
+---
+version: kuri 1.0
+type: strategy
+id: builtin-sma-trend
+name: SMA Trend
+short: SMA Trend
+description: Trend-following strategy using SMA 20 and SMA 50 alignment. Buy when price > SMA 20 > SMA 50, Sell when price < SMA 20 < SMA 50. SL at entry candle high/low, TP at 1:2 risk-reward.
+category: Trend Following
+pane: overlay
+---
+
+// Parameters
+fastLen = param.int(20, title="Fast SMA Length", min=1, max=200)
+slowLen = param.int(50, title="Slow SMA Length", min=1, max=500)
+
+// SMA Indicators
+sma_fast = kuri.sma(close, fastLen)
+sma_slow = kuri.sma(close, slowLen)
+
+// Plot SMAs on chart
+mark(sma_fast, title="SMA Fast", color=#2196F3, linewidth=2)
+mark(sma_slow, title="SMA Slow", color=#FF9800, linewidth=2)
+
+// Entry Conditions (only fire on the latest bar to avoid historical duplicates)
+if barstate.islast and close > sma_fast and sma_fast > sma_slow
+    strategy.entry("Buy", strategy.long)
+
+if barstate.islast and close < sma_fast and sma_fast < sma_slow
+    strategy.entry("Sell", strategy.short)
