@@ -3,19 +3,19 @@ import { Candle } from '../engine/indicators';
 import { eventBus } from '../utils/eventBus';
 
 export interface KlineMessage {
-    e: string;      // Event type
-    E: number;      // Event time
-    s: string;      // Symbol
+    e: string; // Event type
+    E: number; // Event time
+    s: string; // Symbol
     k: {
-        t: number;  // Kline start time
-        T: number;  // Kline close time
-        s: string;  // Symbol
-        i: string;  // Interval
-        o: string;  // Open price
-        c: string;  // Close price
-        h: string;  // High price
-        l: string;  // Low price
-        v: string;  // Base asset volume
+        t: number; // Kline start time
+        T: number; // Kline close time
+        s: string; // Symbol
+        i: string; // Interval
+        o: string; // Open price
+        c: string; // Close price
+        h: string; // High price
+        l: string; // Low price
+        v: string; // Base asset volume
         x: boolean; // Is this kline closed?
     };
 }
@@ -42,6 +42,11 @@ export class BinanceStreamManager {
     private subscriptions: Map<string, Set<string>> = new Map(); // symbol -> Set<timeframe>
     private onCandleCloseCallback: CandleCloseCallback | null = null;
 
+    // Dedicated bookTicker shard — managed independently from kline shards.
+    // Rebuilt whenever the set of tracked symbols changes (add/remove).
+    private tickerShard: StreamShard | null = null;
+    private bookTickerSymbols: Set<string> = new Set(); // canonical symbols e.g. 'BTCUSDT'
+
     // Watchdog
     private lastMessageTime: number = Date.now();
     private watchdogInterval: NodeJS.Timeout | null = null;
@@ -51,7 +56,9 @@ export class BinanceStreamManager {
      */
     public setRegion(isUS: boolean): void {
         if (isUS) {
-            console.warn('[BinanceStream] Warning: Binance US Futures stream not fully configured, using global fstream as fallback');
+            console.warn(
+                '[BinanceStream] Warning: Binance US Futures stream not fully configured, using global fstream as fallback'
+            );
             this.baseUrl = 'wss://stream.binance.us:9443/stream?streams=';
         } else {
             this.baseUrl = 'wss://fstream.binance.com/stream?streams=';
@@ -83,9 +90,10 @@ export class BinanceStreamManager {
         // 2. Build complete list of streams
         const allStreams: string[] = [];
         this.subscriptions.forEach((tfs, symbol) => {
-            // Sanitize symbol: BTC/USDT.P -> btcusdt
-            const cleanSymbol = symbol.replace('.P', '').replace('/', '').toLowerCase();
-            tfs.forEach(tf => {
+            // Symbols are already Binance-native (BTCUSDT) post migration 051.
+            // Only lowercase for the WS stream name.
+            const cleanSymbol = symbol.toLowerCase();
+            tfs.forEach((tf) => {
                 const stream = `${cleanSymbol}@kline_${tf.toLowerCase()}`;
                 allStreams.push(stream);
             });
@@ -109,13 +117,13 @@ export class BinanceStreamManager {
             streams: streams,
             isConnected: false,
             reconnectTimer: null,
-            reconnectAttempts: 0
+            reconnectAttempts: 0,
         }));
 
         console.log(`[BinanceStream] Created ${this.shards.length} connection shards`);
 
         // 4. Connect all shards
-        this.shards.forEach(shard => this.connectShard(shard));
+        this.shards.forEach((shard) => this.connectShard(shard));
 
         // 5. Start Watchdog
         this.startWatchdog();
@@ -134,11 +142,15 @@ export class BinanceStreamManager {
      */
     private connectShard(shard: StreamShard): void {
         if (shard.ws) {
-            try { shard.ws.terminate(); } catch (e) { }
+            try {
+                shard.ws.terminate();
+            } catch (e) {}
         }
 
         const url = this.baseUrl + shard.streams.join('/');
-        console.log(`[BinanceStream] [Shard ${shard.id}] Connecting to ${shard.streams.length} streams...`);
+        console.log(
+            `[BinanceStream] [Shard ${shard.id}] Connecting to ${shard.streams.length} streams...`
+        );
 
         try {
             shard.ws = new WebSocket(url);
@@ -165,7 +177,6 @@ export class BinanceStreamManager {
                 console.error(`[BinanceStream] DEBUG: Connection Error Details:`, error);
                 // 'close' event usually follows error, so we rely on that for reconnect
             });
-
         } catch (error) {
             console.error(`[BinanceStream] [Shard ${shard.id}] Valid connection error:`, error);
             this.scheduleReconnect(shard);
@@ -185,7 +196,9 @@ export class BinanceStreamManager {
 
         shard.reconnectAttempts++;
 
-        console.log(`[BinanceStream] [Shard ${shard.id}] Reconnecting in ${delay / 1000}s (Attempt ${shard.reconnectAttempts})...`);
+        console.log(
+            `[BinanceStream] [Shard ${shard.id}] Reconnecting in ${delay / 1000}s (Attempt ${shard.reconnectAttempts})...`
+        );
 
         shard.reconnectTimer = setTimeout(() => {
             shard.reconnectTimer = null;
@@ -201,23 +214,14 @@ export class BinanceStreamManager {
 
         try {
             const parsed = JSON.parse(data.toString());
+            if (!parsed.data) return;
 
-            // Combined stream format: { stream: "btcusdt@kline_1h", data: {...} }
-            if (parsed.data && parsed.data.e === 'kline') {
+            // Kline event: { stream: "btcusdt@kline_1h", data: { e:'kline', k: {...} } }
+            if (parsed.data.e === 'kline') {
                 const kline = parsed.data as KlineMessage;
-                let symbol = kline.s.toUpperCase();
-
-                // Normalize Futures symbols to match system format: BTC/USDT.P
-                if (this.baseUrl.includes('fstream') && symbol.endsWith('USDT')) {
-                    const base = symbol.substring(0, symbol.length - 4);
-                    symbol = `${base}/USDT.P`;
-                }
-
+                // Symbols are now Binance-native (BTCUSDT). No slash, no .P.
+                const symbol = kline.s.toUpperCase();
                 const timeframe = kline.k.i;
-                const currentPrice = parseFloat(kline.k.c);
-
-                // Emit tick event for real-time monitoring
-                eventBus.emitPriceTick(symbol, currentPrice);
 
                 // Only process if candle is closed
                 if (kline.k.x) {
@@ -226,25 +230,103 @@ export class BinanceStreamManager {
                         open: parseFloat(kline.k.o),
                         high: parseFloat(kline.k.h),
                         low: parseFloat(kline.k.l),
-                        close: currentPrice,
-                        volume: parseFloat(kline.k.v)
+                        close: parseFloat(kline.k.c),
+                        volume: parseFloat(kline.k.v),
                     };
 
-                    console.log(`[BinanceStream] 🕯️ Candle closed: ${symbol} ${timeframe} @ ${candle.close}`);
-                    // TRACE LOG
-                    console.log(`[TRACE] Candle closed:`, symbol, timeframe, candle.time);
+                    console.log(
+                        `[BinanceStream] 🕯️ Candle closed: ${symbol} ${timeframe} @ ${candle.close}`
+                    );
 
-                    // Emit event via eventBus
                     eventBus.emitCandleClosed(symbol, timeframe, candle);
 
                     if (this.onCandleCloseCallback) {
                         this.onCandleCloseCallback(symbol, timeframe, candle);
                     }
                 }
+                return;
+            }
+
+            // BookTicker event: { stream: "btcusdt@bookTicker", data: { s, b, a, B, A, ... } }
+            // Binance @bookTicker does NOT have an `e` field; we identify by stream suffix.
+            if (parsed.stream && typeof parsed.stream === 'string' && parsed.stream.endsWith('@bookTicker')) {
+                const tick = parsed.data;
+                const symbol = String(tick.s || '').toUpperCase();
+                const bid = parseFloat(tick.b);
+                const ask = parseFloat(tick.a);
+                if (!symbol || Number.isNaN(bid) || Number.isNaN(ask)) return;
+                eventBus.emitPriceTick(symbol, bid, ask);
+                return;
             }
         } catch (error) {
             console.error('[BinanceStream] Error parsing message:', error);
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  BookTicker subscriptions (for tick-level SL/TP monitoring)
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Subscribe to the @bookTicker stream for a symbol.
+     * Idempotent: calling twice for the same symbol is a no-op.
+     * Rebuilds the dedicated ticker shard whenever the set changes.
+     */
+    public async subscribeBookTicker(symbol: string): Promise<void> {
+        const canonical = symbol.toUpperCase();
+        if (this.bookTickerSymbols.has(canonical)) return;
+        this.bookTickerSymbols.add(canonical);
+        console.log(`[BinanceStream] Adding bookTicker for ${canonical} (set size: ${this.bookTickerSymbols.size})`);
+        this.rebuildTickerShard();
+    }
+
+    /**
+     * Unsubscribe from the @bookTicker stream for a symbol.
+     * Rebuilds the shard; if the set becomes empty, tears down the shard entirely.
+     */
+    public async unsubscribeBookTicker(symbol: string): Promise<void> {
+        const canonical = symbol.toUpperCase();
+        if (!this.bookTickerSymbols.has(canonical)) return;
+        this.bookTickerSymbols.delete(canonical);
+        console.log(`[BinanceStream] Removing bookTicker for ${canonical} (set size: ${this.bookTickerSymbols.size})`);
+        if (this.bookTickerSymbols.size === 0) {
+            this.tearDownTickerShard();
+        } else {
+            this.rebuildTickerShard();
+        }
+    }
+
+    private rebuildTickerShard(): void {
+        this.tearDownTickerShard();
+
+        const streams = Array.from(this.bookTickerSymbols).map(
+            (s) => `${s.toLowerCase()}@bookTicker`,
+        );
+
+        if (streams.length === 0) return;
+
+        this.tickerShard = {
+            id: 9999, // distinct id for logs
+            ws: null,
+            streams,
+            isConnected: false,
+            reconnectTimer: null,
+            reconnectAttempts: 0,
+        };
+
+        this.connectShard(this.tickerShard);
+    }
+
+    private tearDownTickerShard(): void {
+        if (!this.tickerShard) return;
+        if (this.tickerShard.reconnectTimer) clearTimeout(this.tickerShard.reconnectTimer);
+        if (this.tickerShard.ws) {
+            this.tickerShard.ws.removeAllListeners();
+            try {
+                this.tickerShard.ws.terminate();
+            } catch {}
+        }
+        this.tickerShard = null;
     }
 
     /**
@@ -260,10 +342,12 @@ export class BinanceStreamManager {
             // Or we check individual shards?
             // For simplicity, if global silence > 120s, reconnect ALL shards
             if (silenceDuration > 120000 && this.shards.length > 0) {
-                console.error(`[BinanceStream] ⚠️ Global Watchdog Timeout: No data for ${Math.floor(silenceDuration / 1000)}s. Resetting all connections...`);
+                console.error(
+                    `[BinanceStream] ⚠️ Global Watchdog Timeout: No data for ${Math.floor(silenceDuration / 1000)}s. Resetting all connections...`
+                );
 
                 // Force reconnect all
-                this.shards.forEach(shard => {
+                this.shards.forEach((shard) => {
                     if (shard.ws) shard.ws.terminate();
                 });
 
@@ -281,11 +365,11 @@ export class BinanceStreamManager {
     }
 
     /**
-     * Disconnect all shards
+     * Disconnect all shards (including the ticker shard)
      */
     public disconnect(): void {
         this.stopWatchdog();
-        this.shards.forEach(shard => {
+        this.shards.forEach((shard) => {
             if (shard.reconnectTimer) clearTimeout(shard.reconnectTimer);
             if (shard.ws) {
                 shard.ws.removeAllListeners(); // Prevent reconnect triggers
@@ -293,6 +377,8 @@ export class BinanceStreamManager {
             }
         });
         this.shards = [];
+        this.tearDownTickerShard();
+        this.bookTickerSymbols.clear();
     }
 
     /**
@@ -302,15 +388,15 @@ export class BinanceStreamManager {
         let count = 0;
         let connectedShards = 0;
 
-        this.subscriptions.forEach(tfs => count += tfs.size);
-        this.shards.forEach(s => {
+        this.subscriptions.forEach((tfs) => (count += tfs.size));
+        this.shards.forEach((s) => {
             if (s.isConnected) connectedShards++;
         });
 
         return {
             connected: connectedShards > 0 && connectedShards === this.shards.length,
             subscriptionCount: count,
-            shards: this.shards.length
+            shards: this.shards.length,
         };
     }
 }
