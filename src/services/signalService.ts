@@ -1,7 +1,6 @@
 // src/services/signalService.ts
 import { supabase } from './supabaseClient';
 import { Signal, Timeframe } from '../types';
-import { getCandles } from './marketDataService';
 import { PaperExecutionEngine } from '../engine/paperExecutionEngine';
 
 export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> => {
@@ -20,7 +19,7 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
             status: signal.status,
             trailing_stop_loss: signal.trailingStopLoss,
             lot_size: signal.lotSize,
-            leverage: signal.leverage
+            leverage: signal.leverage,
         })
         .select()
         .single();
@@ -42,52 +41,94 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
         timeframe: data.timeframe,
         trailingStopLoss: data.trailing_stop_loss,
         lotSize: data.lot_size,
-        leverage: data.leverage
+        leverage: data.leverage,
     };
 
     // Trigger Paper Execution if Active immediately (Market Order)
     if (newSignal.status === 'Active') {
         // Run async without blocking
-        PaperExecutionEngine.processSignal(newSignal).catch(err => console.error("Paper Exec Error:", err));
+        PaperExecutionEngine.processSignal(newSignal).catch((err) =>
+            console.error('Paper Exec Error:', err)
+        );
     }
 
     return newSignal;
 };
 
+/**
+ * Read signal executions (what the UI calls "signals") joined with their
+ * underlying signal event row for params_snapshot and template_version.
+ *
+ * The Signals page originally read from the `signals` table; after the
+ * signal/execution split the user-facing "signal card" IS an execution row,
+ * so this function queries signal_executions + joins signals for metadata.
+ */
 export const getSignals = async (): Promise<Signal[]> => {
-    // Check if supabase is configured
-    // Since mock is deleted, we must fail or return empty if no db
     if (!supabase) return [];
 
     const { data, error } = await supabase
-        .from('signals')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from('signal_executions')
+        .select(
+            `
+            id,
+            signal_id,
+            watchlist_strategy_id,
+            user_id,
+            symbol,
+            market,
+            direction,
+            entry_price,
+            timeframe,
+            stop_loss,
+            take_profit,
+            lot_size,
+            leverage,
+            status,
+            closed_at,
+            close_reason,
+            close_price,
+            profit_loss,
+            broker,
+            created_at,
+            updated_at,
+            signals:signal_id ( params_snapshot, template_version, strategy, strategy_id )
+        `
+        )
+        .order('created_at', { ascending: false })
+        .limit(300);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.warn('[signalService] getSignals failed:', error.message);
+        return [];
+    }
 
-    return data.map(d => ({
-        id: d.id,
-        pair: d.symbol,
-        strategy: d.strategy,
-        strategyId: d.strategy_id,
-        direction: d.direction,
-        entry: d.entry_price,
-        entryType: d.entry_type,
-        stopLoss: d.stop_loss,
-        takeProfit: d.take_profit,
-        status: d.status,
-        timestamp: d.created_at,
-        timeframe: d.timeframe,
-        closeReason: d.close_reason,
-        profitLoss: d.profit_loss,
-        isPinned: d.is_pinned || false,
-        activatedAt: d.activated_at,
-        closedAt: d.closed_at,
-        trailingStopLoss: d.trailing_stop_loss,
-        lotSize: d.lot_size,
-        leverage: d.leverage
-    }));
+    return (data || []).map((d: any) => {
+        const event = d.signals || {};
+        return {
+            id: d.id,
+            pair: d.symbol,
+            strategy: event.strategy || '',
+            strategyId: event.strategy_id || undefined,
+            direction: d.direction,
+            entry: d.entry_price,
+            entryType: 'Market' as any,
+            stopLoss: d.stop_loss ?? 0,
+            takeProfit: d.take_profit ?? 0,
+            status: d.status,
+            timestamp: d.created_at,
+            timeframe: d.timeframe,
+            closeReason: d.close_reason || undefined,
+            profitLoss: d.profit_loss ?? undefined,
+            isPinned: false,
+            closedAt: d.closed_at || undefined,
+            lotSize: d.lot_size ?? undefined,
+            leverage: d.leverage ?? undefined,
+            paramsSnapshot: event.params_snapshot || {},
+            templateVersion: event.template_version || undefined,
+            signalEventId: d.signal_id,
+            market: d.market as 'spot' | 'futures',
+        } as Signal;
+    });
 };
 
 export const updateSignalStatus = async (id: string, status: string): Promise<void> => {
@@ -125,9 +166,11 @@ export const updateSignalStatus = async (id: string, status: string): Promise<vo
             takeProfit: updatedSignal.take_profit,
             status: updatedSignal.status,
             timestamp: updatedSignal.created_at,
-            timeframe: updatedSignal.timeframe
+            timeframe: updatedSignal.timeframe,
         };
-        PaperExecutionEngine.processSignal(signalObj).catch(err => console.error("Paper Exec Error:", err));
+        PaperExecutionEngine.processSignal(signalObj).catch((err) =>
+            console.error('Paper Exec Error:', err)
+        );
     }
 };
 
@@ -141,21 +184,17 @@ export const updateSignalRiskLevels = async (
     if (!supabase) return;
 
     const updateData: any = {
-        stop_loss: riskLevels.stopLoss
+        stop_loss: riskLevels.stopLoss,
     };
 
     if (riskLevels.takeProfit !== undefined) {
         updateData.take_profit = riskLevels.takeProfit;
     }
 
-    const { error } = await supabase
-        .from('signals')
-        .update(updateData)
-        .eq('id', id);
+    const { error } = await supabase.from('signals').update(updateData).eq('id', id);
 
     if (error) throw new Error(error.message);
 };
-
 
 export const toggleSignalPin = async (signalId: string, isPinned: boolean): Promise<void> => {
     if (!supabase) return;
@@ -178,7 +217,7 @@ export const activateSignal = async (id: string): Promise<void> => {
         .from('signals')
         .update({
             status: 'Active',
-            activated_at: new Date().toISOString()
+            activated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .select()
@@ -199,9 +238,11 @@ export const activateSignal = async (id: string): Promise<void> => {
             takeProfit: updatedSignal.take_profit,
             status: updatedSignal.status,
             timestamp: updatedSignal.created_at,
-            timeframe: updatedSignal.timeframe
+            timeframe: updatedSignal.timeframe,
         };
-        PaperExecutionEngine.processSignal(signalObj).catch(err => console.error("Paper Exec Error:", err));
+        PaperExecutionEngine.processSignal(signalObj).catch((err) =>
+            console.error('Paper Exec Error:', err)
+        );
     }
 };
 
@@ -221,24 +262,21 @@ export const closeSignal = async (
     const updateData: any = {
         status: 'Closed',
         closed_at: new Date().toISOString(),
-        close_reason: closeReason
+        close_reason: closeReason,
     };
 
     if (profitLoss !== undefined) {
         updateData.profit_loss = profitLoss;
     }
 
-    const { error } = await supabase
-        .from('signals')
-        .update(updateData)
-        .eq('id', id);
+    const { error } = await supabase.from('signals').update(updateData).eq('id', id);
 
     if (error) throw new Error(error.message);
 
     // Close the corresponding paper trade
     // Note: We might need exitPrice. If manual/timeout, use current price?
-    // For now, let's pass a specialized reason. 
-    // Ideally we need the exit price. 
+    // For now, let's pass a specialized reason.
+    // Ideally we need the exit price.
     // Since closeSignal is usually called with a calculated PnL, we can infer price or pass 0.
     // However, the function signature doesn't include price.
     // For manual/timeout, let's just close it.
@@ -277,7 +315,7 @@ export const getSignalStatistics = async (): Promise<{
             pending: 0,
             totalProfitLoss: 0,
             avgProfitLoss: 0,
-            winRate: 0
+            winRate: 0,
         };
     }
 
@@ -289,15 +327,15 @@ export const getSignalStatistics = async (): Promise<{
 
     const stats = {
         total: data.length,
-        active: data.filter(s => s.status === 'Active').length,
-        closed: data.filter(s => s.status === 'Closed').length,
-        pending: data.filter(s => s.status === 'Pending').length,
+        active: data.filter((s) => s.status === 'Active').length,
+        closed: data.filter((s) => s.status === 'Closed').length,
+        pending: data.filter((s) => s.status === 'Pending').length,
         totalProfitLoss: 0,
         avgProfitLoss: 0,
-        winRate: 0
+        winRate: 0,
     };
 
-    const closedSignals = data.filter(s => s.status === 'Closed');
+    const closedSignals = data.filter((s) => s.status === 'Closed');
 
     if (closedSignals.length > 0) {
         // Calculate PnL if available
@@ -308,7 +346,7 @@ export const getSignalStatistics = async (): Promise<{
         let wins = 0;
         let losses = 0;
 
-        closedSignals.forEach(s => {
+        closedSignals.forEach((s) => {
             const pnl = s.profit_loss;
             const reason = s.close_reason;
 
@@ -328,7 +366,6 @@ export const getSignalStatistics = async (): Promise<{
     return stats;
 };
 
-
 // Check for duplicate signals
 export const isDuplicateSignal = async (
     strategyId: string | undefined,
@@ -337,7 +374,7 @@ export const isDuplicateSignal = async (
     currentTime: number,
     lookbackSeconds: number
 ): Promise<boolean> => {
-    const lookbackTime = new Date(currentTime * 1000 - (lookbackSeconds * 1000)).toISOString();
+    const lookbackTime = new Date(currentTime * 1000 - lookbackSeconds * 1000).toISOString();
 
     const { data, error } = await supabase
         .from('signals')
@@ -356,79 +393,51 @@ export const isDuplicateSignal = async (
     return (data?.length || 0) > 0;
 };
 
-// Generate new signals by running all active strategies
-// This runs on the CLIENT SIDE for now using Real Market Data
-export const generateSignals = async (
-    symbol: string,
-    timeframe: string,
-    strategies: any[] | null = null // Optional override
-): Promise<{ success: boolean; signalsCreated: number; errors: string[] }> => {
-    try {
-        console.log(`[SignalGen] Running client-side strategy engine for ${symbol} ${timeframe}`);
-
-        // Import strategy engine (dynamic to avoid circular dependencies)
-        const { runAllStrategies } = await import('../engine/strategyEngine');
-
-        // Fetch REAL candle data
-        const candles = await getCandles(symbol, timeframe, 200); // 200 candles sufficient for most strategies
-
-        if (candles.length === 0) {
-            return { success: false, signalsCreated: 0, errors: ['No market data available'] };
-        }
-
-        // Run the strategy engine
-        const result = await runAllStrategies(symbol, timeframe, candles, strategies);
-
-        return result;
-    } catch (error: any) {
-        console.error('Error generating signals:', error);
-        return {
-            success: false,
-            signalsCreated: 0,
-            errors: [error.message || 'Unknown error']
-        };
-    }
-};
-
-export const generateBuiltInSignals = async (
-    symbol: string,
-    timeframe: string
-): Promise<{ success: boolean; signalsCreated: number; errors: string[] }> => {
-    const { BUILT_IN_STRATEGIES } = await import('../constants/builtInStrategies');
-    return generateSignals(symbol, timeframe, BUILT_IN_STRATEGIES);
-};
-
-// Get signals filtered by strategy ID
+// Get signal executions filtered by strategy ID (reads signal_executions + joins signals)
 export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]> => {
     if (!supabase) return [];
 
     const { data, error } = await supabase
-        .from('signals')
-        .select('*')
-        .eq('strategy_id', strategyId)
-        .order('created_at', { ascending: false });
+        .from('signal_executions')
+        .select(
+            `
+            *,
+            signals:signal_id!inner ( params_snapshot, template_version, strategy, strategy_id )
+        `
+        )
+        .eq('signals.strategy_id', strategyId)
+        .order('created_at', { ascending: false })
+        .limit(200);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.warn('[signalService] getSignalsByStrategy failed:', error.message);
+        return [];
+    }
 
-    return data.map(d => ({
-        id: d.id,
-        pair: d.symbol,
-        strategy: d.strategy,
-        strategyId: d.strategy_id,
-        direction: d.direction,
-        entry: d.entry_price,
-        entryType: d.entry_type,
-        stopLoss: d.stop_loss,
-        takeProfit: d.take_profit,
-        status: d.status,
-        timestamp: d.created_at,
-        timeframe: d.timeframe,
-        closeReason: d.close_reason,
-        profitLoss: d.profit_loss,
-        activatedAt: d.activated_at,
-        closedAt: d.closed_at
-
-    }));
+    return (data || []).map((d: any) => {
+        const event = d.signals || {};
+        return {
+            id: d.id,
+            pair: d.symbol,
+            strategy: event.strategy || '',
+            strategyId: event.strategy_id || undefined,
+            direction: d.direction,
+            entry: d.entry_price,
+            entryType: 'Market' as any,
+            stopLoss: d.stop_loss ?? 0,
+            takeProfit: d.take_profit ?? 0,
+            status: d.status,
+            timestamp: d.created_at,
+            timeframe: d.timeframe,
+            closeReason: d.close_reason || undefined,
+            profitLoss: d.profit_loss ?? undefined,
+            closedAt: d.closed_at || undefined,
+            paramsSnapshot: event.params_snapshot || {},
+            templateVersion: event.template_version || undefined,
+            signalEventId: d.signal_id,
+            market: d.market as 'spot' | 'futures',
+        } as Signal;
+    });
 };
 
 /**
@@ -460,4 +469,3 @@ export const cleanupOldSignals = async (): Promise<void> => {
         }
     }
 };
-
