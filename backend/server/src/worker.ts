@@ -44,14 +44,16 @@ async function startWorker() {
     //    replay missed candles to close any SL/TP hits that happened during downtime.
     await prepareExecutionEngine();
 
-    // 4. Start Signal Engine (scanner): loads assignments, fills buffers, runs
-    //    cold-start scan, subscribes to Binance kline streams.
-    await startSignalEngine();
-
-    // 5. Start Execution Engine (executor + tick monitor).
-    //    MUST happen AFTER signalEngine.start() so the cold-start scan's
-    //    SIGNAL_CREATED emissions are heard.
+    // 4. Start Execution Engine FIRST so its eventBus listeners (SIGNAL_CREATED,
+    //    PRICE_TICK) are registered before the Signal Engine's cold-start scan
+    //    begins emitting. Otherwise the cold-start signals fire into an empty
+    //    event bus and executions never get created.
     await startExecutionEngine();
+
+    // 5. Start Signal Engine (scanner): loads assignments, fills buffers, runs
+    //    cold-start scan (which may emit dozens of SIGNAL_CREATED events), then
+    //    subscribes to Binance kline streams for ongoing candles.
+    await startSignalEngine();
 
     // Heartbeat
     setInterval(() => {
