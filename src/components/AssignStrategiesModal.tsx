@@ -40,6 +40,7 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
         assignment: WatchlistStrategyAssignment;
         strategy: StrategyRow;
     } | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     // Load built-ins from the frontend registry and existing assignments from DB.
     useEffect(() => {
@@ -105,6 +106,7 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
     };
 
     const createAssignment = async (strat: StrategyRow, params: Record<string, any>) => {
+        setErrorMessage(null);
         try {
             const newId = await addWatchlistStrategy(
                 watchlist.id,
@@ -124,8 +126,9 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                 lastErrorAt: null,
             };
             setAssignments((prev) => [...prev, newAssignment]);
-        } catch (err) {
+        } catch (err: any) {
             console.error('[AssignStrategiesModal] add failed:', err);
+            setErrorMessage(`Add failed: ${err?.message || String(err)}`);
         }
     };
 
@@ -139,22 +142,26 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
         assignment: WatchlistStrategyAssignment,
         params: Record<string, any>
     ) => {
+        setErrorMessage(null);
         try {
             await updateWatchlistStrategyParams(assignment.id, params);
             setAssignments((prev) =>
                 prev.map((a) => (a.id === assignment.id ? { ...a, params } : a))
             );
-        } catch (err) {
+        } catch (err: any) {
             console.error('[AssignStrategiesModal] update failed:', err);
+            setErrorMessage(`Update failed: ${err?.message || String(err)}`);
         }
     };
 
     const handleRemove = async (assignment: WatchlistStrategyAssignment) => {
+        setErrorMessage(null);
         try {
             await removeWatchlistStrategy(assignment.id);
             setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
-        } catch (err) {
+        } catch (err: any) {
             console.error('[AssignStrategiesModal] remove failed:', err);
+            setErrorMessage(`Remove failed: ${err?.message || String(err)}`);
         }
     };
 
@@ -188,6 +195,21 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                             <CloseIcon className="w-5 h-5 text-gray-400" />
                         </button>
                     </div>
+
+                    {/* Error banner */}
+                    {errorMessage && (
+                        <div className="mx-6 mt-4 px-4 py-3 rounded bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-2">
+                            <span className="flex-1">⚠ {errorMessage}</span>
+                            <button
+                                type="button"
+                                onClick={() => setErrorMessage(null)}
+                                className="text-red-200 hover:text-white"
+                                aria-label="Dismiss error"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
 
                     {/* Body */}
                     <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
