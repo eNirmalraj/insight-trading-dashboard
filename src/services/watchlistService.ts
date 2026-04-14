@@ -23,7 +23,8 @@ export interface DbWatchlist {
     market_type: string | null;
     risk_method: string | null;
     auto_leverage_enabled: boolean;
-    strategy_ids: string[] | null;
+    // strategy_ids column was dropped in migration 054 — strategies are now
+    // stored in the watchlist_strategies table. See getWatchlistStrategies().
 }
 
 interface DbWatchlistItem {
@@ -96,7 +97,10 @@ const mapDbToWatchlist = (row: DbWatchlist, items: DbWatchlistItem[]): Watchlist
         marketType: (row.market_type as 'spot' | 'futures') || undefined,
         riskMethod: (row.risk_method as 'fixed' | 'percent') || 'fixed',
         autoLeverageEnabled: row.auto_leverage_enabled ?? false,
-        strategyIds: row.strategy_ids || [],
+        // strategyIds kept on the Watchlist type for backward compat. The new
+        // source of truth is the watchlist_strategies table — use
+        // getWatchlistStrategies(id) for the real list of assignments.
+        strategyIds: [],
     };
 };
 
@@ -414,21 +418,20 @@ export const updateWatchlistItemRiskSettings = async (
 };
 
 /**
- * Update assigned strategies for a watchlist
+ * @deprecated — the strategy_ids column was dropped in migration 054.
+ * Use addWatchlistStrategy / updateWatchlistStrategyParams / removeWatchlistStrategy
+ * (which operate on the watchlist_strategies table) instead.
+ *
+ * This function is kept as a no-op for callers that still invoke it during
+ * the UI migration period. It logs once and returns success.
  */
 export const updateWatchlistStrategies = async (
-    watchlistId: string,
-    strategyIds: string[]
+    _watchlistId: string,
+    _strategyIds: string[]
 ): Promise<{ success: boolean }> => {
-    if (!supabase) throw new Error('Supabase not configured');
-
-    const { error } = await supabase
-        .from('watchlists')
-        .update({ strategy_ids: strategyIds })
-        .eq('id', watchlistId);
-
-    if (error) throw new Error(error.message);
-
+    console.warn(
+        '[watchlistService] updateWatchlistStrategies is deprecated — use watchlist_strategies CRUD. This call is a no-op.'
+    );
     return { success: true };
 };
 
