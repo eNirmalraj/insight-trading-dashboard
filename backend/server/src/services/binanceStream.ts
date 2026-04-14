@@ -43,9 +43,13 @@ export class BinanceStreamManager {
     private onCandleCloseCallback: CandleCloseCallback | null = null;
 
     // Dedicated bookTicker shard — managed independently from kline shards.
-    // Rebuilt whenever the set of tracked symbols changes (add/remove).
+    // Rebuilt whenever the set of tracked symbols changes (add/remove), but
+    // rebuilds are debounced to coalesce bursts of subscribe/unsubscribe calls
+    // (e.g. during cold-start scans that emit dozens of signals back-to-back).
     private tickerShard: StreamShard | null = null;
     private bookTickerSymbols: Set<string> = new Set(); // canonical symbols e.g. 'BTCUSDT'
+    private tickerRebuildTimer: NodeJS.Timeout | null = null;
+    private readonly TICKER_REBUILD_DEBOUNCE_MS = 250;
 
     // Watchdog
     private lastMessageTime: number = Date.now();
@@ -270,30 +274,47 @@ export class BinanceStreamManager {
     /**
      * Subscribe to the @bookTicker stream for a symbol.
      * Idempotent: calling twice for the same symbol is a no-op.
-     * Rebuilds the dedicated ticker shard whenever the set changes.
+     * Rebuilds are debounced — bursts of calls within 250 ms coalesce into
+     * a single teardown + rebuild with the final set.
      */
     public async subscribeBookTicker(symbol: string): Promise<void> {
         const canonical = symbol.toUpperCase();
         if (this.bookTickerSymbols.has(canonical)) return;
         this.bookTickerSymbols.add(canonical);
-        console.log(`[BinanceStream] Adding bookTicker for ${canonical} (set size: ${this.bookTickerSymbols.size})`);
-        this.rebuildTickerShard();
+        console.log(
+            `[BinanceStream] + bookTicker ${canonical} (pending rebuild, set size: ${this.bookTickerSymbols.size})`,
+        );
+        this.scheduleTickerRebuild();
     }
 
     /**
      * Unsubscribe from the @bookTicker stream for a symbol.
-     * Rebuilds the shard; if the set becomes empty, tears down the shard entirely.
+     * Debounced the same way as subscribe. If the set becomes empty after
+     * the debounce window, the shard is torn down entirely.
      */
     public async unsubscribeBookTicker(symbol: string): Promise<void> {
         const canonical = symbol.toUpperCase();
         if (!this.bookTickerSymbols.has(canonical)) return;
         this.bookTickerSymbols.delete(canonical);
-        console.log(`[BinanceStream] Removing bookTicker for ${canonical} (set size: ${this.bookTickerSymbols.size})`);
-        if (this.bookTickerSymbols.size === 0) {
-            this.tearDownTickerShard();
-        } else {
+        console.log(
+            `[BinanceStream] - bookTicker ${canonical} (pending rebuild, set size: ${this.bookTickerSymbols.size})`,
+        );
+        this.scheduleTickerRebuild();
+    }
+
+    /**
+     * Debounce helper. Multiple subscribe/unsubscribe calls within 250 ms
+     * collapse into a single rebuild with the final symbol set. Prevents the
+     * cold-start race where 18 rapid calls torn down and re-created the
+     * WebSocket 18 times, crashing the worker when terminate() was called on
+     * a socket still in the CONNECTING state.
+     */
+    private scheduleTickerRebuild(): void {
+        if (this.tickerRebuildTimer) return; // Already scheduled — next rebuild picks up the latest set.
+        this.tickerRebuildTimer = setTimeout(() => {
+            this.tickerRebuildTimer = null;
             this.rebuildTickerShard();
-        }
+        }, this.TICKER_REBUILD_DEBOUNCE_MS);
     }
 
     private rebuildTickerShard(): void {
@@ -303,7 +324,14 @@ export class BinanceStreamManager {
             (s) => `${s.toLowerCase()}@bookTicker`,
         );
 
-        if (streams.length === 0) return;
+        if (streams.length === 0) {
+            console.log('[BinanceStream] Ticker shard: no symbols, skipping connect');
+            return;
+        }
+
+        console.log(
+            `[BinanceStream] Ticker shard: rebuilding with ${streams.length} symbols`,
+        );
 
         this.tickerShard = {
             id: 9999, // distinct id for logs
@@ -317,15 +345,45 @@ export class BinanceStreamManager {
         this.connectShard(this.tickerShard);
     }
 
+    /**
+     * Safely tear down the ticker shard.
+     * Uses `close()` instead of `terminate()` when the WebSocket is still in
+     * the CONNECTING state, because terminate() on a CONNECTING socket throws
+     * in recent versions of the `ws` library and was crashing the worker.
+     */
     private tearDownTickerShard(): void {
         if (!this.tickerShard) return;
-        if (this.tickerShard.reconnectTimer) clearTimeout(this.tickerShard.reconnectTimer);
-        if (this.tickerShard.ws) {
-            this.tickerShard.ws.removeAllListeners();
-            try {
-                this.tickerShard.ws.terminate();
-            } catch {}
+
+        if (this.tickerShard.reconnectTimer) {
+            clearTimeout(this.tickerShard.reconnectTimer);
+            this.tickerShard.reconnectTimer = null;
         }
+
+        const ws = this.tickerShard.ws;
+        if (ws) {
+            // Remove listeners first so a graceful close doesn't trigger
+            // the reconnect handler.
+            try {
+                ws.removeAllListeners();
+            } catch {}
+
+            try {
+                if (ws.readyState === WebSocket.CONNECTING) {
+                    // terminate() on a CONNECTING socket throws in some ws versions.
+                    // close() is the safe way to abort a pending connection.
+                    ws.close();
+                } else if (
+                    ws.readyState === WebSocket.OPEN ||
+                    ws.readyState === WebSocket.CLOSING
+                ) {
+                    ws.terminate();
+                }
+                // CLOSED sockets need no action.
+            } catch (err) {
+                console.warn('[BinanceStream] Ignored error while tearing down ticker shard:', err);
+            }
+        }
+
         this.tickerShard = null;
     }
 
@@ -369,11 +427,21 @@ export class BinanceStreamManager {
      */
     public disconnect(): void {
         this.stopWatchdog();
+        if (this.tickerRebuildTimer) {
+            clearTimeout(this.tickerRebuildTimer);
+            this.tickerRebuildTimer = null;
+        }
         this.shards.forEach((shard) => {
             if (shard.reconnectTimer) clearTimeout(shard.reconnectTimer);
             if (shard.ws) {
                 shard.ws.removeAllListeners(); // Prevent reconnect triggers
-                shard.ws.terminate();
+                try {
+                    if (shard.ws.readyState === WebSocket.CONNECTING) {
+                        shard.ws.close();
+                    } else {
+                        shard.ws.terminate();
+                    }
+                } catch {}
             }
         });
         this.shards = [];
