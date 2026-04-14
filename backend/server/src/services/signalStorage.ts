@@ -44,11 +44,11 @@ export interface SignalRow {
  * concurrent writes. Duplicate inserts are silently rejected (Postgres 23505).
  */
 export async function insertSignal(input: InsertSignalInput): Promise<SignalRow | null> {
-    // Populate legacy NOT-NULL columns (strategy, status) for compatibility with
-    // the unmerged pre-054 schema. They're ignored by the new engine.
+    // Post migration 054: legacy columns (strategy, status, entry_type, user_id,
+    // activated_at, stop_loss, take_profit, close_reason, profit_loss, etc.) have
+    // been dropped. The signals table is now event-only.
     const payload: Record<string, any> = {
         strategy_id: input.strategyId,
-        strategy: input.strategyName, // legacy, NOT NULL until 054
         symbol: input.symbol,
         market: input.market,
         direction: input.direction,
@@ -57,8 +57,6 @@ export async function insertSignal(input: InsertSignalInput): Promise<SignalRow 
         candle_time: input.candleTime,
         params_snapshot: input.paramsSnapshot,
         template_version: input.templateVersion,
-        // status relies on DB default 'pending' — event has no status
-        // entry_type relies on DB default 'market'
     };
 
     const { data, error } = await supabaseAdmin
