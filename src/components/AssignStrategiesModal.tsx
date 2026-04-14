@@ -21,16 +21,11 @@ interface StrategyRow {
 interface AssignStrategiesModalProps {
     watchlist: Watchlist;
     onClose: () => void;
-    // onSave kept optional for backward compatibility with callers that
-    // expect a legacy (watchlistId, strategyIds[]) callback. The new flow
-    // persists per-assignment inline via the service functions.
-    onSave?: (watchlistId: string, strategyIds: string[]) => void;
 }
 
 const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
     watchlist,
     onClose,
-    onSave,
 }) => {
     const [availableStrategies, setAvailableStrategies] = useState<StrategyRow[]>([]);
     const [assignments, setAssignments] = useState<WatchlistStrategyAssignment[]>([]);
@@ -166,13 +161,6 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
     };
 
     const handleClose = () => {
-        // Notify legacy callers that something changed.
-        if (onSave) {
-            onSave(
-                watchlist.id,
-                assignments.map((a) => a.strategyId)
-            );
-        }
         onClose();
     };
 

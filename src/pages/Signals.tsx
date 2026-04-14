@@ -1,6 +1,4 @@
-
-
-
+// cspell:ignore Watchlist supabase Forex watchlist forex Supabase
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 // Fix: Use namespace import for react-router-dom to resolve module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
@@ -9,17 +7,15 @@ import { Signal, SignalStatus, Watchlist, Position, Timeframe, TradeDirection } 
 import { Candle } from '../components/market-chart/types';
 import { SignalIcon, CloseIcon, SearchIcon } from '../components/IconComponents';
 import MiniChart from '../components/MiniChart';
-import { calculateEMA, calculateRSI } from '../components/market-chart/helpers';
 import ExecuteTradeModal from '../components/ExecuteTradeModal';
+import AssignStrategiesModal from '../components/AssignStrategiesModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { createPaperTrade } from '../services/paperTradingService';
 import { supabase } from '../services/supabaseClient';
 import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
 import Loader from '../components/Loader';
-import { startSignalEngine, stopSignalEngine, getEngineStatus, triggerSignalGeneration } from '../engine/signalEngine';
 import { getSignalStatistics } from '../services/signalService';
-import { getStoredEngineStatus, setStoredEngineStatus } from '../services/signalEngineService';
 import { saveFavoriteTimeframesToDB } from '../services/settingsService';
 import { useAuth } from '../context/AuthContext';
 
@@ -50,12 +46,27 @@ const isCryptoSymbol = (symbol: string): boolean => {
     return getMarketType(symbol) === 'Crypto';
 };
 
-const FilterSelect: React.FC<{ label: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, options: string[] }> = ({ label, value, onChange, options }) => (
+const FilterSelect: React.FC<{
+    label: string;
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+    options: string[];
+}> = ({ label, value, onChange, options }) => (
     <div>
         <label className="block text-xs text-gray-400 mb-1">{label}</label>
-        <select value={value} onChange={onChange} className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select
+            title={label}
+            aria-label={label}
+            value={value}
+            onChange={onChange}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
             <option value="All">All</option>
-            {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {options.map((opt) => (
+                <option key={opt} value={opt}>
+                    {opt}
+                </option>
+            ))}
         </select>
     </div>
 );
@@ -67,15 +78,26 @@ const Signals: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isGeneratingSignals, setIsGeneratingSignals] = useState(false);
 
-    // Signal Engine state
-    // Signal Engine state - Always enabled as requested
-    const [engineEnabled, setEngineEnabled] = useState(true);
     const [isConnected, setIsConnected] = useState(false);
-    // const [engineStatus, setEngineStatus] = useState(getEngineStatus());
     const [signalStats, setSignalStats] = useState<any>(null);
 
     // Full timeframe options from 1m to 1M
-    const ALL_TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1H', '2H', '4H', '6H', '12H', '1D', '3D', '1W', '1M'];
+    const ALL_TIMEFRAMES = [
+        '1m',
+        '3m',
+        '5m',
+        '15m',
+        '30m',
+        '1H',
+        '2H',
+        '4H',
+        '6H',
+        '12H',
+        '1D',
+        '3D',
+        '1W',
+        '1M',
+    ];
 
     // Favorite timeframes for Signal Engine
     const [favoriteTimeframes, setFavoriteTimeframes] = useState<string[]>(() => {
@@ -90,6 +112,8 @@ const Signals: React.FC = () => {
     const [availableStrategies, setAvailableStrategies] = useState<string[]>([]); // Will be loaded from database
     const [timeframeFilter, setTimeframeFilter] = useState<string>('All');
     const [symbolSearch, setSymbolSearch] = useState<string>('');
+    const [watchlistFilter, setWatchlistFilter] = useState<string>('All');
+    const [showAssignModal, setShowAssignModal] = useState(false);
     const [showTimeframeDropdown, setShowTimeframeDropdown] = useState<boolean>(false);
 
     const [executingSignal, setExecutingSignal] = useState<Signal | null>(null);
@@ -133,7 +157,7 @@ const Signals: React.FC = () => {
             setPositions(positionsData);
             setError(null);
         } catch (err) {
-            setError("Failed to load data. Please try again later.");
+            setError('Failed to load data. Please try again later.');
             console.error(err);
         } finally {
             if (!isBackground) setIsLoading(false);
@@ -143,18 +167,18 @@ const Signals: React.FC = () => {
     // WebSocket subscription for live prices
     useEffect(() => {
         const activePairs = new Set<string>();
-        signals.forEach(s => {
+        signals.forEach((s) => {
             // Monitor price for Active and Pending signals
             if (s.status === SignalStatus.ACTIVE || s.status === SignalStatus.PENDING) {
                 activePairs.add(s.pair);
             }
         });
 
-        const subscriptions: { pair: string, cb: (data: any) => void }[] = [];
+        const subscriptions: { pair: string; cb: (data: any) => void }[] = [];
 
-        activePairs.forEach(pair => {
+        activePairs.forEach((pair) => {
             const cb = (data: { price: number }) => {
-                setCurrentPrices(prev => {
+                setCurrentPrices((prev) => {
                     // Avoid unnecessary re-renders if price hasn't changed
                     if (prev[pair] === data.price) return prev;
                     return { ...prev, [pair]: data.price };
@@ -165,7 +189,7 @@ const Signals: React.FC = () => {
         });
 
         return () => {
-            subscriptions.forEach(s => unsubscribeFromTicker(s.pair, s.cb));
+            subscriptions.forEach((s) => unsubscribeFromTicker(s.pair, s.cb));
         };
     }, [signals]);
 
@@ -184,16 +208,16 @@ const Signals: React.FC = () => {
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'signals'
+                    table: 'signals',
                 },
                 (payload) => {
                     console.log('[Signals] ⚡ Signal update received:', payload);
 
                     if (payload.eventType === 'INSERT') {
                         const newRow = payload.new;
-                        setSignals(prev => {
+                        setSignals((prev) => {
                             // 1. Duplicate Check: Ensure ID doesn't already exist
-                            if (prev.some(s => s.id === newRow.id)) {
+                            if (prev.some((s) => s.id === newRow.id)) {
                                 console.warn('[Signals] Duplicate signal ignored:', newRow.id);
                                 return prev;
                             }
@@ -214,8 +238,9 @@ const Signals: React.FC = () => {
                                 timestamp: newRow.created_at,
                                 timeframe: newRow.timeframe,
                                 isPinned: newRow.is_pinned || false,
+                                watchlistId: newRow.watchlist_id,
                                 activatedAt: newRow.activated_at,
-                                closedAt: newRow.closed_at
+                                closedAt: newRow.closed_at,
                             };
 
                             // 3. Prepend to list (maintaining sort mostly, but new is usually top)
@@ -223,18 +248,25 @@ const Signals: React.FC = () => {
                         });
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedRow = payload.new;
-                        setSignals(prev => prev.map(s =>
-                            s.id === updatedRow.id ? {
-                                ...s,
-                                status: updatedRow.status,
-                                // Only update fields that might change live
-                                isPinned: updatedRow.is_pinned !== undefined ? updatedRow.is_pinned : s.isPinned,
-                                profitLoss: updatedRow.profit_loss,
-                                closeReason: updatedRow.close_reason,
-                                activatedAt: updatedRow.activated_at,
-                                closedAt: updatedRow.closed_at
-                            } : s
-                        ));
+                        setSignals((prev) =>
+                            prev.map((s) =>
+                                s.id === updatedRow.id
+                                    ? {
+                                          ...s,
+                                          status: updatedRow.status,
+                                          // Only update fields that might change live
+                                          isPinned:
+                                              updatedRow.is_pinned !== undefined
+                                                  ? updatedRow.is_pinned
+                                                  : s.isPinned,
+                                          profitLoss: updatedRow.profit_loss,
+                                          closeReason: updatedRow.close_reason,
+                                          activatedAt: updatedRow.activated_at,
+                                          closedAt: updatedRow.closed_at,
+                                      }
+                                    : s
+                            )
+                        );
                     }
                     // Refresh stats instantly on any change
                     refreshSignalStats();
@@ -252,14 +284,6 @@ const Signals: React.FC = () => {
             setIsConnected(false);
         };
     }, []);
-
-    // Engine control functions - now just controls local state display
-    const handleToggleEngine = useCallback(() => {
-        const newState = !engineEnabled;
-        setEngineEnabled(newState);
-        setStoredEngineStatus(newState);
-        // Note: Actual engine runs on backend, this is just UI state
-    }, [engineEnabled]);
 
     const refreshSignalStats = useCallback(async () => {
         try {
@@ -286,20 +310,6 @@ const Signals: React.FC = () => {
         refreshSignalStats();
     }, [fetchData, refreshSignalStats]);
 
-    // Manage Signal Engine Lifecycle
-    useEffect(() => {
-        if (engineEnabled) {
-            startSignalEngine();
-        } else {
-            stopSignalEngine();
-        }
-
-        return () => {
-            stopSignalEngine();
-        };
-    }, [engineEnabled]);
-
-
     // Load available strategies - Hybrid approach (Service + Actual Signals)
     useEffect(() => {
         const loadStrategies = async () => {
@@ -310,16 +320,19 @@ const Signals: React.FC = () => {
                 const { getStrategies } = await import('../services/strategyService');
                 const all = await getStrategies();
                 const serviceStrategies = all
-                    .filter((s: any) => s.type === 'STRATEGY')
+                    .filter(
+                        (s: any) =>
+                            s.type === 'STRATEGY' || s.type === 'INDICATOR' || s.type === 'KURI'
+                    )
                     .map((s: any) => s.name);
                 strategyNames = [...serviceStrategies];
             } catch (e) {
-                console.warn("Failed to load defined strategies, falling back to signals", e);
+                console.warn('Failed to load defined strategies, falling back to signals', e);
             }
 
             // 2. Also extract from current visible signals (Handling orphan signals)
             if (signals.length > 0) {
-                const fromSignals = signals.map(s => s.strategy).filter(Boolean);
+                const fromSignals = signals.map((s) => s.strategy).filter(Boolean);
                 strategyNames = [...strategyNames, ...fromSignals];
             }
 
@@ -327,8 +340,9 @@ const Signals: React.FC = () => {
             const uniqueStrategies = Array.from(new Set(strategyNames)).sort();
 
             // Only update if different to prevent loops and UI resets
-            setAvailableStrategies(prev => {
-                const isSame = prev.length === uniqueStrategies.length &&
+            setAvailableStrategies((prev) => {
+                const isSame =
+                    prev.length === uniqueStrategies.length &&
                     prev.every((val, index) => val === uniqueStrategies[index]);
                 return isSame ? prev : uniqueStrategies;
             });
@@ -341,33 +355,45 @@ const Signals: React.FC = () => {
         try {
             const newPinStatus = !signal.isPinned;
             // Optimistic update
-            setSignals(prev => prev.map(s => s.id === signal.id ? { ...s, isPinned: newPinStatus } : s));
+            setSignals((prev) =>
+                prev.map((s) => (s.id === signal.id ? { ...s, isPinned: newPinStatus } : s))
+            );
             await api.toggleSignalPin(signal.id, newPinStatus);
         } catch (err) {
             console.error('Failed to toggle pin:', err);
             // Revert on error
-            setSignals(prev => prev.map(s => s.id === signal.id ? { ...s, isPinned: !signal.isPinned } : s));
+            setSignals((prev) =>
+                prev.map((s) => (s.id === signal.id ? { ...s, isPinned: !signal.isPinned } : s))
+            );
         }
     };
 
     const filteredSignals = useMemo(() => {
         return signals
-            .filter(s => statusFilter === 'All' || s.status === statusFilter)
-            .filter(s => strategyFilter === 'All' || s.strategy === strategyFilter)
-            .filter(s => directionFilter === 'All' || s.direction === directionFilter)
-            .filter(s => {
+            .filter((s) => statusFilter === 'All' || s.status === statusFilter)
+            .filter((s) => strategyFilter === 'All' || s.strategy === strategyFilter)
+            .filter((s) => directionFilter === 'All' || s.direction === directionFilter)
+            .filter((s) => {
                 // Market type filter
                 if (marketTypeFilter === 'All') return true;
                 return getMarketType(s.pair) === marketTypeFilter;
             })
-            .filter(s => {
+            .filter((s) => {
+                // Watchlist filter
+                if (watchlistFilter === 'All') return true;
+                if ((s as any).watchlistId) return (s as any).watchlistId === watchlistFilter;
+                const wl = watchlists.find((w) => w.id === watchlistFilter);
+                if (!wl) return true;
+                return wl.items.some((item) => item.symbol === s.pair);
+            })
+            .filter((s) => {
                 // Timeframe filter - 'All' shows all favorite timeframes
                 if (timeframeFilter === 'All') {
                     return favoriteTimeframes.includes(s.timeframe);
                 }
                 return s.timeframe === timeframeFilter;
             })
-            .filter(s => {
+            .filter((s) => {
                 // Symbol search filter
                 if (!symbolSearch.trim()) return true;
                 return s.pair.toUpperCase().includes(symbolSearch.toUpperCase());
@@ -379,12 +405,23 @@ const Signals: React.FC = () => {
                 // Then Sort by Time
                 return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
             });
-    }, [signals, statusFilter, strategyFilter, directionFilter, marketTypeFilter, timeframeFilter, symbolSearch, favoriteTimeframes]);
+    }, [
+        signals,
+        statusFilter,
+        strategyFilter,
+        directionFilter,
+        marketTypeFilter,
+        timeframeFilter,
+        symbolSearch,
+        favoriteTimeframes,
+        watchlistFilter,
+        watchlists,
+    ]);
 
     const addedToWatchlistPairs = useMemo(() => {
         const pairs = new Set<string>();
-        watchlists.forEach(wl => {
-            wl.items.forEach(item => pairs.add(item.symbol));
+        watchlists.forEach((wl) => {
+            wl.items.forEach((item) => pairs.add(item.symbol));
         });
         return pairs;
     }, [watchlists]);
@@ -392,25 +429,12 @@ const Signals: React.FC = () => {
     const handleShowChart = (signal: Signal) => {
         if (!signal.chartData) return;
 
-        let indicatorData: any = undefined;
-        if (signal.strategy === 'RSI Divergence') {
-            indicatorData = { type: 'RSI', data: { rsi: calculateRSI(signal.chartData, 14).main } };
-        } else if (signal.strategy === 'MA Crossover') {
-            indicatorData = {
-                type: 'MA_CROSSOVER', data: {
-                    fastMA: calculateEMA(signal.chartData.map(c => c.close), 9),
-                    slowMA: calculateEMA(signal.chartData.map(c => c.close), 21),
-                }
-            };
-        }
-
         setChartModalData({
             chartData: signal.chartData,
             pair: signal.pair,
             entry: signal.entry,
             stopLoss: signal.stopLoss,
             takeProfit: signal.takeProfit,
-            indicatorData: indicatorData
         });
     };
 
@@ -418,7 +442,7 @@ const Signals: React.FC = () => {
         if (!executingSignal || !user?.id) return;
 
         try {
-            console.log("Executing paper trade for signal:", executingSignal.id, "User:", user.id);
+            console.log('Executing paper trade for signal:', executingSignal.id, 'User:', user.id);
 
             // 1. Call Service to persist in DB
             const tradeId = await createPaperTrade(
@@ -426,23 +450,27 @@ const Signals: React.FC = () => {
                 user.id,
                 {
                     stopLoss: newPosition.stopLoss,
-                    takeProfit: newPosition.takeProfit
+                    takeProfit: newPosition.takeProfit,
                 },
                 newPosition.quantity,
                 newPosition.leverage || 1
             );
 
             if (!tradeId) {
-                console.error("Failed to create paper trade in DB.");
-                alert("Execution Failed: Could not save trade to paper trading account.");
+                console.error('Failed to create paper trade in DB.');
+                alert('Execution Failed: Could not save trade to paper trading account.');
                 return;
             }
 
             // 2. Update local state
-            setPositions(prev => [{ ...newPosition, id: tradeId }, ...prev]);
+            setPositions((prev) => [{ ...newPosition, id: tradeId }, ...prev]);
 
             // 3. Update the signal status locally
-            setSignals(prev => prev.map(s => s.id === executingSignal.id ? { ...s, status: SignalStatus.ACTIVE } : s));
+            setSignals((prev) =>
+                prev.map((s) =>
+                    s.id === executingSignal.id ? { ...s, status: SignalStatus.ACTIVE } : s
+                )
+            );
 
             alert(`Trade for ${newPosition.symbol} executed successfully! Trade ID: ${tradeId}`);
             setExecutingSignal(null);
@@ -464,13 +492,11 @@ const Signals: React.FC = () => {
         }
     };
 
-
-
     const applicableWatchlists = useMemo(() => {
         if (!addToWatchlistPair) return [];
         const isCrypto = isCryptoSymbol(addToWatchlistPair);
         const requiredAccountType = isCrypto ? 'Crypto' : 'Forex';
-        return watchlists.filter(wl => wl.accountType === requiredAccountType);
+        return watchlists.filter((wl) => wl.accountType === requiredAccountType);
     }, [addToWatchlistPair, watchlists]);
 
     const renderContent = () => {
@@ -483,7 +509,8 @@ const Signals: React.FC = () => {
                     <SignalIcon className="w-12 h-12 mx-auto text-gray-600" />
                     <h3 className="mt-4 text-lg font-semibold text-white">No Signals Found</h3>
                     <p className="mt-2 text-sm text-gray-400">
-                        There are no signals matching your current filters. Try adjusting your criteria.
+                        There are no signals matching your current filters. Try adjusting your
+                        criteria.
                     </p>
                 </div>
             );
@@ -491,7 +518,7 @@ const Signals: React.FC = () => {
 
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredSignals.map(signal => (
+                {filteredSignals.map((signal) => (
                     <SignalCard
                         key={signal.id}
                         signal={signal}
@@ -507,23 +534,26 @@ const Signals: React.FC = () => {
         );
     };
 
-
-
     return (
         <div className="space-y-6 p-6">
             {/* Stats Summary Cards - Reactive to Filters */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
                     <p className="text-xs text-gray-400 mb-1">Active Signals</p>
-                    <p className="text-2xl font-bold text-white">{filteredSignals.filter(s => s.status === SignalStatus.ACTIVE).length}</p>
+                    <p className="text-2xl font-bold text-white">
+                        {filteredSignals.filter((s) => s.status === SignalStatus.ACTIVE).length}
+                    </p>
                 </div>
                 <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
                     <p className="text-xs text-gray-400 mb-1">Win Rate</p>
                     <p className="text-2xl font-bold text-green-400">
                         {(() => {
-                            const closedSignals = filteredSignals.filter(s => s.status === SignalStatus.CLOSED);
-                            let wins = 0, losses = 0;
-                            closedSignals.forEach(s => {
+                            const closedSignals = filteredSignals.filter(
+                                (s) => s.status === SignalStatus.CLOSED
+                            );
+                            let wins = 0,
+                                losses = 0;
+                            closedSignals.forEach((s) => {
                                 const pnl = (s as any).profit_loss ?? s.profitLoss;
                                 const reason = (s as any).close_reason ?? s.closeReason;
                                 if (typeof pnl === 'number') {
@@ -534,13 +564,20 @@ const Signals: React.FC = () => {
                             });
                             const total = wins + losses;
                             return total > 0 ? ((wins / total) * 100).toFixed(1) : '0';
-                        })()}%
+                        })()}
+                        %
                     </p>
                 </div>
                 <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
                     <p className="text-xs text-gray-400 mb-1">Today's Signals</p>
                     <p className="text-2xl font-bold text-white">
-                        {filteredSignals.filter(s => new Date(s.timestamp).toDateString() === new Date().toDateString()).length}
+                        {
+                            filteredSignals.filter(
+                                (s) =>
+                                    new Date(s.timestamp).toDateString() ===
+                                    new Date().toDateString()
+                            ).length
+                        }
                     </p>
                 </div>
                 <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
@@ -550,19 +587,29 @@ const Signals: React.FC = () => {
             </div>
 
             {/* Connection Status Banner */}
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${isConnected ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+            <div
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${isConnected ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
+            >
                 <span className={`relative flex h-2.5 w-2.5`}>
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span
+                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}
+                    ></span>
+                    <span
+                        className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+                    ></span>
                 </span>
-                {isConnected ? 'Live Updates: Connected to Signal Engine' : 'Reconnecting to Live Stream...'}
+                {isConnected
+                    ? 'Live Updates: Connected to Signal Engine'
+                    : 'Reconnecting to Live Stream...'}
             </div>
 
             {/* Generating Signals Banner */}
             {isGeneratingSignals && (
                 <div className="bg-blue-600/20 border border-blue-500/50 rounded-lg p-3 flex items-center gap-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
-                    <span className="text-blue-300 text-sm">Generating signals from active strategies...</span>
+                    <span className="text-blue-300 text-sm">
+                        Generating signals from active strategies...
+                    </span>
                 </div>
             )}
 
@@ -574,14 +621,15 @@ const Signals: React.FC = () => {
                     <div>
                         <label className="block text-xs text-gray-400 mb-2">Status</label>
                         <div className="flex flex-wrap gap-2">
-                            {['All', ...Object.values(SignalStatus)].map(status => (
+                            {['All', ...Object.values(SignalStatus)].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setStatusFilter(status)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${statusFilter === status
-                                        ? 'bg-blue-500 text-white shadow-lg'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                        }`}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                        statusFilter === status
+                                            ? 'bg-blue-500 text-white shadow-lg'
+                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
                                 >
                                     {status}
                                 </button>
@@ -593,18 +641,19 @@ const Signals: React.FC = () => {
                     <div>
                         <label className="block text-xs text-gray-400 mb-2">Direction</label>
                         <div className="flex flex-wrap gap-2">
-                            {['All', ...Object.values(TradeDirection)].map(direction => (
+                            {['All', ...Object.values(TradeDirection)].map((direction) => (
                                 <button
                                     key={direction}
                                     onClick={() => setDirectionFilter(direction)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${directionFilter === direction
-                                        ? direction === 'BUY'
-                                            ? 'bg-green-500 text-white shadow-lg'
-                                            : direction === 'SELL'
-                                                ? 'bg-red-500 text-white shadow-lg'
-                                                : 'bg-blue-500 text-white shadow-lg'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                        }`}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                        directionFilter === direction
+                                            ? direction === 'BUY'
+                                                ? 'bg-green-500 text-white shadow-lg'
+                                                : direction === 'SELL'
+                                                  ? 'bg-red-500 text-white shadow-lg'
+                                                  : 'bg-blue-500 text-white shadow-lg'
+                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
                                 >
                                     {direction}
                                 </button>
@@ -616,37 +665,104 @@ const Signals: React.FC = () => {
                     <div>
                         <label className="block text-xs text-gray-400 mb-2">Signal Timeframe</label>
                         <div className="flex flex-wrap gap-1.5">
-                            {['1m', '5m', '15m', '30m', '1H', '4H', '1D'].map(tf => (
+                            {['1m', '5m', '15m', '30m', '1H', '4H', '1D'].map((tf) => (
                                 <button
                                     key={tf}
                                     onClick={() => {
                                         const updated = favoriteTimeframes.includes(tf)
-                                            ? favoriteTimeframes.filter(t => t !== tf)
+                                            ? favoriteTimeframes.filter((t) => t !== tf)
                                             : [...favoriteTimeframes, tf];
                                         setFavoriteTimeframes(updated);
-                                        localStorage.setItem('favoriteTimeframes', JSON.stringify(updated));
+                                        localStorage.setItem(
+                                            'favoriteTimeframes',
+                                            JSON.stringify(updated)
+                                        );
                                         if (user?.id) {
                                             saveFavoriteTimeframesToDB(user.id, updated);
                                         }
                                     }}
-                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${favoriteTimeframes.includes(tf)
-                                        ? 'bg-yellow-500 text-black shadow-md'
-                                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                        }`}
-                                    title={favoriteTimeframes.includes(tf) ? 'Click to remove from scan' : 'Click to add to scan'}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+                                        favoriteTimeframes.includes(tf)
+                                            ? 'bg-yellow-500 text-black shadow-md'
+                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                                    title={
+                                        favoriteTimeframes.includes(tf)
+                                            ? 'Click to remove from scan'
+                                            : 'Click to add to scan'
+                                    }
                                 >
-                                    <span className="text-xs">{favoriteTimeframes.includes(tf) ? '★' : '☆'}</span>
+                                    <span className="text-xs">
+                                        {favoriteTimeframes.includes(tf) ? '★' : '☆'}
+                                    </span>
                                     {tf}
                                 </button>
                             ))}
                         </div>
                     </div>
+
+                    {/* Assign Strategies Button */}
+                    <div className="flex items-end">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (watchlists.length === 0) {
+                                    alert('Create a watchlist first before assigning strategies.');
+                                    return;
+                                }
+                                setShowAssignModal(true);
+                            }}
+                            disabled={watchlists.length === 0}
+                            title={
+                                watchlists.length === 0
+                                    ? 'Create a watchlist first'
+                                    : watchlistFilter === 'All'
+                                      ? 'Assigns to the first watchlist — pick one in the Watchlist filter to target a specific one'
+                                      : 'Assign strategies to this watchlist'
+                            }
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                                watchlists.length === 0
+                                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                    : 'bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30'
+                            }`}
+                        >
+                            Assign Strategies
+                        </button>
+                    </div>
                 </div>
 
                 {/* Combined Filter Row: Strategy, Market, Timeframe, Search */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                    <FilterSelect label="Strategy" value={strategyFilter} onChange={e => setStrategyFilter(e.target.value)} options={availableStrategies} />
-                    <FilterSelect label="Market Type" value={marketTypeFilter} onChange={e => setMarketTypeFilter(e.target.value)} options={['Crypto']} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                    <FilterSelect
+                        label="Strategy"
+                        value={strategyFilter}
+                        onChange={(e) => setStrategyFilter(e.target.value)}
+                        options={availableStrategies}
+                    />
+                    <FilterSelect
+                        label="Market Type"
+                        value={marketTypeFilter}
+                        onChange={(e) => setMarketTypeFilter(e.target.value)}
+                        options={['Crypto']}
+                    />
+
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Watchlist</label>
+                        <select
+                            title="Watchlist"
+                            aria-label="Watchlist"
+                            value={watchlistFilter}
+                            onChange={(e) => setWatchlistFilter(e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="All">All</option>
+                            {watchlists.map((wl) => (
+                                <option key={wl.id} value={wl.id}>
+                                    {wl.name} ({wl.items.length})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
                     {/* Timeframe Filter Dropdown - Simple filter for viewing */}
                     <div className="relative" data-timeframe-dropdown>
@@ -655,9 +771,23 @@ const Signals: React.FC = () => {
                             onClick={() => setShowTimeframeDropdown(!showTimeframeDropdown)}
                             className="w-full flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <span>{timeframeFilter === 'All' ? `All (${favoriteTimeframes.join(', ')})` : timeframeFilter}</span>
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            <span>
+                                {timeframeFilter === 'All'
+                                    ? `All (${favoriteTimeframes.join(', ')})`
+                                    : timeframeFilter}
+                            </span>
+                            <svg
+                                className="w-4 h-4 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 9l-7 7-7-7"
+                                />
                             </svg>
                         </button>
 
@@ -674,7 +804,7 @@ const Signals: React.FC = () => {
                                     ★ All ({favoriteTimeframes.join(', ')})
                                 </div>
 
-                                {ALL_TIMEFRAMES.map(tf => (
+                                {ALL_TIMEFRAMES.map((tf) => (
                                     <div
                                         key={tf}
                                         onClick={() => {
@@ -705,6 +835,8 @@ const Signals: React.FC = () => {
                             {symbolSearch && (
                                 <button
                                     onClick={() => setSymbolSearch('')}
+                                    title="Clear search"
+                                    aria-label="Clear search"
                                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
                                 >
                                     <CloseIcon className="w-4 h-4" />
@@ -718,56 +850,66 @@ const Signals: React.FC = () => {
             {renderContent()}
 
             {/* Chart Modal */}
-            {
-                chartModalData && (
-                    <div className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4">
-                        <div className="bg-gray-800 rounded-xl w-full max-w-4xl h-[600px] flex flex-col p-4 border border-gray-700">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-white">{chartModalData.pair} Signal Chart</h3>
-                                <button onClick={() => setChartModalData(null)} className="p-1 rounded-full hover:bg-gray-700">
-                                    <CloseIcon className="w-6 h-6 text-gray-400" />
-                                </button>
-                            </div>
-                            <div className="flex-1 min-h-0">
-                                <MiniChart
-                                    data={chartModalData.chartData}
-                                    entry={chartModalData.entry}
-                                    stopLoss={chartModalData.stopLoss}
-                                    takeProfit={chartModalData.takeProfit}
-                                    indicatorData={chartModalData.indicatorData}
-                                />
-                            </div>
+            {chartModalData && (
+                <div className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4">
+                    <div className="bg-gray-800 rounded-xl w-full max-w-4xl h-[600px] flex flex-col p-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-white">
+                                {chartModalData.pair} Signal Chart
+                            </h3>
+                            <button
+                                onClick={() => setChartModalData(null)}
+                                title="Close"
+                                aria-label="Close"
+                                className="p-1 rounded-full hover:bg-gray-700"
+                            >
+                                <CloseIcon className="w-6 h-6 text-gray-400" />
+                            </button>
+                        </div>
+                        <div className="flex-1 min-h-0">
+                            <MiniChart
+                                data={chartModalData.chartData}
+                                entry={chartModalData.entry}
+                                stopLoss={chartModalData.stopLoss}
+                                takeProfit={chartModalData.takeProfit}
+                                indicatorData={chartModalData.indicatorData}
+                            />
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
 
             {/* Execute Trade Modal */}
-            {
-                executingSignal && (
-                    <ExecuteTradeModal
-                        signal={executingSignal}
-                        onClose={() => setExecutingSignal(null)}
-                        onExecute={handleExecuteTrade}
-                    />
-                )
-            }
+            {executingSignal && (
+                <ExecuteTradeModal
+                    signal={executingSignal}
+                    onClose={() => setExecutingSignal(null)}
+                    onExecute={handleExecuteTrade}
+                />
+            )}
 
             {/* Add to Watchlist Modal */}
-            {
-                addToWatchlistPair && (
-                    <AddToWatchlistModal
-                        pair={addToWatchlistPair}
-                        watchlists={applicableWatchlists}
-                        existingWatchlistIds={Array.from(addedToWatchlistPairs)}
-                        onClose={() => setAddToWatchlistPair(null)}
-                        onSelectWatchlist={handleAddToWatchlist}
-                        onCreateWatchlist={() => navigate('/watchlist')}
-                    />
-                )
-            }
+            {addToWatchlistPair && (
+                <AddToWatchlistModal
+                    pair={addToWatchlistPair}
+                    watchlists={applicableWatchlists}
+                    existingWatchlistIds={Array.from(addedToWatchlistPairs)}
+                    onClose={() => setAddToWatchlistPair(null)}
+                    onSelectWatchlist={handleAddToWatchlist}
+                    onCreateWatchlist={() => navigate('/watchlist')}
+                />
+            )}
 
-        </div >
+            {/* Assign Strategies Modal — writes directly to watchlist_strategies via its own CRUD */}
+            {showAssignModal && watchlists.length > 0 && (
+                <AssignStrategiesModal
+                    watchlist={
+                        watchlists.find((w) => w.id === watchlistFilter) || watchlists[0]
+                    }
+                    onClose={() => setShowAssignModal(false)}
+                />
+            )}
+        </div>
     );
 };
 

@@ -10,15 +10,27 @@ import * as marketDataService from './services/marketDataService';
 import * as authService from './services/authService';
 import * as paperTradingApi from './api/paperTradingApi';
 import {
-    Metric, Signal, Watchlist, Alert, Position, UpcomingInfo, Suggestion,
-    PositionStatus, TradeDirection, AlertStatus, WatchlistItem, AccountType
+    Metric,
+    Signal,
+    Watchlist,
+    Alert,
+    Position,
+    UpcomingInfo,
+    Suggestion,
+    PositionStatus,
+    TradeDirection,
+    AlertStatus,
+    WatchlistItem,
+    AccountType,
 } from './types';
 
 // Re-export all API functions - these route REAL services.
 
 // --- Analysis / Overview Page (Mocked/Stubs for now or redirected) ---
-export const getForexMetrics = async (): Promise<Metric[]> => accountService.getAccountMetrics('Forex');
-export const getBinanceMetrics = async (): Promise<Metric[]> => accountService.getAccountMetrics('Binance');
+export const getForexMetrics = async (): Promise<Metric[]> =>
+    accountService.getAccountMetrics('Forex');
+export const getBinanceMetrics = async (): Promise<Metric[]> =>
+    accountService.getAccountMetrics('Binance');
 export const getPerformanceChartData = async (): Promise<any[]> => []; // TODO: Implement Performance Service
 export const getUpcomingInfo = async (): Promise<UpcomingInfo[]> => [];
 export const getSuggestions = async (): Promise<Suggestion[]> => [];
@@ -29,52 +41,84 @@ export const getHistoricalData = (symbol: string, timeframe: string) =>
 
 // --- Signals Page ---
 export const getSignals = () => signalService.getSignals();
-export const toggleSignalPin = (signalId: string, isPinned: boolean) => signalService.toggleSignalPin(signalId, isPinned);
+export const toggleSignalPin = (signalId: string, isPinned: boolean) =>
+    signalService.toggleSignalPin(signalId, isPinned);
 
 // --- Strategies API ---
-export const getStrategies = () => import('./services/strategyService').then(m => m.getStrategies());
+export const getStrategies = () =>
+    import('./services/strategyService').then((m) => m.getStrategies());
 
 // --- Watchlist API (Used by SidePanels) ---
 export const getWatchlists = () => watchlistService.getWatchlists();
-export const createWatchlist = (name: string, accountType: AccountType | 'Forex' | 'Crypto' | string, strategyType: string, tradingMode: 'paper' | 'live' = 'paper') =>
-    watchlistService.createWatchlist(name, accountType, strategyType, tradingMode);
-export const updateWatchlist = (id: string, data: { name: string, strategyType?: string }) =>
+export const createWatchlist = (
+    name: string,
+    accountType: AccountType | 'Forex' | 'Crypto' | string,
+    strategyType: string,
+    tradingMode: 'paper' | 'live' = 'paper'
+) => watchlistService.createWatchlist(name, accountType, strategyType, tradingMode);
+export const updateWatchlist = (id: string, data: { name: string; strategyType?: string }) =>
     watchlistService.updateWatchlist(id, data);
 export const deleteWatchlist = (id: string) => watchlistService.deleteWatchlist(id);
 export const addSymbolToWatchlist = (watchlistId: string, symbol: string) =>
     watchlistService.addSymbol(watchlistId, symbol);
 export const removeSymbolFromWatchlist = (watchlistId: string, symbolId: string) =>
     watchlistService.removeSymbol(watchlistId, symbolId);
-export const toggleAutoTrade = (payload: { watchlistId: string; itemId?: string; isEnabled: boolean }) =>
-    watchlistService.toggleAutoTrade({ scriptId: payload.watchlistId, itemId: payload.itemId, isEnabled: payload.isEnabled });
+export const toggleAutoTrade = (payload: {
+    watchlistId: string;
+    itemId?: string;
+    isEnabled: boolean;
+}) =>
+    watchlistService.toggleAutoTrade({
+        scriptId: payload.watchlistId,
+        itemId: payload.itemId,
+        isEnabled: payload.isEnabled,
+    });
 
 // --- Scripts API (Used by My Scripts - routed through watchlistService) ---
 export const getScripts = () => watchlistService.getWatchlists();
-export const createScript = (name: string, accountType: AccountType | 'Forex' | 'Crypto' | string, strategyType: string, tradingMode: 'paper' | 'live' = 'paper', executionTimeframes?: string[]) =>
-    watchlistService.createWatchlist(name, accountType, strategyType, tradingMode, executionTimeframes);
-export const updateScript = (id: string, data: {
-    name?: string,
-    strategyType?: string,
-    tradingMode?: 'paper' | 'live',
-    executionTimeframes?: string[],
-    lotSize?: number,
-    riskPercent?: number,
-    leverage?: number,
-    stopLossDistance?: number,
-    takeProfitDistance?: number,
-    trailingStopLossDistance?: number,
-    manualRiskEnabled?: boolean,
-    marketType?: 'spot' | 'futures',
-    riskMethod?: 'fixed' | 'percent',
-    autoLeverageEnabled?: boolean
-}) => watchlistService.updateWatchlist(id, data);
+export const createScript = (
+    name: string,
+    accountType: AccountType | 'Forex' | 'Crypto' | string,
+    strategyType: string,
+    tradingMode: 'paper' | 'live' = 'paper',
+    executionTimeframes?: string[]
+) =>
+    watchlistService.createWatchlist(
+        name,
+        accountType,
+        strategyType,
+        tradingMode,
+        executionTimeframes
+    );
+export const updateScript = (
+    id: string,
+    data: {
+        name?: string;
+        strategyType?: string;
+        tradingMode?: 'paper' | 'live';
+        executionTimeframes?: string[];
+        lotSize?: number;
+        riskPercent?: number;
+        leverage?: number;
+        stopLossDistance?: number;
+        takeProfitDistance?: number;
+        trailingStopLossDistance?: number;
+        manualRiskEnabled?: boolean;
+        marketType?: 'spot' | 'futures';
+        riskMethod?: 'fixed' | 'percent';
+        autoLeverageEnabled?: boolean;
+    }
+) => watchlistService.updateWatchlist(id, data);
 export const deleteScript = (id: string) => watchlistService.deleteWatchlist(id);
 export const addSymbolToScript = (scriptId: string, symbol: string) =>
     watchlistService.addSymbol(scriptId, symbol);
 export const removeSymbolFromScript = (scriptId: string, symbolId: string) =>
     watchlistService.removeSymbol(scriptId, symbolId);
-export const toggleScriptAutoTrade = (payload: { scriptId: string; itemId?: string; isEnabled: boolean }) =>
-    watchlistService.toggleAutoTrade(payload);
+export const toggleScriptAutoTrade = (payload: {
+    scriptId: string;
+    itemId?: string;
+    isEnabled: boolean;
+}) => watchlistService.toggleAutoTrade(payload);
 
 export const updateWatchlistItemRiskSettings = (itemId: string, settings: any) =>
     watchlistService.updateWatchlistItemRiskSettings(itemId, settings);
@@ -93,7 +137,9 @@ export const createPosition = (position: Omit<Position, 'id'>) =>
 
 // --- Alerts API ---
 export const getAlerts = async (): Promise<Alert[]> => []; // TODO: Implement AlertService
-export const createPriceAlert = async (alertData: Omit<Alert, 'id' | 'timestamp'>) => { console.log('Create Alert:', alertData); };
+export const createPriceAlert = async (alertData: Omit<Alert, 'id' | 'timestamp'>) => {
+    console.log('Create Alert:', alertData);
+};
 
 // --- Account Metrics API ---
 export const getAccountMetrics = (accountType: 'Forex' | 'Binance') =>
@@ -110,10 +156,11 @@ export const getEducationContent = async () => [];
 
 // --- Settings API ---
 export const getSettings = async (): Promise<any> => ({});
-export const saveSettings = async (settings: any) => { console.log('Save Settings:', settings); };
+export const saveSettings = async (settings: any) => {
+    console.log('Save Settings:', settings);
+};
 export const getUserSettings = () => authService.getUserSettings();
 export const updateUserSettings = (settings: any) => authService.updateUserSettings(settings);
-
 
 export const getPaperTrades = async () => {
     if (!isSupabaseConfigured()) return [];
@@ -124,7 +171,7 @@ export const getPaperTrades = async () => {
         .order('filled_at', { ascending: false });
 
     if (error) {
-        console.error("Error fetching paper trades:", error);
+        console.error('Error fetching paper trades:', error);
         return [];
     }
     return data;

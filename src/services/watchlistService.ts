@@ -417,26 +417,10 @@ export const updateWatchlistItemRiskSettings = async (
     return { success: true };
 };
 
-/**
- * @deprecated — the strategy_ids column was dropped in migration 054.
- * Use addWatchlistStrategy / updateWatchlistStrategyParams / removeWatchlistStrategy
- * (which operate on the watchlist_strategies table) instead.
- *
- * This function is kept as a no-op for callers that still invoke it during
- * the UI migration period. It logs once and returns success.
- */
-export const updateWatchlistStrategies = async (
-    _watchlistId: string,
-    _strategyIds: string[]
-): Promise<{ success: boolean }> => {
-    console.warn(
-        '[watchlistService] updateWatchlistStrategies is deprecated — use watchlist_strategies CRUD. This call is a no-op.'
-    );
-    return { success: true };
-};
-
 // ──────────────────────────────────────────────────────────────
 //  watchlist_strategies CRUD (per-assignment params + risk)
+//  (the legacy updateWatchlistStrategies that wrote to the dropped
+//   watchlists.strategy_ids array column was removed in Phase 5)
 // ──────────────────────────────────────────────────────────────
 
 export interface WatchlistStrategyAssignment {
@@ -546,8 +530,7 @@ export default {
     toggleItemAutoTrade,
     toggleAutoTrade,
     updateWatchlistItemRiskSettings,
-    updateWatchlistStrategies,
-    // New watchlist_strategies API
+    // watchlist_strategies API (per-assignment params + risk)
     getWatchlistStrategies,
     addWatchlistStrategy,
     updateWatchlistStrategyParams,
