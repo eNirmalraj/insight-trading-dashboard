@@ -66,7 +66,8 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
 export const getSignals = async (): Promise<Signal[]> => {
     if (!supabase) return [];
 
-    const { data, error } = await supabase
+    // Step 1: fetch executions (what the UI calls "signal cards")
+    const { data: execs, error: execErr } = await supabase
         .from('signal_executions')
         .select(
             `
@@ -90,24 +91,51 @@ export const getSignals = async (): Promise<Signal[]> => {
             profit_loss,
             broker,
             created_at,
-            updated_at,
-            signals:signal_id ( params_snapshot, template_version, strategy, strategy_id )
+            updated_at
         `
         )
         .order('created_at', { ascending: false })
         .limit(300);
 
-    if (error) {
-        console.warn('[signalService] getSignals failed:', error.message);
+    if (execErr) {
+        console.warn('[signalService] getSignals (executions) failed:', execErr.message);
         return [];
     }
 
-    return (data || []).map((d: any) => {
-        const event = d.signals || {};
+    if (!execs || execs.length === 0) return [];
+
+    // Step 2: batch-fetch metadata from signals (params_snapshot, template_version, strategy_id)
+    const signalIds = Array.from(new Set(execs.map((e: any) => e.signal_id).filter(Boolean)));
+    const eventsById = new Map<string, any>();
+
+    if (signalIds.length > 0) {
+        const { data: events } = await supabase
+            .from('signals')
+            .select('id, params_snapshot, template_version, strategy_id')
+            .in('id', signalIds);
+        (events || []).forEach((ev: any) => eventsById.set(ev.id, ev));
+    }
+
+    // Step 3: batch-fetch strategy names from the scripts table
+    const stratIds = Array.from(
+        new Set(Array.from(eventsById.values()).map((e) => e.strategy_id).filter(Boolean))
+    );
+    const stratNamesById = new Map<string, string>();
+    if (stratIds.length > 0) {
+        const { data: scripts } = await supabase
+            .from('scripts')
+            .select('id, name')
+            .in('id', stratIds);
+        (scripts || []).forEach((s: any) => stratNamesById.set(s.id, s.name));
+    }
+
+    return execs.map((d: any) => {
+        const event = eventsById.get(d.signal_id) || {};
+        const strategyName = stratNamesById.get(event.strategy_id) || '';
         return {
             id: d.id,
             pair: d.symbol,
-            strategy: event.strategy || '',
+            strategy: strategyName,
             strategyId: event.strategy_id || undefined,
             direction: d.direction,
             entry: d.entry_price,
@@ -393,33 +421,51 @@ export const isDuplicateSignal = async (
     return (data?.length || 0) > 0;
 };
 
-// Get signal executions filtered by strategy ID (reads signal_executions + joins signals)
+// Get signal executions filtered by strategy ID
 export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]> => {
     if (!supabase) return [];
 
-    const { data, error } = await supabase
-        .from('signal_executions')
-        .select(
-            `
-            *,
-            signals:signal_id!inner ( params_snapshot, template_version, strategy, strategy_id )
-        `
-        )
-        .eq('signals.strategy_id', strategyId)
+    // Step 1: find the signal events for this strategy
+    const { data: events, error: evErr } = await supabase
+        .from('signals')
+        .select('id, params_snapshot, template_version, strategy_id')
+        .eq('strategy_id', strategyId)
         .order('created_at', { ascending: false })
         .limit(200);
 
-    if (error) {
-        console.warn('[signalService] getSignalsByStrategy failed:', error.message);
+    if (evErr || !events || events.length === 0) {
+        if (evErr) console.warn('[signalService] getSignalsByStrategy (events) failed:', evErr.message);
         return [];
     }
 
-    return (data || []).map((d: any) => {
-        const event = d.signals || {};
+    const eventsById = new Map<string, any>();
+    events.forEach((e: any) => eventsById.set(e.id, e));
+
+    // Step 2: fetch executions referencing those events
+    const { data: execs, error: execErr } = await supabase
+        .from('signal_executions')
+        .select('*')
+        .in('signal_id', Array.from(eventsById.keys()))
+        .order('created_at', { ascending: false });
+
+    if (execErr || !execs) {
+        if (execErr) console.warn('[signalService] getSignalsByStrategy (execs) failed:', execErr.message);
+        return [];
+    }
+
+    // Step 3: fetch strategy name
+    const { data: scripts } = await supabase
+        .from('scripts')
+        .select('id, name')
+        .eq('id', strategyId);
+    const strategyName = scripts && scripts[0] ? scripts[0].name : '';
+
+    return execs.map((d: any) => {
+        const event = eventsById.get(d.signal_id) || {};
         return {
             id: d.id,
             pair: d.symbol,
-            strategy: event.strategy || '',
+            strategy: strategyName,
             strategyId: event.strategy_id || undefined,
             direction: d.direction,
             entry: d.entry_price,

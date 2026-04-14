@@ -253,6 +253,23 @@ async function clearLastError(assignmentId: string): Promise<void> {
         .not('last_error', 'is', null);
 }
 
+// ─── Timeframe normalization ─────────────────────────────────────
+
+/**
+ * Canonicalize a timeframe string so the DB (and downstream filters) always
+ * sees the same casing regardless of source.
+ *
+ * Binance WebSocket emits lowercase ('1h', '4h', '1d'), the frontend UI uses
+ * uppercase ('1H', '4H', '1D'). We normalize sub-hour values to lowercase
+ * (1m, 5m, 15m, 30m) and hour+ values to uppercase (1H, 4H, 1D, 1W, 1M).
+ * This matches the favoriteTimeframes list in Signals.tsx.
+ */
+function normalizeTimeframe(tf: string): string {
+    const lower = tf.toLowerCase();
+    if (lower.endsWith('m') && !lower.endsWith('mo')) return lower; // minutes: 1m, 5m, 15m, 30m
+    return lower.toUpperCase(); // hours/days/weeks/months: 1H, 4H, 1D, 1W, 1M
+}
+
 // ─── Candle close handling ───────────────────────────────────────
 
 async function onCandleClose(symbol: string, timeframe: string, candle: Candle): Promise<void> {
@@ -303,7 +320,7 @@ async function onCandleClose(symbol: string, timeframe: string, candle: Candle):
                 market: a.market,
                 direction,
                 entryPrice: candle.close,
-                timeframe,
+                timeframe: normalizeTimeframe(timeframe),
                 candleTime: new Date(candle.time * 1000).toISOString(),
                 paramsSnapshot: a.params,
                 templateVersion: a.template_version,
@@ -350,7 +367,7 @@ async function coldStartScan(): Promise<void> {
                     market: a.market,
                     direction,
                     entryPrice: lastCandle.close,
-                    timeframe: a.timeframe,
+                    timeframe: normalizeTimeframe(a.timeframe),
                     candleTime: new Date(lastCandle.time * 1000).toISOString(),
                     paramsSnapshot: a.params,
                     templateVersion: a.template_version,
