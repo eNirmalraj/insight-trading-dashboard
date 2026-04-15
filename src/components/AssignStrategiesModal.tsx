@@ -3,10 +3,12 @@ import { CloseIcon } from './IconComponents';
 import { Watchlist } from '../types';
 import { STRATEGY_REGISTRY, BuiltInStrategyMeta } from '../strategies';
 import { ParamEditorModal } from './strategy-studio/ParamEditorModal';
+import { RiskEditorModal, RiskSettings } from './strategy-studio/RiskEditorModal';
 import {
     getWatchlistStrategies,
     addWatchlistStrategy,
     updateWatchlistStrategyParams,
+    updateWatchlistStrategyRiskSettings,
     removeWatchlistStrategy,
     WatchlistStrategyAssignment,
 } from '../services/watchlistService';
@@ -32,6 +34,10 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [pendingAdd, setPendingAdd] = useState<StrategyRow | null>(null);
     const [pendingEdit, setPendingEdit] = useState<{
+        assignment: WatchlistStrategyAssignment;
+        strategy: StrategyRow;
+    } | null>(null);
+    const [pendingRisk, setPendingRisk] = useState<{
         assignment: WatchlistStrategyAssignment;
         strategy: StrategyRow;
     } | null>(null);
@@ -160,6 +166,29 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
         }
     };
 
+    const handleRiskClick = (assignment: WatchlistStrategyAssignment) => {
+        const strat = availableStrategies.find((s) => s.id === assignment.strategyId);
+        if (!strat) return;
+        setPendingRisk({ assignment, strategy: strat });
+    };
+
+    const updateRiskSettings = async (
+        assignment: WatchlistStrategyAssignment,
+        riskSettings: RiskSettings
+    ) => {
+        setErrorMessage(null);
+        try {
+            await updateWatchlistStrategyRiskSettings(assignment.id, riskSettings);
+            setAssignments((prev) =>
+                prev.map((a) => (a.id === assignment.id ? { ...a, riskSettings } : a))
+            );
+        } catch (err: any) {
+            console.error('[AssignStrategiesModal] risk update failed:', err);
+            setErrorMessage(`Risk update failed: ${err?.message || String(err)}`);
+            throw err; // re-throw so the modal's own error handler also fires
+        }
+    };
+
     const handleClose = () => {
         onClose();
     };
@@ -243,13 +272,23 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                                                         </span>
                                                         {strat && strat.paramSchema.length > 0 && (
                                                             <button
+                                                                type="button"
                                                                 onClick={() => handleEditClick(a)}
                                                                 className="text-xs px-2 py-1 rounded bg-white/5 text-gray-300 hover:bg-white/10"
                                                             >
-                                                                Edit
+                                                                Params
                                                             </button>
                                                         )}
                                                         <button
+                                                            type="button"
+                                                            onClick={() => handleRiskClick(a)}
+                                                            className="text-xs px-2 py-1 rounded bg-purple-500/10 text-purple-300 hover:bg-purple-500/20"
+                                                            title="Edit risk settings (SL/TP mode, lot size, leverage)"
+                                                        >
+                                                            Risk
+                                                        </button>
+                                                        <button
+                                                            type="button"
                                                             onClick={() => handleRemove(a)}
                                                             className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-300 hover:bg-red-500/20"
                                                         >
@@ -336,6 +375,17 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                     onSave={(values) => {
                         void updateAssignment(pendingEdit.assignment, values);
                     }}
+                />
+            )}
+
+            {/* Risk editor for an existing assignment */}
+            {pendingRisk && (
+                <RiskEditorModal
+                    isOpen
+                    onClose={() => setPendingRisk(null)}
+                    assignmentLabel={`${pendingRisk.strategy.name} — ${pendingRisk.assignment.timeframe} — ${watchlist.name}`}
+                    initialSettings={pendingRisk.assignment.riskSettings as RiskSettings}
+                    onSave={(settings) => updateRiskSettings(pendingRisk.assignment, settings)}
                 />
             )}
         </>

@@ -90,6 +90,7 @@ export const getSignals = async (): Promise<Signal[]> => {
             close_price,
             profit_loss,
             broker,
+            is_pinned,
             created_at,
             updated_at
         `
@@ -147,7 +148,7 @@ export const getSignals = async (): Promise<Signal[]> => {
             timeframe: d.timeframe,
             closeReason: d.close_reason || undefined,
             profitLoss: d.profit_loss ?? undefined,
-            isPinned: false,
+            isPinned: !!d.is_pinned,
             closedAt: d.closed_at || undefined,
             lotSize: d.lot_size ?? undefined,
             leverage: d.leverage ?? undefined,
@@ -157,6 +158,22 @@ export const getSignals = async (): Promise<Signal[]> => {
             market: d.market as 'spot' | 'futures',
         } as Signal;
     });
+};
+
+/**
+ * Toggle the pinned state on an execution row.
+ * Users can only toggle pins on their own executions (RLS enforced).
+ */
+export const toggleSignalPinned = async (id: string, pinned: boolean): Promise<void> => {
+    if (!supabase) return;
+    const { error } = await supabase
+        .from('signal_executions')
+        .update({ is_pinned: pinned })
+        .eq('id', id);
+    if (error) {
+        console.warn('[signalService] toggleSignalPinned failed:', error.message);
+        throw new Error(error.message);
+    }
 };
 
 export const updateSignalStatus = async (id: string, status: string): Promise<void> => {
@@ -224,16 +241,12 @@ export const updateSignalRiskLevels = async (
     if (error) throw new Error(error.message);
 };
 
-export const toggleSignalPin = async (signalId: string, isPinned: boolean): Promise<void> => {
-    if (!supabase) return;
-
-    const { error } = await supabase
-        .from('signals')
-        .update({ is_pinned: isPinned })
-        .eq('id', signalId);
-
-    if (error) throw new Error(error.message);
-};
+/**
+ * Back-compat alias for toggleSignalPinned — legacy callers used this name,
+ * and the old implementation wrote to signals.is_pinned (dropped in 054).
+ * The new implementation writes to signal_executions.is_pinned (added in 060).
+ */
+export const toggleSignalPin = toggleSignalPinned;
 
 /**
  * Activate a signal (move from PENDING to ACTIVE)

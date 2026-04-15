@@ -113,6 +113,19 @@ const Signals: React.FC = () => {
     const [timeframeFilter, setTimeframeFilter] = useState<string>('All');
     const [symbolSearch, setSymbolSearch] = useState<string>('');
     const [watchlistFilter, setWatchlistFilter] = useState<string>('All');
+    // Sort + date range (Task 2 upgrades)
+    type SortMode =
+        | 'newest'
+        | 'oldest'
+        | 'pnl_desc'
+        | 'pnl_asc'
+        | 'profit_pct_desc'
+        | 'profit_pct_asc';
+    const [sortMode, setSortMode] = useState<SortMode>('newest');
+    type DateRange = 'all' | 'today' | '7d' | '30d' | 'custom';
+    const [dateRange, setDateRange] = useState<DateRange>('all');
+    const [customDateStart, setCustomDateStart] = useState<string>(''); // yyyy-mm-dd
+    const [customDateEnd, setCustomDateEnd] = useState<string>('');
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showTimeframeDropdown, setShowTimeframeDropdown] = useState<boolean>(false);
 
@@ -369,6 +382,30 @@ const Signals: React.FC = () => {
     };
 
     const filteredSignals = useMemo(() => {
+        // Compute the date range window in epoch ms
+        const now = Date.now();
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        let windowStart = 0;
+        let windowEnd = Number.POSITIVE_INFINITY;
+        if (dateRange === 'today') {
+            const startOfDay = new Date();
+            startOfDay.setHours(0, 0, 0, 0);
+            windowStart = startOfDay.getTime();
+        } else if (dateRange === '7d') {
+            windowStart = now - 7 * DAY_MS;
+        } else if (dateRange === '30d') {
+            windowStart = now - 30 * DAY_MS;
+        } else if (dateRange === 'custom') {
+            if (customDateStart) windowStart = new Date(customDateStart + 'T00:00:00').getTime();
+            if (customDateEnd) windowEnd = new Date(customDateEnd + 'T23:59:59').getTime();
+        }
+
+        // Profit% helper — (pnl / entry) * 100 when entry is known
+        const profitPct = (s: Signal): number => {
+            if (s.profitLoss == null || !s.entry) return 0;
+            return (s.profitLoss / (s.entry || 1)) * 100;
+        };
+
         return signals
             .filter((s) => statusFilter === 'All' || s.status === statusFilter)
             .filter((s) => strategyFilter === 'All' || s.strategy === strategyFilter)
@@ -398,12 +435,32 @@ const Signals: React.FC = () => {
                 if (!symbolSearch.trim()) return true;
                 return s.pair.toUpperCase().includes(symbolSearch.toUpperCase());
             })
+            .filter((s) => {
+                // Date range filter — applied to created_at / timestamp
+                if (dateRange === 'all') return true;
+                const t = new Date(s.timestamp).getTime();
+                return t >= windowStart && t <= windowEnd;
+            })
             .sort((a, b) => {
-                // Sort by Pinned First
+                // Pinned always comes first regardless of sort mode
                 if (a.isPinned && !b.isPinned) return -1;
                 if (!a.isPinned && b.isPinned) return 1;
-                // Then Sort by Time
-                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+                switch (sortMode) {
+                    case 'oldest':
+                        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+                    case 'pnl_desc':
+                        return (b.profitLoss ?? 0) - (a.profitLoss ?? 0);
+                    case 'pnl_asc':
+                        return (a.profitLoss ?? 0) - (b.profitLoss ?? 0);
+                    case 'profit_pct_desc':
+                        return profitPct(b) - profitPct(a);
+                    case 'profit_pct_asc':
+                        return profitPct(a) - profitPct(b);
+                    case 'newest':
+                    default:
+                        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+                }
             });
     }, [
         signals,
@@ -416,6 +473,10 @@ const Signals: React.FC = () => {
         favoriteTimeframes,
         watchlistFilter,
         watchlists,
+        sortMode,
+        dateRange,
+        customDateStart,
+        customDateEnd,
     ]);
 
     const addedToWatchlistPairs = useMemo(() => {
@@ -834,6 +895,7 @@ const Signals: React.FC = () => {
                             <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                             {symbolSearch && (
                                 <button
+                                    type="button"
                                     onClick={() => setSymbolSearch('')}
                                     title="Clear search"
                                     aria-label="Clear search"
@@ -844,6 +906,86 @@ const Signals: React.FC = () => {
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* Sort + Date Range row (Task 2 upgrades) */}
+                <div className="mt-4 flex flex-wrap items-end gap-4">
+                    {/* Sort dropdown */}
+                    <div className="flex-shrink-0">
+                        <label htmlFor="signal-sort" className="block text-xs text-gray-400 mb-1">
+                            Sort by
+                        </label>
+                        <select
+                            id="signal-sort"
+                            value={sortMode}
+                            onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                            <option value="pnl_desc">P&amp;L (high → low)</option>
+                            <option value="pnl_asc">P&amp;L (low → high)</option>
+                            <option value="profit_pct_desc">Profit % (high → low)</option>
+                            <option value="profit_pct_asc">Profit % (low → high)</option>
+                        </select>
+                    </div>
+
+                    {/* Date range presets */}
+                    <div className="flex-1">
+                        <label className="block text-xs text-gray-400 mb-1">Date range</label>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { id: 'all', label: 'All' },
+                                { id: 'today', label: 'Today' },
+                                { id: '7d', label: 'Last 7 days' },
+                                { id: '30d', label: 'Last 30 days' },
+                                { id: 'custom', label: 'Custom' },
+                            ] as const).map((r) => (
+                                <button
+                                    type="button"
+                                    key={r.id}
+                                    onClick={() => setDateRange(r.id)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                        dateRange === r.id
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
+                                    }`}
+                                >
+                                    {r.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Custom date pickers (only visible when dateRange === 'custom') */}
+                    {dateRange === 'custom' && (
+                        <div className="flex items-end gap-2">
+                            <div>
+                                <label htmlFor="custom-date-start" className="block text-xs text-gray-400 mb-1">
+                                    From
+                                </label>
+                                <input
+                                    id="custom-date-start"
+                                    type="date"
+                                    value={customDateStart}
+                                    onChange={(e) => setCustomDateStart(e.target.value)}
+                                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="custom-date-end" className="block text-xs text-gray-400 mb-1">
+                                    To
+                                </label>
+                                <input
+                                    id="custom-date-end"
+                                    type="date"
+                                    value={customDateEnd}
+                                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
