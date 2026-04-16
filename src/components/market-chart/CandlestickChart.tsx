@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Position, PositionStatus, TradeDirection, Strategy } from '../../types';
 import AlertToast from './AlertToast';
-import AlertSlidePanel from './AlertSlidePanel';
+// AlertSlidePanel removed — using expanded toast editor instead
 import * as api from '../../api';
 import indicatorService from '../../services/indicatorService';
 import * as priceAlertService from '../../services/alertService';
@@ -463,12 +463,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | null
     >(null);
     const [toastAlert, setToastAlert] = useState<PriceAlert | null>(null);
-    const [panelAlert, setPanelAlert] = useState<{
+    const [editingAlert, setEditingAlert] = useState<{
         alert: PriceAlert;
         drawing?: Drawing | null;
         indicatorId?: string;
         indicatorType?: string;
-        indicatorOutputs?: string[];
     } | null>(null);
 
     const [isIndicatorEditorOpen, setIsIndicatorEditorOpen] = useState(false);
@@ -3968,13 +3967,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         if (result) {
             setAlerts((prev) => prev.map((a) => (a.id === result.id ? result : a)));
         }
-        setPanelAlert(null);
+        setEditingAlert(null);
     };
 
     const handleDeleteAlert = async (id: string) => {
         await deleteAlert(id);
         setAlerts((prev) => prev.filter((a) => a.id !== id));
-        setPanelAlert(null);
+        setEditingAlert(null);
     };
 
     const handleEditAlert = (alert: PriceAlert) => {
@@ -3982,20 +3981,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             ? drawings.find((d) => d.id === alert.drawingId) || null
             : null;
 
-        let indicatorOutputs: string[] | undefined;
         let indicatorType: string | undefined;
         if (alert.indicatorId) {
             const ind = allActiveIndicators.find((i: any) => i.id === alert.indicatorId);
-            if (ind?.data) indicatorOutputs = Object.keys(ind.data);
             indicatorType = ind?.type;
         }
 
-        setPanelAlert({
+        setToastAlert(null);
+        setEditingAlert({
             alert,
             drawing,
             indicatorId: alert.indicatorId,
             indicatorType,
-            indicatorOutputs,
         });
     };
 
@@ -9865,19 +9862,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             onCreateAlert={handleCreateIndicatorAlert}
                         />}
                     </div>
-                    {panelAlert && (
-                        <AlertSlidePanel
-                            alert={panelAlert.alert}
-                            drawing={panelAlert.drawing}
-                            symbol={symbol}
-                            indicatorId={panelAlert.indicatorId}
-                            indicatorType={panelAlert.indicatorType}
-                            indicatorOutputs={panelAlert.indicatorOutputs}
-                            onSave={handleSaveAlert}
-                            onDelete={handleDeleteAlert}
-                            onClose={() => setPanelAlert(null)}
-                        />
-                    )}
+                    {/* AlertSlidePanel removed — expanded toast editor used instead */}
                     {!isMobile && !readOnly && (
                         <RightToolbar
                             onTogglePanel={(panel) =>
@@ -9924,14 +9909,24 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     />
                 )}
 
-                {toastAlert && (
+                {toastAlert && !editingAlert && (
                     <AlertToast
                         alert={toastAlert}
-                        onCustomize={() => {
-                            handleEditAlert(toastAlert);
-                            setToastAlert(null);
-                        }}
+                        onCustomize={() => handleEditAlert(toastAlert)}
                         onDismiss={() => setToastAlert(null)}
+                    />
+                )}
+                {editingAlert && (
+                    <AlertToast
+                        alert={editingAlert.alert}
+                        expanded
+                        drawing={editingAlert.drawing}
+                        indicatorId={editingAlert.indicatorId}
+                        indicatorType={editingAlert.indicatorType}
+                        onCustomize={() => {}}
+                        onDismiss={() => setEditingAlert(null)}
+                        onSave={handleSaveAlert}
+                        onDelete={handleDeleteAlert}
                     />
                 )}
                 {contextMenu?.visible && (
