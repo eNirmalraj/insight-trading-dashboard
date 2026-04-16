@@ -9,6 +9,7 @@ import {
     HorizontalRayDrawing,
     ParallelChannelDrawing,
     RectangleDrawing,
+    FibonacciRetracementDrawing,
 } from '../components/market-chart/types';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import {
@@ -122,7 +123,7 @@ class AlertEngine {
 
     // ── Price extraction for drawings ──
 
-    private getPriceAtTime(drawing: Drawing, time: number): number | null {
+    private getPriceAtTime(drawing: Drawing, time: number, fibLevel?: number): number | null {
         if (drawing.type === 'Horizontal Line') {
             return (drawing as HorizontalLineDrawing).price;
         }
@@ -143,6 +144,12 @@ class AlertEngine {
                 return null;
             }
             return d.start.price + ((d.end.price - d.start.price) / dt) * (time - d.start.time);
+        }
+        if (drawing.type === 'Fibonacci Retracement') {
+            const d = drawing as FibonacciRetracementDrawing;
+            if (!d.start || !d.end) return null;
+            const level = fibLevel ?? 0.618;
+            return d.start.price + (d.end.price - d.start.price) * level;
         }
         return null;
     }
@@ -334,7 +341,7 @@ class AlertEngine {
                 : wasInside && !isInside;
         }
 
-        const targetPrice = this.getPriceAtTime(drawing, evalTime);
+        const targetPrice = this.getPriceAtTime(drawing, evalTime, alert.fibLevel);
         if (targetPrice === null) return false;
         return this.checkCondition(alert.condition, currentPrice, prevPrice, targetPrice);
     }

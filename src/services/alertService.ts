@@ -276,6 +276,10 @@ export const createAlertWithDefaults = async (
         message = `${symbol} ${indicatorType} alert`;
     } else if (drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel') {
         message = `${symbol} ${condition} ${drawing.type}`;
+    } else if (drawing?.type === 'Fibonacci Retracement') {
+        message = `${symbol} ${condition} Fib ${fibLevel} (${priceStr})`;
+    } else if (drawing) {
+        message = `${symbol} ${condition} ${drawing.type}`;
     } else {
         message = `${symbol} Price ${condition} ${priceStr}`;
     }
