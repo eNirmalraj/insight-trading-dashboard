@@ -241,7 +241,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                 />
                             )}
                             {isDrawingAlert && (
-                                <span className="text-[10px] text-[#555] italic">dynamic</span>
+                                <span className="text-[10px] text-[#555] italic">{drawing?.type}</span>
                             )}
                         </>
                     )}
