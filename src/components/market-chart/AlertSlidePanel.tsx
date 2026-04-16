@@ -123,26 +123,46 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
     return (
         <div
             className="flex flex-col h-full border-l"
-            style={{ width: 280, minWidth: 280, background: '#0d0d0f', borderColor: 'rgba(255,255,255,0.04)' }}
+            style={{
+                width: 280,
+                minWidth: 280,
+                background: 'linear-gradient(180deg, rgba(30,28,40,0.95), rgba(16,14,24,0.98))',
+                backdropFilter: 'blur(40px)',
+                WebkitBackdropFilter: 'blur(40px)',
+                borderColor: 'rgba(167,139,250,0.1)',
+                boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.03), -8px 0 40px -10px rgba(167,139,250,0.06)',
+            }}
         >
             {/* Header */}
             <div
-                className="flex items-center justify-between px-4 py-3 border-b"
-                style={{ background: 'rgba(255,255,255,0.01)', borderColor: 'rgba(255,255,255,0.04)' }}
+                className="flex items-center justify-between px-4 py-3.5 border-b"
+                style={{ borderColor: 'rgba(167,139,250,0.08)' }}
             >
                 <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(196,181,240,0.08)' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c4b5f0" strokeWidth="2">
+                    <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1))',
+                            boxShadow: '0 0 12px -4px rgba(167,139,250,0.2)',
+                        }}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2">
                             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                         </svg>
                     </div>
-                    <span className="text-xs font-semibold text-[#e8e8e8]">{symbol}</span>
-                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ color: '#888', background: 'rgba(255,255,255,0.04)' }}>
+                    <span className="text-sm font-semibold text-white">{symbol}</span>
+                    <span
+                        className="text-[9px] font-medium px-1.5 py-0.5 rounded-md"
+                        style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }}
+                    >
                         {isIndicatorAlert ? indicatorType : drawing?.type || 'Price'}
                     </span>
                 </div>
-                <button onClick={onClose} className="w-5 h-5 flex items-center justify-center rounded text-[#444] hover:text-[#aaa] text-sm">
+                <button
+                    onClick={onClose}
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-[#555] hover:text-white hover:bg-[rgba(255,255,255,0.06)] text-sm transition-all"
+                >
                     &times;
                 </button>
             </div>
@@ -151,7 +171,7 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
             <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3.5" style={{ scrollbarWidth: 'none' }}>
                 {/* Condition */}
                 <div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[#2e2e32] mb-1.5">Condition</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-[1.5px] mb-1.5" style={{ color: 'rgba(167,139,250,0.5)' }}>Condition</div>
 
                     {isIndicatorAlert ? (
                         <>
@@ -164,7 +184,7 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
                                             mode === 'predefined' ? 'rounded-l-md' : 'rounded-r-md'
                                         } ${
                                             indicatorMode === mode
-                                                ? 'bg-[rgba(196,181,240,0.08)] text-[#c4b5f0] border-[rgba(196,181,240,0.15)]'
+                                                ? 'bg-[rgba(167,139,250,0.12)] text-[#a78bfa] border-[rgba(167,139,250,0.2)]'
                                                 : 'bg-[rgba(255,255,255,0.03)] text-[#555] border-[rgba(255,255,255,0.06)]'
                                         }`}
                                     >
@@ -245,7 +265,7 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
 
                 {/* Trigger */}
                 <div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[#2e2e32] mb-1.5">Trigger</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[rgba(167,139,250,0.5)] mb-1.5">Trigger</div>
                     <div className="flex flex-col gap-0.5">
                         {TRIGGERS.map((t) => (
                             <button
@@ -253,12 +273,12 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
                                 onClick={() => setTrigger(t.value)}
                                 className={`flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors ${
                                     trigger === t.value
-                                        ? 'bg-[rgba(196,181,240,0.06)] text-[#c4b5f0]'
+                                        ? 'bg-[rgba(167,139,250,0.1)] text-[#a78bfa]'
                                         : 'text-[#3e3e42] hover:text-[#888] hover:bg-[rgba(255,255,255,0.015)]'
                                 }`}
                             >
                                 <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                                    trigger === t.value ? 'bg-[#c4b5f0] shadow-[0_0_6px_rgba(196,181,240,0.4)]' : 'bg-[#2a2a2e]'
+                                    trigger === t.value ? 'bg-[#a78bfa] shadow-[0_0_8px_rgba(167,139,250,0.5)]' : 'bg-[#2a2a2e]'
                                 }`} />
                                 {t.label}
                             </button>
@@ -268,16 +288,16 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
 
                 {/* Actions */}
                 <div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[#2e2e32] mb-1.5">Actions</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[rgba(167,139,250,0.5)] mb-1.5">Actions</div>
                     <div className="flex gap-1.5">
                         <button onClick={() => setNotifyApp((v) => !v)} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10.5px] font-medium border transition-colors ${
-                            notifyApp ? 'bg-[rgba(196,181,240,0.06)] text-[#c4b5f0] border-[rgba(196,181,240,0.12)]' : 'bg-[rgba(255,255,255,0.015)] text-[#3e3e42] border-[rgba(255,255,255,0.03)]'
+                            notifyApp ? 'bg-[rgba(167,139,250,0.1)] text-[#a78bfa] border-[rgba(167,139,250,0.2)]' : 'bg-[rgba(255,255,255,0.015)] text-[#3e3e42] border-[rgba(255,255,255,0.03)]'
                         }`}>
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
                             Notify
                         </button>
                         <button onClick={() => setPlaySound((v) => !v)} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10.5px] font-medium border transition-colors ${
-                            playSound ? 'bg-[rgba(196,181,240,0.06)] text-[#c4b5f0] border-[rgba(196,181,240,0.12)]' : 'bg-[rgba(255,255,255,0.015)] text-[#3e3e42] border-[rgba(255,255,255,0.03)]'
+                            playSound ? 'bg-[rgba(167,139,250,0.1)] text-[#a78bfa] border-[rgba(167,139,250,0.2)]' : 'bg-[rgba(255,255,255,0.015)] text-[#3e3e42] border-[rgba(255,255,255,0.03)]'
                         }`}>
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
                             Sound
@@ -287,17 +307,26 @@ const AlertSlidePanel: React.FC<AlertSlidePanelProps> = ({
 
                 {/* Message */}
                 <div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[#2e2e32] mb-1.5">Message</div>
-                    <textarea rows={2} className="w-full bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-2.5 py-2 text-[10.5px] text-[#555] resize-none focus:border-[rgba(196,181,240,0.15)] focus:text-[#aaa] focus:outline-none" style={{ fontFamily: 'Inter, sans-serif' }} value={message} onChange={(e) => setMessage(e.target.value)} />
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-[rgba(167,139,250,0.5)] mb-1.5">Message</div>
+                    <textarea rows={2} className="w-full bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-2.5 py-2 text-[10.5px] text-[#555] resize-none focus:border-[rgba(167,139,250,0.2)] focus:text-[#aaa] focus:outline-none" style={{ fontFamily: 'Inter, sans-serif' }} value={message} onChange={(e) => setMessage(e.target.value)} />
                 </div>
             </div>
 
             {/* Footer */}
-            <div className="flex gap-1.5 px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-                <button onClick={() => onDelete(initialAlert.id)} className="px-3 py-2 rounded-lg text-[#444] hover:text-[#ef4444] transition-colors" title="Delete alert">
+            <div className="flex gap-1.5 px-4 py-3 border-t" style={{ borderColor: 'rgba(167,139,250,0.08)' }}>
+                <button onClick={() => onDelete(initialAlert.id)} className="px-3 py-2 rounded-xl text-[#555] hover:text-[#ef4444] transition-colors" title="Delete alert">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                 </button>
-                <button onClick={handleSave} className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors" style={{ background: '#c4b5f0', color: '#111' }} onMouseEnter={(e) => (e.currentTarget.style.background = '#d4c8f5')} onMouseLeave={(e) => (e.currentTarget.style.background = '#c4b5f0')}>
+                <button
+                    onClick={handleSave}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white transition-all"
+                    style={{
+                        background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
+                        boxShadow: '0 4px 16px -4px rgba(139,92,246,0.4)',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 20px -4px rgba(139,92,246,0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 4px 16px -4px rgba(139,92,246,0.4)')}
+                >
                     Save Changes
                 </button>
             </div>
