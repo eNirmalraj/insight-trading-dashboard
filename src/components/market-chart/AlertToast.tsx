@@ -44,12 +44,17 @@ const AlertToast: React.FC<AlertToastProps> = ({
         return () => clearTimeout(timer);
     }, [onDismiss, expanded]);
 
-    const conditionText = alert.value
-        ? `${alert.condition} ${alert.value.toFixed(5)}`
-        : alert.condition;
+    const drawingType = drawing?.type;
+    const conditionText = drawingType
+        ? `${alert.condition} ${drawingType}`
+        : alert.value
+            ? `${alert.condition} ${alert.value.toFixed(5)}`
+            : alert.condition;
 
     const isIndicatorAlert = !!indicatorId && !!indicatorType;
     const isChannel = drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel';
+    const isDrawingAlert = !!drawing && !isChannel;
+    const isPriceAlert = !drawing && !isIndicatorAlert;
     const condOptions = isChannel ? CHANNEL_OPTIONS : COND_OPTIONS;
 
     const [condition, setCondition] = useState<AlertConditionType>(alert.condition);
@@ -225,7 +230,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                     <option key={o} value={o} style={{ background: '#1a1a1e' }}>{o}</option>
                                 ))}
                             </select>
-                            {!isChannel && (
+                            {isPriceAlert && (
                                 <input
                                     title="Alert price"
                                     type="number"
@@ -234,6 +239,9 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                     value={value}
                                     onChange={(e) => setValue(parseFloat(e.target.value))}
                                 />
+                            )}
+                            {isDrawingAlert && (
+                                <span className="text-[10px] text-[#555] italic">dynamic</span>
                             )}
                         </>
                     )}
