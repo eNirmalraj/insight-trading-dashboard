@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, CameraIcon } from './IconComponents';
 import { DailyTradeSummary } from '../constants';
@@ -17,7 +16,7 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
 
     const tradeDataByDate = useMemo(() => {
         const map = new Map<string, { pnl: number; trades: number }>();
-        tradeHistory.forEach(trade => {
+        tradeHistory.forEach((trade) => {
             map.set(trade.date, { pnl: trade.pnl, trades: trade.trades });
         });
         return map;
@@ -52,7 +51,8 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
         }
 
         const endDayOfWeek = lastDayOfMonth.getDay();
-        if (endDayOfWeek < 6) { // if it's not Saturday
+        if (endDayOfWeek < 6) {
+            // if it's not Saturday
             const nextMonthFirstDay = new Date(year, month + 1, 1);
             for (let i = 1; i < 7 - endDayOfWeek; i++) {
                 const date = new Date(nextMonthFirstDay);
@@ -70,14 +70,17 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
             const weekSlice = calendarGrid.slice(i, i + 7);
             if (weekSlice.length === 0) continue;
 
-            const weekData = weekSlice.reduce((acc, day) => {
-                const tradeInfo = tradeDataByDate.get(toISODateString(day.date));
-                if (tradeInfo) {
-                    acc.pnl += tradeInfo.pnl;
-                    acc.days++;
-                }
-                return acc;
-            }, { pnl: 0, days: 0 });
+            const weekData = weekSlice.reduce(
+                (acc, day) => {
+                    const tradeInfo = tradeDataByDate.get(toISODateString(day.date));
+                    if (tradeInfo) {
+                        acc.pnl += tradeInfo.pnl;
+                        acc.days++;
+                    }
+                    return acc;
+                },
+                { pnl: 0, days: 0 }
+            );
 
             const start = weekSlice[0].date;
             const end = weekSlice[weekSlice.length - 1].date;
@@ -86,12 +89,12 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
             weeks.push({ range, ...weekData });
         }
         // Match screenshot week names
-        const weekNames = ["One", "Two", "Three", "Four", "Five", "Six"];
+        const weekNames = ['One', 'Two', 'Three', 'Four', 'Five', 'Six'];
         return weeks.map((week, index) => ({ ...week, name: `Week ${weekNames[index]}` }));
     }, [calendarGrid, tradeDataByDate]);
 
     const changeMonth = (delta: number) => {
-        setDisplayDate(current => {
+        setDisplayDate((current) => {
             const newDate = new Date(current);
             newDate.setMonth(newDate.getMonth() + delta);
             return newDate;
@@ -109,8 +112,13 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
                 <div className="flex items-center gap-2 flex-wrap">
                     <div className="bg-gray-900 p-2 px-4 rounded-lg flex items-center gap-4 text-sm">
                         <span className="text-gray-400">PnL:</span>
-                        <span className={`font-semibold ${monthPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {monthPnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                        <span
+                            className={`font-semibold ${monthPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                        >
+                            {monthPnl.toLocaleString('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                            })}
                         </span>
                     </div>
                     <div className="bg-gray-900 p-2 px-4 rounded-lg flex items-center gap-4 text-sm">
@@ -129,33 +137,70 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
                 <div className="flex-1">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => changeMonth(-1)} className="p-1 rounded-md hover:bg-gray-700"><ChevronLeftIcon className="w-5 h-5" /></button>
-                            <h2 className="text-lg font-semibold text-white w-36 text-center">{displayDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
-                            <button onClick={() => changeMonth(1)} className="p-1 rounded-md hover:bg-gray-700"><ChevronRightIcon className="w-5 h-5" /></button>
+                            <button
+                                onClick={() => changeMonth(-1)}
+                                className="p-1 rounded-md hover:bg-gray-700"
+                            >
+                                <ChevronLeftIcon className="w-5 h-5" />
+                            </button>
+                            <h2 className="text-lg font-semibold text-white w-36 text-center">
+                                {displayDate.toLocaleDateString('en-US', {
+                                    month: 'long',
+                                    year: 'numeric',
+                                })}
+                            </h2>
+                            <button
+                                onClick={() => changeMonth(1)}
+                                className="p-1 rounded-md hover:bg-gray-700"
+                            >
+                                <ChevronRightIcon className="w-5 h-5" />
+                            </button>
                         </div>
-                        <button onClick={goToToday} className="bg-gray-900 hover:bg-gray-700 text-gray-300 font-semibold py-1.5 px-4 rounded-lg text-sm">Today</button>
+                        <button
+                            onClick={goToToday}
+                            className="bg-gray-900 hover:bg-gray-700 text-gray-300 font-semibold py-1.5 px-4 rounded-lg text-sm"
+                        >
+                            Today
+                        </button>
                     </div>
 
                     <div className="grid grid-cols-7 gap-px bg-gray-700">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className="text-center py-2 text-xs font-semibold text-gray-400 bg-dark-bg">{day}</div>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                            <div
+                                key={day}
+                                className="text-center py-2 text-xs font-semibold text-gray-400 bg-dark-bg"
+                            >
+                                {day}
+                            </div>
                         ))}
                         {calendarGrid.map(({ date, isCurrentMonth }) => {
                             const dateString = toISODateString(date);
                             const tradeData = tradeDataByDate.get(dateString);
                             const isTodayDate = isSameDay(date, today);
-                            const pnlColor = tradeData && tradeData.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+                            const pnlColor =
+                                tradeData && tradeData.pnl >= 0 ? 'text-green-400' : 'text-red-400';
 
                             return (
                                 <div
                                     key={dateString}
                                     className={`p-2 h-20 sm:h-24 flex flex-col relative bg-dark-bg ${isCurrentMonth ? '' : 'text-gray-600'} ${isTodayDate ? 'border-2 border-gray-400 rounded-md' : ''} ${tradeData ? 'bg-green-500/20' : ''}`}
                                 >
-                                    <span className="self-start font-medium text-xs sm:text-base">{date.getDate()}</span>
+                                    <span className="self-start font-medium text-xs sm:text-base">
+                                        {date.getDate()}
+                                    </span>
                                     {tradeData && isCurrentMonth && (
                                         <div className="mt-auto text-xs">
-                                            <p>{tradeData.trades} trade{tradeData.trades > 1 ? 's' : ''}</p>
-                                            <p className={`font-semibold ${pnlColor}`}>{tradeData.pnl >= 0 && '+'}{tradeData.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</p>
+                                            <p>
+                                                {tradeData.trades} trade
+                                                {tradeData.trades > 1 ? 's' : ''}
+                                            </p>
+                                            <p className={`font-semibold ${pnlColor}`}>
+                                                {tradeData.pnl >= 0 && '+'}
+                                                {tradeData.pnl.toLocaleString('en-US', {
+                                                    style: 'currency',
+                                                    currency: 'USD',
+                                                })}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -168,8 +213,11 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
                 <div className="w-full md:w-72 flex-shrink-0">
                     <h3 className="text-lg font-semibold text-white mb-4">Weekly Summary</h3>
                     <div className="space-y-3">
-                        {weeklySummaries.map(week => (
-                            <div key={week.name} className="p-3 rounded-lg bg-gray-900 border-l-4 border-gray-700">
+                        {weeklySummaries.map((week) => (
+                            <div
+                                key={week.name}
+                                className="p-3 rounded-lg bg-gray-900 border-l-4 border-gray-700"
+                            >
                                 <div className="flex justify-between items-baseline">
                                     <h4 className="font-bold text-white">{week.name}</h4>
                                     <p className="text-xs text-gray-400">{week.range}</p>
@@ -178,11 +226,20 @@ const DailySummary: React.FC<DailySummaryProps> = ({ tradeHistory }) => {
                                     <div className="flex justify-between items-baseline mt-2 text-sm">
                                         <div>
                                             <span className="text-gray-400">PnL: </span>
-                                            <span className={`font-semibold ${week.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{week.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</span>
+                                            <span
+                                                className={`font-semibold ${week.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                                            >
+                                                {week.pnl.toLocaleString('en-US', {
+                                                    style: 'currency',
+                                                    currency: 'USD',
+                                                })}
+                                            </span>
                                         </div>
                                         <div>
                                             <span className="text-gray-400">Days: </span>
-                                            <span className="font-semibold text-white">{week.days}</span>
+                                            <span className="font-semibold text-white">
+                                                {week.days}
+                                            </span>
                                         </div>
                                     </div>
                                 ) : (

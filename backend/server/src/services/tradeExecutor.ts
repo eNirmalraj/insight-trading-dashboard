@@ -12,7 +12,6 @@ interface SignalData {
 }
 
 export class TradeExecutor {
-
     /**
      * Opens a new paper trade position
      */
@@ -31,7 +30,7 @@ export class TradeExecutor {
                 p_symbol: signal.symbol,
                 p_direction: signal.direction,
                 p_entry_price: signal.entry_price,
-                p_initial_balance: 10000
+                p_initial_balance: 10000,
             });
 
             if (error) {
@@ -42,14 +41,17 @@ export class TradeExecutor {
             // Handle Logic Response
             if (!data.success) {
                 if (data.error === 'Trade already exists') {
-                    console.warn(`[TradeExecutor] ⚠️ Trade already exists for signal ${signal.id}. Skipping.`);
+                    console.warn(
+                        `[TradeExecutor] ⚠️ Trade already exists for signal ${signal.id}. Skipping.`
+                    );
                     return; // Idempotent success
                 }
                 console.warn(`[TradeExecutor] ❌ Could not open position: ${data.error}`);
             } else {
-                console.log(`[TradeExecutor] ✅ Position Opened: ${signal.symbol}. New Balance: ${data.new_balance}`);
+                console.log(
+                    `[TradeExecutor] ✅ Position Opened: ${signal.symbol}. New Balance: ${data.new_balance}`
+                );
             }
-
         } catch (error) {
             console.error('[TradeExecutor] Open Position Failed:', error);
         }
@@ -69,7 +71,7 @@ export class TradeExecutor {
             const { data, error } = await supabaseAdmin.rpc('close_paper_trade', {
                 p_signal_id: signal.id,
                 p_pnl_percent: signal.profit_loss || 0,
-                p_close_reason: signal.close_reason || 'MANUAL'
+                p_close_reason: signal.close_reason || 'MANUAL',
             });
 
             if (error) {
@@ -80,14 +82,17 @@ export class TradeExecutor {
             // Handle Logic Response
             if (!data.success) {
                 if (data.error === 'Trade already closed') {
-                    console.warn(`[TradeExecutor] ⚠️ Trade already closed for signal ${signal.id}. Skipping.`);
+                    console.warn(
+                        `[TradeExecutor] ⚠️ Trade already closed for signal ${signal.id}. Skipping.`
+                    );
                     return; // Idempotent
                 }
                 console.warn(`[TradeExecutor] ❌ Could not close position: ${data.error}`);
             } else {
-                console.log(`[TradeExecutor] ✅ Position Closed: ${signal.symbol}. PnL: $${data.pnl} (${signal.profit_loss}%). New Balance: ${data.new_balance}`);
+                console.log(
+                    `[TradeExecutor] ✅ Position Closed: ${signal.symbol}. PnL: $${data.pnl} (${signal.profit_loss}%). New Balance: ${data.new_balance}`
+                );
             }
-
         } catch (error) {
             console.error('[TradeExecutor] Close Position Failed:', error);
         }

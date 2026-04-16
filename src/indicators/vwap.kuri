@@ -1,0 +1,10 @@
+---
+version: kuri 1.0
+type: indicator
+name: Volume Weighted Average Price
+short: VWAP
+pane: overlay
+---
+
+vwapValue = kuri.vwap(high, low, close, volume)
+mark(vwapValue, title="VWAP", color=#EC4899)

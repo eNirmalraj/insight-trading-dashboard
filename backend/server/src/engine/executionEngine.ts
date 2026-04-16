@@ -255,27 +255,42 @@ async function handlePriceTick(payload: PriceTickPayload): Promise<void> {
     const list = activeBySymbol.get(payload.symbol);
     if (!list || list.length === 0) return;
 
+    // Debug: log every 60s per symbol to confirm ticks are flowing
+    const now = Date.now();
+    const lastLogKey = `__lastTickLog_${payload.symbol}`;
+    const lastLog = (handlePriceTick as any)[lastLogKey] || 0;
+    if (now - lastLog > 60_000) {
+        (handlePriceTick as any)[lastLogKey] = now;
+        console.log(
+            `[ExecutionEngine] 📊 Tick for ${payload.symbol}: mid=${((payload.bid + payload.ask) / 2).toFixed(2)} | ${list.length} active executions | SL/TP: ${list.map((e) => `${e.id.slice(0, 6)}… SL=${e.stop_loss} TP=${e.take_profit}`).join(', ')}`,
+        );
+    }
+
     // Iterate a copy because closeExecution can remove entries from the map.
     for (const exec of [...list]) {
         let hitPrice: number | null = null;
         let reason: CloseReason | null = null;
 
+        // Use mid price (avg of bid+ask) for SL/TP checks.
+        // This matches the "last price" the frontend displays (from miniTicker),
+        // avoiding the confusing scenario where the UI shows TP reached but
+        // the raw bid hasn't crossed due to the spread.
+        const midPrice = (payload.bid + payload.ask) / 2;
+
         if (exec.direction === 'BUY') {
-            // BUY closes at bid (sell into the bid).
-            if (exec.stop_loss !== null && payload.bid <= exec.stop_loss) {
-                hitPrice = payload.bid;
+            if (exec.stop_loss !== null && midPrice <= exec.stop_loss) {
+                hitPrice = midPrice;
                 reason = CloseReason.SL;
-            } else if (exec.take_profit !== null && payload.bid >= exec.take_profit) {
-                hitPrice = payload.bid;
+            } else if (exec.take_profit !== null && midPrice >= exec.take_profit) {
+                hitPrice = midPrice;
                 reason = CloseReason.TP;
             }
         } else {
-            // SELL closes at ask (buy back at the ask).
-            if (exec.stop_loss !== null && payload.ask >= exec.stop_loss) {
-                hitPrice = payload.ask;
+            if (exec.stop_loss !== null && midPrice >= exec.stop_loss) {
+                hitPrice = midPrice;
                 reason = CloseReason.SL;
-            } else if (exec.take_profit !== null && payload.ask <= exec.take_profit) {
-                hitPrice = payload.ask;
+            } else if (exec.take_profit !== null && midPrice <= exec.take_profit) {
+                hitPrice = midPrice;
                 reason = CloseReason.TP;
             }
         }

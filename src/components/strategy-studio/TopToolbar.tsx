@@ -1,27 +1,66 @@
-
 import React, { useState } from 'react';
 import { Strategy } from '../../types';
 
 // Icons (You might want to move these to a separate file later)
 const SaveIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4" />
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4"
+        />
     </svg>
 );
 const PlayIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+        />
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
 const ChevronDownIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+    >
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
     </svg>
 );
 const LoaderIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+    >
+        <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
     </svg>
 );
 
@@ -35,6 +74,8 @@ interface TopToolbarProps {
     onOpenScript: () => void;
     onRun: () => void;
     onCreateNew: () => void;
+    editorMode?: 'visual' | 'code';
+    onModeChange?: (mode: 'visual' | 'code') => void;
 }
 
 export const TopToolbar: React.FC<TopToolbarProps> = ({
@@ -46,7 +87,9 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
     onSave,
     onOpenScript,
     onRun,
-    onCreateNew
+    onCreateNew,
+    editorMode = 'code',
+    onModeChange,
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -54,7 +97,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
         <header className="h-14 flex-shrink-0 bg-[#09090b] border-b border-white/10 flex items-center px-4 justify-between select-none">
             {/* Left Section: Script Info & Menu */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-
                 {/* File Menu Dropdown */}
                 <div className="relative z-50">
                     <button
@@ -64,11 +106,15 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                         <div className="flex flex-col items-start">
                             {activeScript ? (
                                 <span className="text-sm font-medium text-gray-200">
-                                    {strategyName || "Untitled"}
-                                    {isDirty && <span className="ml-2 text-yellow-500 text-xs">●</span>}
+                                    {strategyName || 'Untitled'}
+                                    {isDirty && (
+                                        <span className="ml-2 text-yellow-500 text-xs">●</span>
+                                    )}
                                 </span>
                             ) : (
-                                <span className="text-sm font-medium text-gray-500">No Script Selected</span>
+                                <span className="text-sm font-medium text-gray-500">
+                                    No Script Selected
+                                </span>
                             )}
                         </div>
                         <ChevronDownIcon className="w-4 h-4 text-gray-500" />
@@ -82,21 +128,46 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                                 onClick={() => setIsMenuOpen(false)}
                             />
                             <div className="absolute top-full left-0 mt-1 w-48 bg-[#18181b] border border-white/10 rounded-md shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onCreateNew();
+                                            setIsMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white flex items-center gap-2"
+                                    >
+                                        <svg
+                                            className="w-4 h-4 text-blue-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                                            />
+                                        </svg>
+                                        New Strategy
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => { onCreateNew(); setIsMenuOpen(false); }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-                                >
-                                    New Script...
-                                </button>
-                                <button
-                                    onClick={() => { onOpenScript(); setIsMenuOpen(false); }}
+                                    onClick={() => {
+                                        onOpenScript();
+                                        setIsMenuOpen(false);
+                                    }}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
                                 >
                                     Open...
                                 </button>
                                 <div className="h-px bg-white/10 my-1" />
                                 <button
-                                    onClick={() => { onSave(); setIsMenuOpen(false); }}
+                                    onClick={() => {
+                                        onSave();
+                                        setIsMenuOpen(false);
+                                    }}
                                     disabled={!activeScript}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -131,7 +202,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                         className="text-gray-400 hover:text-white p-2 rounded hover:bg-white/5 transition-colors disabled:opacity-50"
                         title="Save Script (Ctrl+S)"
                     >
-                        {isSaving ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <SaveIcon className="w-5 h-5" />}
+                        {isSaving ? (
+                            <LoaderIcon className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <SaveIcon className="w-5 h-5" />
+                        )}
                     </button>
 
                     {/* Add to Chart / Run */}
@@ -144,16 +219,56 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                         Add to chart
                     </button>
                 </div>
-
             </div>
 
-            {/* Right Section: Kuri Badge */}
-            {activeScript && (
-                <div className="flex items-center gap-2 bg-purple-600/20 border border-purple-500/30 rounded-lg px-3 py-1.5">
-                    <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
-                    <span className="text-xs font-semibold text-purple-300 tracking-wide">KURI</span>
-                </div>
-            )}
+            {/* Right Section: Mode Toggle + Badge */}
+            <div className="flex items-center gap-3">
+                {/* Visual / Code toggle */}
+                {onModeChange && (
+                    <div className="flex items-center bg-white/5 rounded-lg p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => onModeChange('visual')}
+                            title="Visual Builder"
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                editorMode === 'visual'
+                                    ? 'bg-[#2962FF] text-white shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm10 0a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z" />
+                            </svg>
+                            Visual
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onModeChange('code')}
+                            title="Code Editor"
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                editorMode === 'code'
+                                    ? 'bg-[#2962FF] text-white shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="16 18 22 12 16 6" />
+                                <polyline points="8 6 2 12 8 18" />
+                            </svg>
+                            Code
+                        </button>
+                    </div>
+                )}
+
+                {activeScript && (
+                    <div className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                        <span className="text-xs font-semibold text-blue-300 tracking-wide">
+                            STRATEGY
+                        </span>
+                    </div>
+                )}
+            </div>
         </header>
     );
 };

@@ -1,0 +1,22 @@
+---
+version: kuri 1.0
+type: indicator
+name: Keltner Channels
+short: KC
+pane: overlay
+---
+
+length = param.int(20, title="Length", min=1)
+mult = param.float(2.0, title="Multiplier")
+src = param.source(close, title="Source")
+atrlength = param.int(10, title="ATR Length")
+
+ma = kuri.ema(src, length)
+trueRange = kuri.tr(high, low, close)
+atrVal = kuri.rma(trueRange, atrlength)
+upper = ma + atrVal * mult
+lower = ma - atrVal * mult
+
+mark(upper, title="Upper", color=#2962FF)
+mark(ma, title="Basis", color=#2962FF)
+mark(lower, title="Lower", color=#2962FF)

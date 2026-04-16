@@ -1,0 +1,25 @@
+---
+version: kuri 1.0
+type: indicator
+name: Relative Strength Index
+short: RSI
+pane: separate
+---
+
+rsiLengthInput = param.int(14, title="RSI Length", min=1)
+rsiSourceInput = param.source(close, title="Source")
+
+change = kuri.change(rsiSourceInput)
+gains = math.max(change, 0)
+losses = -math.min(change, 0)
+up = kuri.rma(gains, rsiLengthInput)
+down = kuri.rma(losses, rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+mark(rsi, title="RSI", color=#7E57C2)
+mark.level(70, title="Overbought", color=#787B86)
+mark.level(50, title="Middle", color=#787B86)
+mark.level(30, title="Oversold", color=#787B86)
+
+kuri.alert(kuri.crossover(rsi, 30), title="RSI Oversold Exit", message="RSI crossed above 30")
+kuri.alert(kuri.crossunder(rsi, 70), title="RSI Overbought Exit", message="RSI crossed below 70")

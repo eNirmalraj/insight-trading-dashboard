@@ -1,5 +1,3 @@
-
-
 // Fix: Define Candle interface here to break circular dependency with root types.ts.
 export interface Candle {
     time: number; // Unix timestamp in seconds
@@ -188,6 +186,68 @@ export interface FibonacciRetracementDrawing extends BaseDrawing {
     end: Point;
 }
 
+export interface CircleDrawing extends BaseDrawing {
+    type: 'Circle';
+    center: Point;
+    edge: Point;
+}
+
+export interface EllipseDrawing extends BaseDrawing {
+    type: 'Ellipse';
+    start: Point;
+    end: Point;
+}
+
+export interface TriangleDrawing extends BaseDrawing {
+    type: 'Triangle';
+    p1: Point;
+    p2: Point;
+    p3: Point;
+}
+
+export interface ArcDrawing extends BaseDrawing {
+    type: 'Arc';
+    start: Point;
+    end: Point;
+    control: Point;
+}
+
+export interface PolygonDrawing extends BaseDrawing {
+    type: 'Polygon';
+    points: Point[];
+}
+
+export interface HighlightZoneDrawing extends BaseDrawing {
+    type: 'Highlight Zone';
+    start: Point;
+    end: Point;
+}
+
+export interface MeasureToolDrawing extends BaseDrawing {
+    type: 'Measure Tool';
+    start: Point;
+    end: Point;
+}
+
+export interface PriceLabelDrawing extends BaseDrawing {
+    type: 'Price Label';
+    point: Point;
+}
+
+export interface SignalMarkerDrawing extends BaseDrawing {
+    type: 'Signal Marker';
+    point: Point;
+}
+
+export interface NoteFlagDrawing extends BaseDrawing {
+    type: 'Note Flag';
+    point: Point;
+}
+
+export interface EmojiStickerDrawing extends BaseDrawing {
+    type: 'Emoji Sticker';
+    point: Point;
+}
 
 export type Drawing =
     | TrendLineDrawing
@@ -209,9 +269,20 @@ export type Drawing =
     | HorizontalRayDrawing
     | GannBoxDrawing
     // FIX: Add FibonacciRetracementDrawing to the Drawing union type.
-    | FibonacciRetracementDrawing;
+    | FibonacciRetracementDrawing
+    | CircleDrawing
+    | EllipseDrawing
+    | TriangleDrawing
+    | ArcDrawing
+    | PolygonDrawing
+    | HighlightZoneDrawing
+    | MeasureToolDrawing
+    | PriceLabelDrawing
+    | SignalMarkerDrawing
+    | NoteFlagDrawing
+    | EmojiStickerDrawing;
 
-export type CurrentDrawing = (Drawing & { step?: number });
+export type CurrentDrawing = Drawing & { step?: number };
 export type CurrentDrawingState = CurrentDrawing | null;
 
 export type AlertConditionType =
@@ -222,7 +293,6 @@ export type AlertConditionType =
     | 'Less Than'
     | 'Entering Channel'
     | 'Exiting Channel';
-
 
 export interface PriceAlert {
     id: string;
@@ -246,7 +316,6 @@ export interface PriceAlert {
     lastTriggeredAt?: number;
 }
 
-
 export interface TooltipData {
     visible: boolean;
     x: number;
@@ -268,6 +337,9 @@ export interface PriceRange {
 export type IndicatorType =
     | 'MA'
     | 'EMA'
+    | 'WMA'
+    | 'HMA'
+    | 'VWMA'
     | 'RSI'
     | 'BB'
     | 'MACD'
@@ -278,35 +350,22 @@ export type IndicatorType =
     | 'CCI'
     | 'Volume'
     | 'MFI'
-    | 'OBV';
+    | 'OBV'
+    | 'ATR'
+    | 'ADR'
+    | 'ADX'
+    | 'KC'
+    | 'Donchian'
+    | 'Ichimoku'
+    | 'KURI';
 
 export interface IndicatorSettings {
-    period?: number;
+    /** First plot color — used as general fallback */
     color?: string;
-    stdDev?: number;
-    fastPeriod?: number;
-    slowPeriod?: number;
-    signalPeriod?: number;
-    macdColor?: string;
-    signalColor?: string;
-    histogramUpColor?: string;
-    histogramDownColor?: string;
-    kPeriod?: number;
-    kSlowing?: number;
-    dPeriod?: number;
-    kColor?: string;
-    dColor?: string;
-    atrPeriod?: number;
-    factor?: number;
-    upColor?: string;
-    downColor?: string;
-    upperColor?: string;
-    middleColor?: string;
-    lowerColor?: string;
-    ribbonPeriods?: string;
-    ribbonBaseColor?: string;
-    volumeUpColor?: string;
-    volumeDownColor?: string;
+    /** Dynamic keys: Kuri input titles (e.g. "Length", "Fast Length"),
+     *  plot styles (plot_N_color, plot_N_linewidth, plot_N_visible),
+     *  hline styles (hline_N_color, hline_N_linestyle, hline_N_visible) */
+    [key: string]: any;
 }
 
 export interface Indicator {
@@ -315,6 +374,38 @@ export interface Indicator {
     settings: IndicatorSettings;
     data: Record<string, (number | null)[]>;
     isVisible: boolean;
+    registryId?: string;
+    /** Kuri source code — set when indicator is added from registry */
+    kuriSource?: string;
+    /** Full indicator title from Kuri engine result.indicator.title (e.g. "Simple Moving Average") */
+    kuriTitle?: string;
+    /** Auto-generated input definitions from Kuri engine result.inputDefs */
+    kuriInputDefs?: import('../../lib/kuri/types').InputDef[];
+    /** Auto-generated plot styles from Kuri engine result.plots */
+    kuriPlots?: Array<{
+        title: string;
+        color: string;
+        colors?: (string | null)[];
+        linewidth: number;
+        linewidths?: (number | null)[];
+        style: string;
+        kind?: string;
+        display?: string;
+    }>;
+    /** Auto-generated hlines from Kuri engine result.hlines */
+    kuriHlines?: Array<{ price: number; title: string; color: string; editable?: boolean }>;
+    /** Per-bar background colors from bgcolor() calls */
+    kuriBgcolors?: Array<{ data: (string | null)[] }>;
+    /** Fill regions between two plot titles */
+    kuriFills?: Array<{ plot1: string; plot2: string; color: string }>;
+    /** Whether the indicator is an overlay (on main chart) or separate pane */
+    kuriOverlay?: boolean;
+    /** Kuri engine drawings (lines, labels, boxes) for SVG overlay rendering */
+    kuriDrawings?: {
+        lines: import('./kuriDrawingConverter').ChartDrawingLine[];
+        labels: import('./kuriDrawingConverter').ChartDrawingLabel[];
+        boxes: import('./kuriDrawingConverter').ChartDrawingBox[];
+    };
 }
 
 export interface SymbolSettings {
@@ -389,11 +480,58 @@ export type PlacingOrderLine = 'sl' | 'tp' | null;
 export type InteractionState =
     | { type: 'none' }
     | { type: 'crosshair' }
-    | { type: 'panning'; area: 'chart' | 'yAxis' | 'xAxis'; startX: number; startY: number; initialStartIndex: number; initialVisibleCandles: number; initialPriceRange: PriceRange }
-    | { type: 'pinching'; initialDistance: number; initialVisibleCandles: number; initialStartIndex: number; initialPriceRange: PriceRange; initialCenterIndex: number; initialCenterPrice: number; }
-    | { type: 'scaling'; area: 'chart' | 'yAxis' | 'xAxis'; startX: number; startY: number; initialVisibleCandles: number; initialStartIndex: number; initialPriceRange: PriceRange; anchorDataIndex?: number }
+    | {
+          type: 'panning';
+          area: 'chart' | 'yAxis' | 'xAxis';
+          startX: number;
+          startY: number;
+          initialStartIndex: number;
+          initialVisibleCandles: number;
+          initialPriceRange: PriceRange;
+      }
+    | {
+          type: 'pinching';
+          initialDistance: number;
+          initialVisibleCandles: number;
+          initialStartIndex: number;
+          initialPriceRange: PriceRange;
+          initialCenterIndex: number;
+          initialCenterPrice: number;
+      }
+    | {
+          type: 'scaling';
+          area: 'chart' | 'yAxis' | 'xAxis';
+          startX: number;
+          startY: number;
+          initialVisibleCandles: number;
+          initialStartIndex: number;
+          initialPriceRange: PriceRange;
+          anchorDataIndex?: number;
+      }
     | { type: 'drawing'; tool: string }
-    | { type: 'moving'; drawingId: string; initialDrawing: Drawing; startMousePos: { x: number, y: number }, startPoint: Point }
-    | { type: 'resizing'; drawingId: string; handle: string; initialDrawing: Drawing; startMousePos: { x: number, y: number }, startPoint: Point }
+    | {
+          type: 'moving';
+          drawingId: string;
+          initialDrawing: Drawing;
+          startMousePos: { x: number; y: number };
+          startPoint: Point;
+      }
+    | {
+          type: 'resizing';
+          drawingId: string;
+          handle: string;
+          initialDrawing: Drawing;
+          startMousePos: { x: number; y: number };
+          startPoint: Point;
+      }
     | { type: 'dragging_position_line'; positionId: string; lineType: 'stopLoss' | 'takeProfit' }
     | { type: 'dragging_order_line'; lineType: 'sl' | 'tp' };
+
+export interface ConsoleLog {
+    id: string;
+    level: 'info' | 'warn' | 'error';
+    source: string;
+    message: string;
+    details?: string;
+    timestamp: Date;
+}

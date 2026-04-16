@@ -9,16 +9,22 @@ interface MiniChartProps {
     indicatorData?: { type: string; data: any };
 }
 
-const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit, indicatorData }) => {
+const MiniChart: React.FC<MiniChartProps> = ({
+    data,
+    entry,
+    stopLoss,
+    takeProfit,
+    indicatorData,
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const mainChartContainerRef = useRef<HTMLDivElement>(null);
     const rsiContainerRef = useRef<HTMLDivElement>(null);
-    
+
     const chartCanvasRef = useRef<HTMLCanvasElement>(null);
     const yAxisCanvasRef = useRef<HTMLCanvasElement>(null);
     const rsiCanvasRef = useRef<HTMLCanvasElement>(null);
     const rsiYAxisCanvasRef = useRef<HTMLCanvasElement>(null);
-    
+
     const hasRsi = indicatorData?.type === 'RSI';
 
     const priceRange = useMemo(() => {
@@ -27,8 +33,8 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
         if (indicatorData?.type === 'MOMENTUM_BREAKOUT' && indicatorData.data.levels) {
             relevantPrices = [...relevantPrices, ...indicatorData.data.levels];
         }
-        const lows = data.map(d => d.low);
-        const highs = data.map(d => d.high);
+        const lows = data.map((d) => d.low);
+        const highs = data.map((d) => d.high);
         const dataMin = Math.min(...lows, ...relevantPrices);
         const dataMax = Math.max(...highs, ...relevantPrices);
         const buffer = (dataMax - dataMin) * 0.15;
@@ -39,7 +45,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
         const chartCanvas = chartCanvasRef.current;
         const yAxisCanvas = yAxisCanvasRef.current;
         const container = containerRef.current;
-        
+
         if (!chartCanvas || !yAxisCanvas || !container || data.length === 0) return;
 
         const resizeObserver = new ResizeObserver(() => {
@@ -64,7 +70,10 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
             const xStep = chartWidth / data.length;
             const yScale = (price: number) => {
                 if (priceRange.max === priceRange.min) return chartHeight / 2;
-                return chartHeight - ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
+                return (
+                    chartHeight -
+                    ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight
+                );
             };
 
             const formatPrice = (p: number) => p.toFixed(p > 100 ? 2 : 5);
@@ -98,9 +107,9 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
 
             // Draw indicators on main chart
             if (indicatorData) {
-                 if (indicatorData.type === 'MA_CROSSOVER') {
+                if (indicatorData.type === 'MA_CROSSOVER') {
                     const { fastMA, slowMA } = indicatorData.data;
-                    const drawLine = (maData: (number|null)[], color: string) => {
+                    const drawLine = (maData: (number | null)[], color: string) => {
                         chartCtx.beginPath();
                         chartCtx.strokeStyle = color;
                         chartCtx.lineWidth = 1.5;
@@ -118,7 +127,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                             }
                         });
                         chartCtx.stroke();
-                    }
+                    };
                     drawLine(fastMA, '#60A5FA'); // blue-400
                     drawLine(slowMA, '#FBBF24'); // yellow-400
                 }
@@ -137,17 +146,16 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                 }
             }
 
-
             // Draw Y-axis labels and trade lines
-            yAxisCtx.font = "10px Inter, sans-serif";
-            yAxisCtx.textAlign = "left";
+            yAxisCtx.font = '10px Inter, sans-serif';
+            yAxisCtx.textAlign = 'left';
 
             const lines = [
                 { price: takeProfit, color: '#10B981', label: 'TP' },
                 { price: entry, color: '#3B82F6', label: 'Entry' },
                 { price: stopLoss, color: '#EF4444', label: 'SL' },
             ];
-            
+
             let lastY = -Infinity;
 
             lines.forEach(({ price, color, label }) => {
@@ -161,7 +169,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                     chartCtx.lineTo(chartWidth, y);
                     chartCtx.stroke();
                     chartCtx.setLineDash([]);
-                    
+
                     if (Math.abs(y - lastY) > 12) {
                         yAxisCtx.fillStyle = color;
                         yAxisCtx.fillText(`${label}: ${formatPrice(price)}`, 5, y + 3);
@@ -201,9 +209,9 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                 // Draw RSI 30/70 bands
                 rsiCtx.fillStyle = 'rgba(167, 139, 250, 0.1)';
                 rsiCtx.fillRect(0, rsiYScale(70), rsiWidth, rsiYScale(30) - rsiYScale(70));
-                
+
                 // Draw RSI lines
-                [30, 70].forEach(level => {
+                [30, 70].forEach((level) => {
                     const y = rsiYScale(level);
                     rsiCtx.beginPath();
                     rsiCtx.strokeStyle = 'rgba(169, 169, 169, 0.4)';
@@ -234,12 +242,12 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                     }
                 });
                 rsiCtx.stroke();
-                
+
                 // Draw RSI Y-Axis
-                rsiYAxisCtx.font = "10px Inter, sans-serif";
+                rsiYAxisCtx.font = '10px Inter, sans-serif';
                 rsiYAxisCtx.fillStyle = '#9CA3AF';
-                [0, 30, 70, 100].forEach(level => {
-                     rsiYAxisCtx.fillText(level.toString(), 5, rsiYScale(level) - 2);
+                [0, 30, 70, 100].forEach((level) => {
+                    rsiYAxisCtx.fillText(level.toString(), 5, rsiYScale(level) - 2);
                 });
             }
         });
@@ -256,7 +264,10 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, entry, stopLoss, takeProfit
                     <canvas ref={chartCanvasRef} className="w-full h-full" />
                 </div>
                 {hasRsi && (
-                    <div className="h-[120px] border-t-2 border-gray-700 flex-shrink-0" ref={rsiContainerRef}>
+                    <div
+                        className="h-[120px] border-t-2 border-gray-700 flex-shrink-0"
+                        ref={rsiContainerRef}
+                    >
                         <canvas ref={rsiCanvasRef} className="w-full h-full" />
                     </div>
                 )}

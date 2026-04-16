@@ -1,0 +1,37 @@
+---
+version: kuri 1.0
+type: indicator
+name: Average Directional Index
+short: ADX
+pane: separate
+---
+
+length = param.int(14, title="Length", min=1)
+
+// True Range
+trueRange = kuri.tr(high, low, close)
+atrVal = kuri.rma(trueRange, length)
+
+// Directional Movement
+upMove = high - high[1]
+downMove = low[1] - low
+
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+
+// Smoothed DI
+smoothPlusDM = kuri.rma(plusDM, length)
+smoothMinusDM = kuri.rma(minusDM, length)
+plusDI = atrVal != 0 ? 100 * smoothPlusDM / atrVal : 0
+minusDI = atrVal != 0 ? 100 * smoothMinusDM / atrVal : 0
+
+// ADX = smoothed DX
+diSum = plusDI + minusDI
+dx = diSum != 0 ? math.abs(plusDI - minusDI) / diSum * 100 : 0
+adxValue = kuri.rma(dx, length)
+
+mark(adxValue, title="ADX", color=#D946EF)
+mark(plusDI, title="+DI", color=#26A69A)
+mark(minusDI, title="-DI", color=#EF5350)
+
+mark.level(25, title="Threshold", color=#787B86)

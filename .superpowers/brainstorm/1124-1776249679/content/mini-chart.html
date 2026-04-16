@@ -1,0 +1,107 @@
+<h2>Mini Chart Preview Style</h2>
+<p class="subtitle">How should the embedded chart look on the card? Click to select.</p>
+
+<div class="cards">
+  <div class="card" data-choice="sparkline" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:16px;display:flex;align-items:center;justify-content:center;">
+      <svg viewBox="0 0 200 60" style="width:100%;height:60px">
+        <defs>
+          <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#22c55e" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,40 L20,35 L40,38 L60,28 L80,32 L100,22 L120,25 L140,18 L160,20 L180,12 L200,15 L200,60 L0,60 Z" fill="url(#g1)"/>
+        <path d="M0,40 L20,35 L40,38 L60,28 L80,32 L100,22 L120,25 L140,18 L160,20 L180,12 L200,15" stroke="#22c55e" stroke-width="2" fill="none"/>
+        <line x1="0" y1="35" x2="200" y2="35" stroke="#eab308" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="0" y1="12" x2="200" y2="12" stroke="#22c55e" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="0" y1="50" x2="200" y2="50" stroke="#ef4444" stroke-dasharray="3,3" stroke-width="1"/>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>A — Sparkline + levels</h3>
+      <p>Clean line + shaded area, with dashed SL/Entry/TP guide lines. Smallest footprint.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="candles" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:16px;display:flex;align-items:center;justify-content:center;">
+      <svg viewBox="0 0 200 60" style="width:100%;height:60px">
+        <line x1="0" y1="32" x2="200" y2="32" stroke="#eab308" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="0" y1="10" x2="200" y2="10" stroke="#22c55e" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="0" y1="52" x2="200" y2="52" stroke="#ef4444" stroke-dasharray="3,3" stroke-width="1"/>
+        <g fill="#22c55e" stroke="#22c55e">
+          <rect x="8" y="34" width="6" height="10"/><line x1="11" y1="28" x2="11" y2="48" stroke-width="1"/>
+          <rect x="22" y="30" width="6" height="12"/><line x1="25" y1="22" x2="25" y2="46" stroke-width="1"/>
+        </g>
+        <g fill="#ef4444" stroke="#ef4444">
+          <rect x="36" y="26" width="6" height="14"/><line x1="39" y1="20" x2="39" y2="44" stroke-width="1"/>
+        </g>
+        <g fill="#22c55e" stroke="#22c55e">
+          <rect x="50" y="22" width="6" height="16"/><line x1="53" y1="16" x2="53" y2="42" stroke-width="1"/>
+          <rect x="64" y="18" width="6" height="14"/><line x1="67" y1="12" x2="67" y2="38" stroke-width="1"/>
+          <rect x="78" y="20" width="6" height="12"/><line x1="81" y1="14" x2="81" y2="36" stroke-width="1"/>
+        </g>
+        <g fill="#ef4444" stroke="#ef4444">
+          <rect x="92" y="16" width="6" height="10"/><line x1="95" y1="10" x2="95" y2="30" stroke-width="1"/>
+        </g>
+        <g fill="#22c55e" stroke="#22c55e">
+          <rect x="106" y="14" width="6" height="12"/><line x1="109" y1="8" x2="109" y2="30" stroke-width="1"/>
+          <rect x="120" y="12" width="6" height="10"/><line x1="123" y1="6" x2="123" y2="26" stroke-width="1"/>
+          <rect x="134" y="10" width="6" height="8"/><line x1="137" y1="4" x2="137" y2="22" stroke-width="1"/>
+          <rect x="148" y="8" width="6" height="10"/><line x1="151" y1="4" x2="151" y2="22" stroke-width="1"/>
+          <rect x="162" y="6" width="6" height="8"/><line x1="165" y1="2" x2="165" y2="18" stroke-width="1"/>
+          <rect x="176" y="4" width="6" height="10"/><line x1="179" y1="2" x2="179" y2="18" stroke-width="1"/>
+        </g>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>B — Mini candles</h3>
+      <p>Real candles (last 20 bars) with SL/Entry/TP levels. Most information-dense, more like a real chart.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sparkline-marker" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:16px;display:flex;align-items:center;justify-content:center;">
+      <svg viewBox="0 0 200 60" style="width:100%;height:60px">
+        <defs>
+          <linearGradient id="g2" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,42 L20,38 L40,40 L60,30 L80,34 L100,24 L120,26 L140,20 L160,22 L180,14 L200,16 L200,60 L0,60 Z" fill="url(#g2)"/>
+        <path d="M0,42 L20,38 L40,40 L60,30 L80,34 L100,24 L120,26 L140,20 L160,22 L180,14 L200,16" stroke="#3b82f6" stroke-width="2" fill="none"/>
+        <circle cx="100" cy="24" r="4" fill="#eab308" stroke="#0f0f13" stroke-width="2"/>
+        <text x="108" y="22" fill="#eab308" font-size="9" font-family="monospace">ENTRY</text>
+        <circle cx="180" cy="14" r="3" fill="#22c55e" stroke="#0f0f13" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>C — Sparkline + entry marker</h3>
+      <p>Line chart with an entry dot at the moment the signal fired, and a live dot for current price. No static level lines.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="heatbar" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:16px;display:flex;align-items:center;justify-content:center;">
+      <div style="width:100%">
+        <div style="display:flex;align-items:center;gap:8px;font-family:monospace;font-size:10px;color:#94a3b8;margin-bottom:4px">
+          <span style="color:#ef4444">SL</span>
+          <div style="flex:1;height:10px;border-radius:5px;background:linear-gradient(90deg,#ef4444 0%,#eab308 40%,#22c55e 100%);position:relative">
+            <div style="position:absolute;left:45%;top:-4px;width:2px;height:18px;background:#fff"></div>
+            <div style="position:absolute;left:45%;top:-14px;transform:translateX(-50%);font-size:9px;color:#fff">●</div>
+          </div>
+          <span style="color:#22c55e">TP</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:9px;color:#64748b">
+          <span>-1.2%</span><span style="color:#eab308">entry</span><span>+2.4%</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D — Progress bar only (no chart)</h3>
+      <p>No chart at all — just a horizontal SL→Entry→TP progress bar showing where price is right now. Lightest weight.</p>
+    </div>
+  </div>
+</div>

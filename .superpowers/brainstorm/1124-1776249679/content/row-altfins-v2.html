@@ -1,0 +1,196 @@
+<h2>Row View — No Chart</h2>
+<p class="subtitle">Chart column removed. More room for everything else. Click to confirm or tell me what to tweak.</p>
+
+<style>
+  .af-row {
+    display: grid;
+    grid-template-columns: 160px 220px 160px 220px 1fr 100px;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: #14141a;
+    border: 1px solid #2a2a35;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-family: -apple-system, system-ui, sans-serif;
+    color: #e5e7eb;
+  }
+  .af-row .pair-col { display:flex; align-items:center; gap:10px; }
+  .af-row .coin-icon {
+    width:36px; height:36px; border-radius:50%;
+    background: linear-gradient(135deg,#f7931a,#ffb84d);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; color:#fff; font-size:13px;
+  }
+  .af-row .coin-icon.eth { background: linear-gradient(135deg,#627eea,#8ba1ef); }
+  .af-row .coin-icon.sol { background: linear-gradient(135deg,#9945ff,#14f195); }
+  .af-row .pair-name { font-weight:700; color:#fff; font-size:15px; }
+  .af-row .pair-tf { font-size:10px; color:#94a3b8; margin-top:2px; }
+
+  .af-row .strat-col .strat-name { font-size:13px; font-weight:600; color:#e5e7eb; }
+  .af-row .strat-col .strat-meta { font-size:10px; color:#94a3b8; margin-top:3px; }
+  .af-row .dir-badge {
+    display:inline-block; padding:3px 10px; border-radius:4px;
+    font-size:10px; font-weight:700; text-transform:uppercase;
+    margin-top:5px;
+  }
+  .af-row .dir-buy { background:rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.3); }
+  .af-row .dir-sell { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+
+  .af-row .levels-col { font-family: ui-monospace, monospace; font-size:12px; }
+  .af-row .level-row { display:flex; justify-content:space-between; padding:2px 0; }
+  .af-row .level-label { color:#64748b; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; }
+  .af-row .level-val { color:#e5e7eb; }
+  .af-row .level-sl { color:#ef4444; }
+  .af-row .level-tp { color:#22c55e; }
+
+  .af-row .progress-col { padding: 0 6px; }
+  .af-row .progress-track {
+    position:relative; height:10px; border-radius:5px;
+    background: linear-gradient(90deg, rgba(239,68,68,0.35) 0%, rgba(100,116,139,0.35) 50%, rgba(34,197,94,0.35) 100%);
+  }
+  .af-row .progress-marker {
+    position:absolute; top:-3px; width:3px; height:16px;
+    background:#fff; border-radius:2px; box-shadow:0 0 6px rgba(255,255,255,0.6);
+  }
+  .af-row .progress-labels {
+    display:flex; justify-content:space-between; font-size:9px; color:#64748b; margin-top:5px;
+    font-family: ui-monospace, monospace;
+  }
+  .af-row .progress-sl { color:#ef4444; }
+  .af-row .progress-tp { color:#22c55e; }
+  .af-row .progress-now { font-family: ui-monospace, monospace; font-size:12px; color:#fff; text-align:center; margin-top:3px; }
+
+  .af-row .pnl-col { text-align:right; }
+  .af-row .pnl-val { font-family: ui-monospace, monospace; font-size:17px; font-weight:700; }
+  .af-row .pnl-up { color:#22c55e; }
+  .af-row .pnl-dn { color:#ef4444; }
+  .af-row .pnl-age { font-size:10px; color:#64748b; margin-top:4px; }
+
+  .af-row .actions-col { display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  .af-row .status-pill { font-size:9px; padding:3px 9px; border-radius:3px; text-transform:uppercase; font-weight:700; background:#1f2937; color:#cbd5e1; }
+  .af-row .chart-btn { font-size:10px; padding:5px 12px; border-radius:4px; background:#1f1f2a; border:1px solid #2a2a35; color:#cbd5e1; cursor:pointer; }
+</style>
+
+<div class="mockup">
+  <div class="mockup-header">Preview: Row view (no chart)</div>
+  <div class="mockup-body" style="padding:16px; background:#0f0f13;">
+
+    <div class="af-row">
+      <div class="pair-col">
+        <div class="coin-icon">B</div>
+        <div>
+          <div class="pair-name">BTCUSDT</div>
+          <div class="pair-tf">1H · Binance</div>
+        </div>
+      </div>
+      <div class="strat-col">
+        <div class="strat-name">SMA Trend</div>
+        <div class="strat-meta">Win 62% · 18 sigs</div>
+        <span class="dir-badge dir-buy">BUY</span>
+      </div>
+      <div class="levels-col">
+        <div class="level-row"><span class="level-label">Entry</span><span class="level-val">67,421</span></div>
+        <div class="level-row"><span class="level-label">SL</span><span class="level-sl">66,100</span></div>
+        <div class="level-row"><span class="level-label">TP</span><span class="level-tp">68,900</span></div>
+      </div>
+      <div class="progress-col">
+        <div class="progress-track"><div class="progress-marker" style="left:62%"></div></div>
+        <div class="progress-labels"><span class="progress-sl">SL</span><span>entry</span><span class="progress-tp">TP</span></div>
+        <div class="progress-now">68,250</div>
+      </div>
+      <div class="pnl-col">
+        <div class="pnl-val pnl-up">+1.23%</div>
+        <div class="pnl-age">2h 14m</div>
+      </div>
+      <div class="actions-col">
+        <span class="status-pill">Active</span>
+        <button class="chart-btn">Chart ›</button>
+      </div>
+    </div>
+
+    <div class="af-row">
+      <div class="pair-col">
+        <div class="coin-icon eth">E</div>
+        <div>
+          <div class="pair-name">ETHUSDT</div>
+          <div class="pair-tf">15m · Binance</div>
+        </div>
+      </div>
+      <div class="strat-col">
+        <div class="strat-name">RSI Reversal</div>
+        <div class="strat-meta">Win 54% · 9 sigs</div>
+        <span class="dir-badge dir-sell">SELL</span>
+      </div>
+      <div class="levels-col">
+        <div class="level-row"><span class="level-label">Entry</span><span class="level-val">3,420</span></div>
+        <div class="level-row"><span class="level-label">SL</span><span class="level-sl">3,500</span></div>
+        <div class="level-row"><span class="level-label">TP</span><span class="level-tp">3,280</span></div>
+      </div>
+      <div class="progress-col">
+        <div class="progress-track"><div class="progress-marker" style="left:38%"></div></div>
+        <div class="progress-labels"><span class="progress-sl">SL</span><span>entry</span><span class="progress-tp">TP</span></div>
+        <div class="progress-now">3,448</div>
+      </div>
+      <div class="pnl-col">
+        <div class="pnl-val pnl-dn">-0.82%</div>
+        <div class="pnl-age">47m</div>
+      </div>
+      <div class="actions-col">
+        <span class="status-pill">Active</span>
+        <button class="chart-btn">Chart ›</button>
+      </div>
+    </div>
+
+    <div class="af-row">
+      <div class="pair-col">
+        <div class="coin-icon sol">S</div>
+        <div>
+          <div class="pair-name">SOLUSDT</div>
+          <div class="pair-tf">4H · Binance</div>
+        </div>
+      </div>
+      <div class="strat-col">
+        <div class="strat-name">Breakout</div>
+        <div class="strat-meta">Win 71% · 22 sigs</div>
+        <span class="dir-badge dir-buy">BUY</span>
+      </div>
+      <div class="levels-col">
+        <div class="level-row"><span class="level-label">Entry</span><span class="level-val">142.10</span></div>
+        <div class="level-row"><span class="level-label">SL</span><span class="level-sl">138.00</span></div>
+        <div class="level-row"><span class="level-label">TP</span><span class="level-tp">152.00</span></div>
+      </div>
+      <div class="progress-col">
+        <div class="progress-track"><div class="progress-marker" style="left:88%"></div></div>
+        <div class="progress-labels"><span class="progress-sl">SL</span><span>entry</span><span class="progress-tp">TP</span></div>
+        <div class="progress-now">150.75</div>
+      </div>
+      <div class="pnl-col">
+        <div class="pnl-val pnl-up">+6.09%</div>
+        <div class="pnl-age">14h 02m</div>
+      </div>
+      <div class="actions-col">
+        <span class="status-pill">Active</span>
+        <button class="chart-btn">Chart ›</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="ship" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Ship this</h3>
+      <p>Pair · strategy+win-rate+direction · E/SL/TP · progress bar · P&amp;L · actions.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Close but needs tweaks</h3>
+      <p>Tell me in the terminal what to change.</p>
+    </div>
+  </div>
+</div>

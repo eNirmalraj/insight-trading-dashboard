@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alert UX — 3 Interactive Flows</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#08080a;color:#ccc;min-height:100vh;overflow-x:hidden}
+
+  /* ── Page nav ── */
+  .top-bar{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    display:flex;justify-content:center;gap:4px;
+    padding:12px 20px;
+    background:rgba(8,8,10,0.9);backdrop-filter:blur(12px);
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .tab{
+    padding:8px 24px;border:none;border-radius:8px;
+    font-size:13px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:all 0.15s;
+    letter-spacing:0.3px;
+  }
+  .tab.off{background:transparent;color:#444}
+  .tab.off:hover{color:#888}
+  .tab.on{background:rgba(196,181,240,0.1);color:#c4b5f0}
+
+  .view{display:none;padding-top:70px;min-height:100vh}
+  .view.active{display:block}
+
+  /* ═══════════════════════════════════════════════
+     SHARED: Fake chart background
+     ═══════════════════════════════════════════════ */
+  .chart-bg{
+    position:relative;
+    background:
+      linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+    background-size:60px 40px;
+    background-color:#0a0a0c;
+    min-height:calc(100vh - 70px);
+    overflow:hidden;
+  }
+  /* Fake candles */
+  .candles{
+    position:absolute;bottom:40%;left:50%;transform:translateX(-50%);
+    display:flex;align-items:flex-end;gap:6px;opacity:0.15;
+  }
+  .candle{width:8px;border-radius:1px}
+  .candle.g{background:#34d399}
+  .candle.r{background:#ef4444}
+  /* Fake trend line */
+  .trend-line{
+    position:absolute;top:35%;left:15%;right:25%;height:2px;
+    background:linear-gradient(90deg,#c4b5f0,rgba(196,181,240,0.3));
+    transform:rotate(-8deg);transform-origin:left center;
+  }
+  .trend-dot{
+    position:absolute;right:-4px;top:-4px;width:10px;height:10px;
+    border-radius:50%;border:2px solid #c4b5f0;background:#0a0a0c;
+  }
+  .price-label{
+    position:absolute;right:0;top:33%;
+    background:#1a1a1e;border:1px solid #2a2a2e;
+    padding:4px 10px;border-radius:4px;
+    font-size:11px;font-family:'JetBrains Mono',monospace;color:#c4b5f0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     UX A — QUICK CREATE
+     One-click, then expand toast to customize
+     ═══════════════════════════════════════════════ */
+
+  /* Right-click menu */
+  .ctx-menu{
+    position:absolute;top:34%;left:42%;
+    background:#151517;border:1px solid rgba(255,255,255,0.08);
+    border-radius:8px;padding:4px;min-width:180px;
+    box-shadow:0 12px 40px -8px rgba(0,0,0,0.8);
+    z-index:10;
+  }
+  .ctx-item{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:6px;cursor:pointer;
+    font-size:12px;color:#999;transition:all 0.1s;border:none;
+    background:transparent;width:100%;text-align:left;
+    font-family:'Inter',sans-serif;
+  }
+  .ctx-item:hover{background:rgba(255,255,255,0.04);color:#fff}
+  .ctx-item.highlight{color:#c4b5f0}
+  .ctx-item.highlight:hover{background:rgba(196,181,240,0.08)}
+  .ctx-item svg{width:14px;height:14px;flex-shrink:0;opacity:0.6}
+  .ctx-sep{height:1px;background:rgba(255,255,255,0.04);margin:4px 8px}
+
+  /* Toast notification */
+  .toast-area{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    z-index:50;display:flex;flex-direction:column;align-items:center;gap:8px;
+  }
+  .toast{
+    display:none;align-items:center;gap:10px;
+    padding:10px 16px;
+    background:#151517;border:1px solid rgba(196,181,240,0.15);
+    border-radius:10px;
+    box-shadow:0 8px 32px -8px rgba(0,0,0,0.6);
+    animation:slideUp 0.3s ease;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .toast:hover{border-color:rgba(196,181,240,0.3)}
+  .toast.show{display:flex}
+  @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+  .toast-icon{
+    width:28px;height:28px;border-radius:8px;
+    background:rgba(196,181,240,0.1);
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .toast-icon svg{width:14px;height:14px;color:#c4b5f0}
+  .toast-text{font-size:12px;color:#ccc;font-weight:500}
+  .toast-sub{font-size:10px;color:#555;margin-top:1px}
+  .toast-edit{
+    font-size:10px;color:#c4b5f0;font-weight:600;
+    padding:4px 10px;border-radius:6px;
+    background:rgba(196,181,240,0.08);
+    border:none;cursor:pointer;white-space:nowrap;
+    font-family:'Inter',sans-serif;
+  }
+
+  /* Expanded editor (slides from toast) */
+  .expand-editor{
+    display:none;
+    width:340px;
+    background:#111113;border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 20px 60px -12px rgba(0,0,0,0.8);
+    animation:slideUp 0.25s ease;
+  }
+  .expand-editor.show{display:block}
+  .ee-header{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 14px;background:rgba(255,255,255,0.015);
+  }
+  .ee-title{font-size:12px;font-weight:600;color:#e8e8e8}
+  .ee-close{
+    width:22px;height:22px;border:none;background:transparent;
+    color:#444;border-radius:5px;cursor:pointer;font-size:13px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ee-close:hover{color:#aaa}
+  .ee-body{padding:12px 14px}
+  .ee-row{
+    display:flex;align-items:center;gap:6px;margin-bottom:10px;
+  }
+  .ee-row:last-child{margin-bottom:0}
+  .ee-lbl{font-size:10px;color:#444;font-weight:500;width:56px;flex-shrink:0}
+  .ee-sel,.ee-inp{
+    flex:1;background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:6px;padding:6px 8px;font-size:11px;
+    color:#ccc;font-family:'Inter',sans-serif;
+    appearance:none;-webkit-appearance:none;
+  }
+  .ee-sel{
+    cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23444' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 6px center;
+    padding-right:20px;
+  }
+  .ee-sel option{background:#151517}
+  .ee-inp{font-family:'JetBrains Mono',monospace;width:80px;flex:0;text-align:right}
+  .ee-chips{display:flex;gap:3px;flex:1}
+  .ee-chip{
+    flex:1;padding:5px;border:none;border-radius:5px;
+    font-size:9.5px;font-weight:500;cursor:pointer;
+    text-align:center;font-family:'Inter',sans-serif;transition:all 0.1s;
+  }
+  .ee-chip.off{background:rgba(255,255,255,0.02);color:#444}
+  .ee-chip.off:hover{color:#888}
+  .ee-chip.on{background:rgba(196,181,240,0.1);color:#c4b5f0}
+  .ee-act-row{display:flex;gap:4px;flex:1}
+  .ee-act{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:4px;
+    padding:6px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:500;
+    transition:all 0.1s;
+  }
+  .ee-act.off{background:rgba(255,255,255,0.02);color:#444;border:1px solid rgba(255,255,255,0.04)}
+  .ee-act.on{background:rgba(196,181,240,0.06);color:#c4b5f0;border:1px solid rgba(196,181,240,0.15)}
+  .ee-act svg{width:12px;height:12px}
+  .ee-footer{padding:8px 14px 12px;display:flex;justify-content:flex-end;gap:6px}
+  .ee-btn{
+    padding:6px 16px;border-radius:6px;font-size:11px;font-weight:600;
+    cursor:pointer;border:none;font-family:'Inter',sans-serif;
+  }
+  .ee-save{background:#c4b5f0;color:#111}
+  .ee-save:hover{background:#d4c8f5}
+  .ee-del{background:transparent;color:#555}
+  .ee-del:hover{color:#ef4444}
+
+  /* ═══════════════════════════════════════════════
+     UX B — STEP WIZARD
+     One thing at a time, compact card
+     ═══════════════════════════════════════════════ */
+  .wizard{
+    position:absolute;top:30%;left:50%;transform:translateX(-50%);
+    width:300px;z-index:10;
+  }
+  .wiz-card{
+    background:#111113;border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 20px 60px -12px rgba(0,0,0,0.8);
+    display:none;
+  }
+  .wiz-card.active{display:block;animation:fadeIn 0.2s ease}
+  @keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
+
+  .wiz-progress{
+    display:flex;gap:4px;padding:14px 16px 0;
+  }
+  .wiz-dot{
+    flex:1;height:3px;border-radius:2px;
+    transition:all 0.2s;
+  }
+  .wiz-dot.done{background:#c4b5f0}
+  .wiz-dot.current{background:rgba(196,181,240,0.4)}
+  .wiz-dot.pending{background:rgba(255,255,255,0.04)}
+
+  .wiz-body{padding:16px}
+  .wiz-step-label{
+    font-size:9px;font-weight:600;text-transform:uppercase;
+    letter-spacing:1.5px;color:#444;margin-bottom:4px;
+  }
+  .wiz-question{
+    font-size:15px;font-weight:600;color:#fff;margin-bottom:16px;
+    line-height:1.3;
+  }
+
+  .wiz-options{display:flex;flex-direction:column;gap:6px}
+  .wiz-opt{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:10px;cursor:pointer;
+    border:1px solid rgba(255,255,255,0.05);
+    background:rgba(255,255,255,0.015);
+    transition:all 0.12s;
+  }
+  .wiz-opt:hover{border-color:rgba(255,255,255,0.1);background:rgba(255,255,255,0.03)}
+  .wiz-opt.selected{border-color:rgba(196,181,240,0.25);background:rgba(196,181,240,0.05)}
+  .wiz-opt-radio{
+    width:16px;height:16px;border-radius:50%;
+    border:2px solid #333;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.12s;
+  }
+  .wiz-opt.selected .wiz-opt-radio{border-color:#c4b5f0}
+  .wiz-opt.selected .wiz-opt-radio::after{
+    content:'';width:8px;height:8px;border-radius:50%;background:#c4b5f0;
+  }
+  .wiz-opt-text{font-size:13px;color:#ccc;font-weight:500}
+  .wiz-opt.selected .wiz-opt-text{color:#fff}
+  .wiz-opt-desc{font-size:10px;color:#555;margin-top:2px}
+
+  .wiz-input-row{
+    display:flex;align-items:center;gap:8px;
+    padding:10px 12px;border-radius:10px;
+    background:rgba(255,255,255,0.02);
+    border:1px solid rgba(255,255,255,0.05);
+  }
+  .wiz-input-label{font-size:12px;color:#888;flex:1}
+  .wiz-input{
+    background:transparent;border:none;
+    font-size:16px;font-weight:600;color:#fff;
+    font-family:'JetBrains Mono',monospace;
+    width:120px;text-align:right;
+  }
+  .wiz-input:focus{outline:none}
+
+  .wiz-footer{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:0 16px 14px;
+  }
+  .wiz-back{
+    background:transparent;border:none;color:#444;
+    font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;
+    padding:6px 12px;border-radius:6px;
+  }
+  .wiz-back:hover{color:#888}
+  .wiz-next{
+    padding:8px 20px;border-radius:8px;font-size:12px;font-weight:600;
+    cursor:pointer;border:none;font-family:'Inter',sans-serif;
+    background:#c4b5f0;color:#111;transition:all 0.12s;
+  }
+  .wiz-next:hover{background:#d4c8f5}
+  .wiz-next.finish{background:#34d399;color:#0a0a0c}
+
+  /* Summary card */
+  .wiz-summary{
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .wiz-sum-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:8px 12px;border-radius:8px;
+    background:rgba(255,255,255,0.02);
+  }
+  .wiz-sum-key{font-size:11px;color:#555}
+  .wiz-sum-val{font-size:12px;color:#fff;font-weight:500}
+  .wiz-sum-val.accent{color:#c4b5f0}
+
+  /* ═══════════════════════════════════════════════
+     UX C — INLINE PANEL
+     Slides from right toolbar, no modal
+     ═══════════════════════════════════════════════ */
+  .viewC .chart-bg{display:flex}
+  .chart-main{flex:1;position:relative}
+
+  .right-toolbar{
+    width:44px;background:#0c0c0e;
+    border-left:1px solid rgba(255,255,255,0.04);
+    display:flex;flex-direction:column;align-items:center;
+    padding:12px 0;gap:2px;
+  }
+  .tb-btn{
+    width:32px;height:32px;border:none;background:transparent;
+    color:#444;border-radius:6px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.1s;
+  }
+  .tb-btn:hover{background:rgba(255,255,255,0.04);color:#888}
+  .tb-btn svg{width:16px;height:16px}
+  .tb-sep{width:20px;height:1px;background:rgba(255,255,255,0.04);margin:6px 0}
+
+  /* Slide panel */
+  .slide-panel{
+    width:260px;background:#0e0e10;
+    border-left:1px solid rgba(255,255,255,0.04);
+    display:flex;flex-direction:column;
+    animation:slideIn 0.2s ease;
+  }
+  @keyframes slideIn{from{width:0;opacity:0}to{width:260px;opacity:1}}
+
+  .sp-header{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .sp-title{font-size:12px;font-weight:600;color:#e8e8e8}
+  .sp-badge{
+    font-size:9px;color:#c4b5f0;background:rgba(196,181,240,0.08);
+    padding:2px 6px;border-radius:4px;font-weight:500;margin-left:6px;
+  }
+  .sp-close{
+    width:20px;height:20px;border:none;background:transparent;
+    color:#444;border-radius:4px;cursor:pointer;font-size:12px;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  .sp-body{
+    flex:1;padding:12px 14px;overflow-y:auto;
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .sp-section{}
+  .sp-label{
+    font-size:9px;font-weight:600;text-transform:uppercase;
+    letter-spacing:1px;color:#333;margin-bottom:6px;
+  }
+
+  .sp-cond{
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .sp-sel{
+    width:100%;background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:6px;padding:7px 22px 7px 8px;
+    font-size:11px;color:#ccc;cursor:pointer;
+    font-family:'Inter',sans-serif;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23444' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 6px center;
+  }
+  .sp-sel option{background:#151517}
+  .sp-inp{
+    width:100%;background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:6px;padding:7px 8px;
+    font-size:12px;color:#fff;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .sp-inp:focus{outline:none;border-color:rgba(196,181,240,0.2)}
+
+  .sp-triggers{display:flex;flex-direction:column;gap:3px}
+  .sp-trig{
+    padding:7px 8px;border:none;border-radius:6px;
+    font-size:10.5px;font-weight:500;cursor:pointer;
+    text-align:left;font-family:'Inter',sans-serif;
+    transition:all 0.1s;
+  }
+  .sp-trig.off{background:transparent;color:#444}
+  .sp-trig.off:hover{background:rgba(255,255,255,0.02);color:#888}
+  .sp-trig.on{background:rgba(196,181,240,0.08);color:#c4b5f0}
+
+  .sp-acts{display:flex;flex-direction:column;gap:3px}
+  .sp-act{
+    display:flex;align-items:center;gap:8px;
+    padding:7px 8px;border-radius:6px;cursor:pointer;
+    font-size:11px;font-weight:500;transition:all 0.1s;
+  }
+  .sp-act.off{color:#444}
+  .sp-act.off:hover{color:#888}
+  .sp-act.on{color:#c4b5f0;background:rgba(196,181,240,0.04)}
+  .sp-act svg{width:14px;height:14px}
+  .sp-check{
+    width:14px;height:14px;border-radius:4px;
+    border:1.5px solid #333;display:flex;
+    align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .sp-act.on .sp-check{border-color:#c4b5f0;background:rgba(196,181,240,0.15)}
+  .sp-act.on .sp-check::after{content:'';width:6px;height:6px;border-radius:2px;background:#c4b5f0}
+
+  .sp-msg{
+    width:100%;background:rgba(255,255,255,0.02);
+    border:1px solid rgba(255,255,255,0.04);
+    border-radius:6px;padding:7px 8px;font-size:10.5px;color:#666;
+    resize:none;font-family:'Inter',sans-serif;
+  }
+  .sp-msg:focus{outline:none;border-color:rgba(196,181,240,0.15);color:#aaa}
+
+  .sp-footer{
+    padding:10px 14px;border-top:1px solid rgba(255,255,255,0.04);
+  }
+  .sp-create{
+    width:100%;padding:9px;border:none;border-radius:8px;
+    font-size:12px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;
+    background:#c4b5f0;color:#111;transition:all 0.12s;
+  }
+  .sp-create:hover{background:#d4c8f5}
+
+  /* ── Indicator for which flow is shown ── */
+  .flow-desc{
+    position:absolute;top:80px;left:50%;transform:translateX(-50%);
+    text-align:center;z-index:5;
+  }
+  .flow-name{
+    font-size:20px;font-weight:300;color:rgba(255,255,255,0.08);
+    letter-spacing:4px;text-transform:uppercase;
+  }
+  .flow-hint{
+    font-size:11px;color:#333;margin-top:4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Tab Navigation ── -->
+<div class="top-bar">
+  <button class="tab on" onclick="showView('a',this)">A — Quick Create</button>
+  <button class="tab off" onclick="showView('b',this)">B — Step Wizard</button>
+  <button class="tab off" onclick="showView('c',this)">C — Inline Panel</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     VIEW A — QUICK CREATE
+     ═══════════════════════════════════════════════════ -->
+<div class="view active" id="view-a">
+  <div class="chart-bg">
+    <!-- Fake chart elements -->
+    <div class="trend-line"><div class="trend-dot"></div></div>
+    <div class="price-label">0.16842</div>
+    <div class="candles">
+      <div class="candle g" style="height:40px"></div><div class="candle r" style="height:28px"></div>
+      <div class="candle g" style="height:52px"></div><div class="candle g" style="height:35px"></div>
+      <div class="candle r" style="height:22px"></div><div class="candle g" style="height:60px"></div>
+      <div class="candle r" style="height:30px"></div><div class="candle g" style="height:45px"></div>
+      <div class="candle r" style="height:18px"></div><div class="candle g" style="height:50px"></div>
+    </div>
+
+    <div class="flow-desc">
+      <div class="flow-name">Quick Create</div>
+      <div class="flow-hint">Right-click drawing → one click creates alert → expand toast to customize</div>
+    </div>
+
+    <!-- Context menu (step 1) -->
+    <div class="ctx-menu" id="ctx-a">
+      <button class="ctx-item" onclick="return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit drawing
+      </button>
+      <button class="ctx-item" onclick="return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+        Properties
+      </button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item highlight" onclick="clickAlert()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Add alert on Trend Line
+      </button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item" onclick="return false" style="color:#ef4444">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Delete
+      </button>
+    </div>
+
+    <!-- Toast (step 2) -->
+    <div class="toast-area">
+      <div class="expand-editor" id="editor-a">
+        <div class="ee-header">
+          <span class="ee-title">DOGEUSDT — Trend Line Alert</span>
+          <button class="ee-close" onclick="closeEditor()">&times;</button>
+        </div>
+        <div class="ee-body">
+          <div class="ee-row">
+            <span class="ee-lbl">Condition</span>
+            <select class="ee-sel">
+              <option>Crossing</option><option>Crossing Up</option>
+              <option>Crossing Down</option><option>Greater Than</option><option>Less Than</option>
+            </select>
+            <input class="ee-inp" value="0.16842" />
+          </div>
+          <div class="ee-row">
+            <span class="ee-lbl">Trigger</span>
+            <div class="ee-chips">
+              <button class="ee-chip on">Once</button>
+              <button class="ee-chip off">Bar</button>
+              <button class="ee-chip off">Close</button>
+              <button class="ee-chip off">1min</button>
+            </div>
+          </div>
+          <div class="ee-row">
+            <span class="ee-lbl">Actions</span>
+            <div class="ee-act-row">
+              <div class="ee-act on">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                Notify
+              </div>
+              <div class="ee-act off">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                Sound
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ee-footer">
+          <button class="ee-btn ee-del">Delete</button>
+          <button class="ee-btn ee-save">Save</button>
+        </div>
+      </div>
+      <div class="toast" id="toast-a">
+        <div class="toast-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <div>
+          <div class="toast-text">Alert created — Crossing 0.16842</div>
+          <div class="toast-sub">DOGEUSDT Trend Line</div>
+        </div>
+        <button class="toast-edit" onclick="openEditor()">Customize</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     VIEW B — STEP WIZARD
+     ═══════════════════════════════════════════════════ -->
+<div class="view" id="view-b">
+  <div class="chart-bg">
+    <div class="trend-line"><div class="trend-dot"></div></div>
+    <div class="price-label">0.16842</div>
+    <div class="candles">
+      <div class="candle g" style="height:40px"></div><div class="candle r" style="height:28px"></div>
+      <div class="candle g" style="height:52px"></div><div class="candle g" style="height:35px"></div>
+      <div class="candle r" style="height:22px"></div><div class="candle g" style="height:60px"></div>
+      <div class="candle r" style="height:30px"></div><div class="candle g" style="height:45px"></div>
+    </div>
+
+    <div class="flow-desc">
+      <div class="flow-name">Step Wizard</div>
+      <div class="flow-hint">One question at a time — click options to advance through steps</div>
+    </div>
+
+    <!-- Wizard cards -->
+    <div class="wizard">
+      <!-- Step 1: Condition -->
+      <div class="wiz-card active" id="wiz-1">
+        <div class="wiz-progress">
+          <div class="wiz-dot current"></div>
+          <div class="wiz-dot pending"></div>
+          <div class="wiz-dot pending"></div>
+        </div>
+        <div class="wiz-body">
+          <div class="wiz-step-label">Step 1 of 3</div>
+          <div class="wiz-question">When should this alert fire?</div>
+          <div class="wiz-options">
+            <div class="wiz-opt selected" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">Price crosses the line</div>
+                <div class="wiz-opt-desc">Either direction</div>
+              </div>
+            </div>
+            <div class="wiz-opt" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">Price breaks above</div>
+                <div class="wiz-opt-desc">Bullish breakout</div>
+              </div>
+            </div>
+            <div class="wiz-opt" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">Price breaks below</div>
+                <div class="wiz-opt-desc">Bearish breakdown</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="wiz-input-row">
+              <span class="wiz-input-label">Alert price</span>
+              <input class="wiz-input" value="0.16842" />
+            </div>
+          </div>
+        </div>
+        <div class="wiz-footer">
+          <button class="wiz-back" style="visibility:hidden">Back</button>
+          <button class="wiz-next" onclick="wizNext(2)">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Trigger + Actions -->
+      <div class="wiz-card" id="wiz-2">
+        <div class="wiz-progress">
+          <div class="wiz-dot done"></div>
+          <div class="wiz-dot current"></div>
+          <div class="wiz-dot pending"></div>
+        </div>
+        <div class="wiz-body">
+          <div class="wiz-step-label">Step 2 of 3</div>
+          <div class="wiz-question">How often should it trigger?</div>
+          <div class="wiz-options">
+            <div class="wiz-opt selected" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">Only once</div>
+                <div class="wiz-opt-desc">Alert fires one time, then deactivates</div>
+              </div>
+            </div>
+            <div class="wiz-opt" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">Every time</div>
+                <div class="wiz-opt-desc">Fires on each bar that crosses</div>
+              </div>
+            </div>
+            <div class="wiz-opt" onclick="selectOpt(this)">
+              <div class="wiz-opt-radio"></div>
+              <div>
+                <div class="wiz-opt-text">On bar close only</div>
+                <div class="wiz-opt-desc">Confirmed close, fewer false signals</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="wiz-footer">
+          <button class="wiz-back" onclick="wizNext(1)">Back</button>
+          <button class="wiz-next" onclick="wizNext(3)">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Summary -->
+      <div class="wiz-card" id="wiz-3">
+        <div class="wiz-progress">
+          <div class="wiz-dot done"></div>
+          <div class="wiz-dot done"></div>
+          <div class="wiz-dot current"></div>
+        </div>
+        <div class="wiz-body">
+          <div class="wiz-step-label">Step 3 of 3</div>
+          <div class="wiz-question">Review your alert</div>
+          <div class="wiz-summary">
+            <div class="wiz-sum-row">
+              <span class="wiz-sum-key">Symbol</span>
+              <span class="wiz-sum-val">DOGEUSDT</span>
+            </div>
+            <div class="wiz-sum-row">
+              <span class="wiz-sum-key">Condition</span>
+              <span class="wiz-sum-val accent">Crossing 0.16842</span>
+            </div>
+            <div class="wiz-sum-row">
+              <span class="wiz-sum-key">Trigger</span>
+              <span class="wiz-sum-val">Only once</span>
+            </div>
+            <div class="wiz-sum-row">
+              <span class="wiz-sum-key">Notify</span>
+              <span class="wiz-sum-val">In-app</span>
+            </div>
+            <div class="wiz-sum-row">
+              <span class="wiz-sum-key">Drawing</span>
+              <span class="wiz-sum-val" style="color:#888">Trend Line</span>
+            </div>
+          </div>
+        </div>
+        <div class="wiz-footer">
+          <button class="wiz-back" onclick="wizNext(2)">Back</button>
+          <button class="wiz-next finish">Create Alert</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     VIEW C — INLINE PANEL
+     ═══════════════════════════════════════════════════ -->
+<div class="view" id="view-c">
+  <div class="chart-bg" style="display:flex;padding:0">
+    <div class="chart-main">
+      <div class="trend-line" style="left:10%;right:30%"><div class="trend-dot"></div></div>
+      <div class="price-label" style="right:auto;left:calc(70% + 10px)">0.16842</div>
+      <div class="candles" style="left:40%">
+        <div class="candle g" style="height:40px"></div><div class="candle r" style="height:28px"></div>
+        <div class="candle g" style="height:52px"></div><div class="candle g" style="height:35px"></div>
+        <div class="candle r" style="height:22px"></div><div class="candle g" style="height:60px"></div>
+        <div class="candle r" style="height:30px"></div>
+      </div>
+      <div class="flow-desc">
+        <div class="flow-name">Inline Panel</div>
+        <div class="flow-hint">No modal — slides from the right toolbar, configure alongside the chart</div>
+      </div>
+    </div>
+
+    <!-- Right toolbar -->
+    <div class="right-toolbar">
+      <button class="tb-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <button class="tb-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20L22 4"/></svg>
+      </button>
+      <button class="tb-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+    </div>
+
+    <!-- Slide panel -->
+    <div class="slide-panel">
+      <div class="sp-header">
+        <div>
+          <span class="sp-title">DOGEUSDT</span>
+          <span class="sp-badge">Trend Line</span>
+        </div>
+        <button class="sp-close">&times;</button>
+      </div>
+      <div class="sp-body">
+        <div class="sp-section">
+          <div class="sp-label">Condition</div>
+          <div class="sp-cond">
+            <select class="sp-sel">
+              <option>Crossing</option><option>Crossing Up</option>
+              <option>Crossing Down</option><option>Greater Than</option><option>Less Than</option>
+            </select>
+            <input class="sp-inp" value="0.16842" />
+          </div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-label">Trigger</div>
+          <div class="sp-triggers">
+            <button class="sp-trig on">Only once</button>
+            <button class="sp-trig off">Once per bar</button>
+            <button class="sp-trig off">On bar close</button>
+            <button class="sp-trig off">Once per minute</button>
+          </div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-label">Actions</div>
+          <div class="sp-acts">
+            <div class="sp-act on">
+              <div class="sp-check"></div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Notify on app
+            </div>
+            <div class="sp-act off">
+              <div class="sp-check"></div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              Play sound
+            </div>
+          </div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-label">Message</div>
+          <textarea class="sp-msg" rows="2">DOGEUSDT Price Crossing 0.16842</textarea>
+        </div>
+      </div>
+
+      <div class="sp-footer">
+        <button class="sp-create">Create Alert</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  function showView(id, btn) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => { t.classList.remove('on'); t.classList.add('off'); });
+    document.getElementById('view-' + id).classList.add('active');
+    btn.classList.remove('off');
+    btn.classList.add('on');
+  }
+
+  // UX A: Quick Create
+  function clickAlert() {
+    document.getElementById('ctx-a').style.display = 'none';
+    document.getElementById('toast-a').classList.add('show');
+  }
+  function openEditor() {
+    document.getElementById('toast-a').classList.remove('show');
+    document.getElementById('editor-a').classList.add('show');
+  }
+  function closeEditor() {
+    document.getElementById('editor-a').classList.remove('show');
+  }
+
+  // UX B: Wizard
+  function wizNext(step) {
+    document.querySelectorAll('.wiz-card').forEach(c => c.classList.remove('active'));
+    document.getElementById('wiz-' + step).classList.add('active');
+  }
+  function selectOpt(el) {
+    el.parentElement.querySelectorAll('.wiz-opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+</script>
+</body>
+</html>

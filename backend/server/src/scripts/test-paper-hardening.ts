@@ -1,4 +1,3 @@
-
 import { supabaseAdmin } from '../services/supabaseAdmin';
 import { reconcileActiveSignals } from '../services/signalQueue';
 import { TradeExecutor } from '../services/tradeExecutor';
@@ -9,7 +8,10 @@ async function runVerification() {
     // 1. Setup Data
     console.log('1. Setting up test data...');
     // Find a user and strategy
-    const { data: strategies } = await supabaseAdmin.from('strategies').select('id, user_id').limit(1);
+    const { data: strategies } = await supabaseAdmin
+        .from('strategies')
+        .select('id, user_id')
+        .limit(1);
     const strategy = strategies?.[0];
 
     if (!strategy) {
@@ -28,7 +30,7 @@ async function runVerification() {
         entry_type: 'Market',
         status: 'Active',
         strategy: 'Test Strategy',
-        entry_price: 50000
+        entry_price: 50000,
     });
 
     if (sigError) {
@@ -38,11 +40,18 @@ async function runVerification() {
     console.log(`Created test signal ${signalId}`);
 
     // 1.5 Ensure Balance
-    const { data: acc } = await supabaseAdmin.from('paper_trading_accounts').select('*').eq('user_id', strategy.user_id).single();
+    const { data: acc } = await supabaseAdmin
+        .from('paper_trading_accounts')
+        .select('*')
+        .eq('user_id', strategy.user_id)
+        .single();
     if (acc) {
         if (acc.balance < 5000) {
             console.log('Top up balance...');
-            await supabaseAdmin.from('paper_trading_accounts').update({ balance: 10000 }).eq('id', acc.id);
+            await supabaseAdmin
+                .from('paper_trading_accounts')
+                .update({ balance: 10000 })
+                .eq('id', acc.id);
         }
     } else {
         // Create one
@@ -50,7 +59,7 @@ async function runVerification() {
             user_id: strategy.user_id,
             name: 'Test Account',
             broker: 'Crypto',
-            balance: 10000
+            balance: 10000,
         });
     }
 
@@ -63,7 +72,7 @@ async function runVerification() {
         p_symbol: 'BTCUSDT.P',
         p_direction: 'BUY',
         p_entry_price: 50000,
-        p_initial_balance: 10000
+        p_initial_balance: 10000,
     });
 
     if (rpcError || !rpcResult.success) {
@@ -80,7 +89,7 @@ async function runVerification() {
         p_strategy_id: strategy.id,
         p_symbol: 'BTCUSDT.P',
         p_direction: 'BUY',
-        p_entry_price: 50000
+        p_entry_price: 50000,
     });
 
     if (rpcError2) {
@@ -103,7 +112,7 @@ async function runVerification() {
         entry_type: 'Market',
         status: 'Active',
         strategy: 'Test Strategy',
-        entry_price: 3000
+        entry_price: 3000,
     });
     console.log(`Created 2nd test signal ${signalId2} (Active, No Trade)`);
 
@@ -111,7 +120,11 @@ async function runVerification() {
     await reconcileActiveSignals();
 
     // Check if trade exists
-    const { data: trade2 } = await supabaseAdmin.from('paper_trades').select('*').eq('signal_id', signalId2).single();
+    const { data: trade2 } = await supabaseAdmin
+        .from('paper_trades')
+        .select('*')
+        .eq('signal_id', signalId2)
+        .single();
     if (trade2) {
         console.log('✅ Reconciliation Verified (Trade created for missing signal)');
     } else {

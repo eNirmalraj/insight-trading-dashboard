@@ -49,9 +49,9 @@ export class BinanceStreamManager {
     private tickerShard: StreamShard | null = null;
     private bookTickerSymbols: Set<string> = new Set(); // canonical symbols e.g. 'BTCUSDT'
     private tickerRebuildTimer: NodeJS.Timeout | null = null;
-    private readonly TICKER_REBUILD_DEBOUNCE_MS = 250;
+    private readonly TICKER_REBUILD_DEBOUNCE_MS = 1000;
 
-    // Watchdog
+    // Watchdog and Debounce
     private lastMessageTime: number = Date.now();
     private watchdogInterval: NodeJS.Timeout | null = null;
 
@@ -369,8 +369,9 @@ export class BinanceStreamManager {
 
             try {
                 if (ws.readyState === WebSocket.CONNECTING) {
-                    // terminate() on a CONNECTING socket throws in some ws versions.
-                    // close() is the safe way to abort a pending connection.
+                    // terminate() or close() on a CONNECTING socket can throw in some ws versions.
+                    // We wrap in a no-op error handler to prevent crashing the global process.
+                    ws.on('error', () => {}); 
                     ws.close();
                 } else if (
                     ws.readyState === WebSocket.OPEN ||
@@ -378,9 +379,8 @@ export class BinanceStreamManager {
                 ) {
                     ws.terminate();
                 }
-                // CLOSED sockets need no action.
             } catch (err) {
-                console.warn('[BinanceStream] Ignored error while tearing down ticker shard:', err);
+                // Ignore errors during teardown
             }
         }
 

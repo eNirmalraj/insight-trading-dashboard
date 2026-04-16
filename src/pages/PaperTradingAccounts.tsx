@@ -1,3 +1,4 @@
+// cspell:ignore Forex
 import React, { useState, useEffect } from 'react';
 import { PlusCircleIcon, TrashIcon } from '../components/IconComponents';
 import * as api from '../api';
@@ -17,7 +18,7 @@ interface PaperAccount {
 const CURRENCY_OPTIONS = {
     Crypto: ['USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX'],
     Forex: ['USD', 'EUR', 'GBP', 'AUD', 'CHF'],
-    Indian: ['INR']
+    Indian: ['INR'],
 };
 
 const PaperTradingAccounts: React.FC = () => {
@@ -43,7 +44,7 @@ const PaperTradingAccounts: React.FC = () => {
     // Update currency when market changes
     useEffect(() => {
         const defaultCurrency = CURRENCY_OPTIONS[formData.broker][0];
-        setFormData(prev => ({ ...prev, currency: defaultCurrency }));
+        setFormData((prev) => ({ ...prev, currency: defaultCurrency }));
     }, [formData.broker]);
 
     // Load accounts from cache immediately, then fetch fresh data
@@ -85,14 +86,23 @@ const PaperTradingAccounts: React.FC = () => {
 
             const data = await api.getPaperTradingAccounts();
 
-            console.log('[Paper Trading] Loaded', data.length, 'accounts in', Date.now() - startTime, 'ms');
+            console.log(
+                '[Paper Trading] Loaded',
+                data.length,
+                'accounts in',
+                Date.now() - startTime,
+                'ms'
+            );
             setAccounts(data);
 
             // Cache the results
-            localStorage.setItem('paper_trading_accounts_cache', JSON.stringify({
-                accounts: data,
-                timestamp: Date.now()
-            }));
+            localStorage.setItem(
+                'paper_trading_accounts_cache',
+                JSON.stringify({
+                    accounts: data,
+                    timestamp: Date.now(),
+                })
+            );
         } catch (err: any) {
             console.error('[Paper Trading] Error loading accounts:', err);
             const errorMsg = err.message || 'Failed to load accounts';
@@ -150,10 +160,11 @@ const PaperTradingAccounts: React.FC = () => {
         setTransferAccount(account);
         setTransferAmount(0);
         // Default target is the companion account (Spot <-> Futures)
-        const target = accounts.find(a =>
-            a.broker === account.broker &&
-            a.id !== account.id &&
-            a.sub_type !== account.sub_type
+        const target = accounts.find(
+            (a) =>
+                a.broker === account.broker &&
+                a.id !== account.id &&
+                a.sub_type !== account.sub_type
         );
         setTransferToId(target?.id || '');
     };
@@ -207,8 +218,13 @@ const PaperTradingAccounts: React.FC = () => {
             console.error('Error saving account:', err);
 
             // Handle unique constraint violation (duplicate account)
-            if (err.code === '23505' || (err.message && err.message.includes('unique_user_broker_subtype'))) {
-                alert(`You already have a ${formData.broker} ${formData.sub_type} account.\n\nPlease delete the existing one if you wish to reset it.`);
+            if (
+                err.code === '23505' ||
+                (err.message && err.message.includes('unique_user_broker_subtype'))
+            ) {
+                alert(
+                    `You already have a ${formData.broker} ${formData.sub_type} account.\n\nPlease delete the existing one if you wish to reset it.`
+                );
             } else {
                 alert(`Error: ${err.message || 'Failed to save account'}`);
             }
@@ -230,7 +246,7 @@ const PaperTradingAccounts: React.FC = () => {
             console.log('Delete successful, updating local state');
 
             // Remove from local state immediately for better UX
-            setAccounts(accounts.filter(acc => acc.id !== id));
+            setAccounts(accounts.filter((acc) => acc.id !== id));
 
             // Clear cache
             localStorage.removeItem('paper_trading_accounts_cache');
@@ -263,7 +279,9 @@ const PaperTradingAccounts: React.FC = () => {
         return (
             <div className="p-6">
                 <div className="bg-red-500/10 border border-red-500 rounded-lg p-4">
-                    <h3 className="text-red-400 font-semibold mb-2">Error Loading Paper Trading Accounts</h3>
+                    <h3 className="text-red-400 font-semibold mb-2">
+                        Error Loading Paper Trading Accounts
+                    </h3>
                     <p className="text-red-300 text-sm mb-4">{error}</p>
                     <button
                         onClick={loadAccounts}
@@ -281,7 +299,9 @@ const PaperTradingAccounts: React.FC = () => {
             <div className="bg-card-bg rounded-xl p-6">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h2 className="text-lg md:text-xl font-semibold text-white">Paper Trading Accounts</h2>
+                        <h2 className="text-lg md:text-xl font-semibold text-white">
+                            Paper Trading Accounts
+                        </h2>
                         <p className="text-sm text-gray-400 mt-1">
                             Create virtual trading accounts to test strategies without real money
                         </p>
@@ -307,7 +327,9 @@ const PaperTradingAccounts: React.FC = () => {
                                 <input
                                     type="text"
                                     value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, name: e.target.value })
+                                    }
                                     placeholder="e.g., My Forex Demo"
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
@@ -318,9 +340,14 @@ const PaperTradingAccounts: React.FC = () => {
                                     Market
                                 </label>
                                 <select
+                                    title="Market"
+                                    aria-label="Market"
                                     value={formData.broker}
                                     onChange={(e) =>
-                                        setFormData({ ...formData, broker: e.target.value as 'Crypto' | 'Forex' | 'Indian' })
+                                        setFormData({
+                                            ...formData,
+                                            broker: e.target.value as 'Crypto' | 'Forex' | 'Indian',
+                                        })
                                     }
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
@@ -336,9 +363,14 @@ const PaperTradingAccounts: React.FC = () => {
                                 </label>
                                 <input
                                     type="number"
+                                    title="Initial Balance"
+                                    aria-label="Initial Balance"
                                     value={formData.balance}
                                     onChange={(e) =>
-                                        setFormData({ ...formData, balance: parseFloat(e.target.value) })
+                                        setFormData({
+                                            ...formData,
+                                            balance: parseFloat(e.target.value),
+                                        })
                                     }
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
@@ -349,12 +381,18 @@ const PaperTradingAccounts: React.FC = () => {
                                     Currency
                                 </label>
                                 <select
+                                    title="Currency"
+                                    aria-label="Currency"
                                     value={formData.currency}
-                                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, currency: e.target.value })
+                                    }
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    {CURRENCY_OPTIONS[formData.broker].map(curr => (
-                                        <option key={curr} value={curr}>{curr}</option>
+                                    {CURRENCY_OPTIONS[formData.broker].map((curr) => (
+                                        <option key={curr} value={curr}>
+                                            {curr}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -365,8 +403,15 @@ const PaperTradingAccounts: React.FC = () => {
                                         Wallet Type
                                     </label>
                                     <select
+                                        title="Wallet Type"
+                                        aria-label="Wallet Type"
                                         value={formData.sub_type}
-                                        onChange={(e) => setFormData({ ...formData, sub_type: e.target.value as 'spot' | 'futures' })}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                sub_type: e.target.value as 'spot' | 'futures',
+                                            })
+                                        }
                                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="spot">Binance Spot</option>
@@ -397,9 +442,15 @@ const PaperTradingAccounts: React.FC = () => {
                 {addBalanceAccount && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
                         <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-md w-full">
-                            <h3 className="text-white font-semibold mb-4">Add Balance to {addBalanceAccount.name}</h3>
+                            <h3 className="text-white font-semibold mb-4">
+                                Add Balance to {addBalanceAccount.name}
+                            </h3>
                             <p className="text-sm text-gray-400 mb-4">
-                                Current Balance: <span className="text-white font-semibold">{addBalanceAccount.currency} {addBalanceAccount.balance.toLocaleString()}</span>
+                                Current Balance:{' '}
+                                <span className="text-white font-semibold">
+                                    {addBalanceAccount.currency}{' '}
+                                    {addBalanceAccount.balance.toLocaleString()}
+                                </span>
                             </p>
 
                             <div className="mb-6">
@@ -409,14 +460,22 @@ const PaperTradingAccounts: React.FC = () => {
                                 <input
                                     type="number"
                                     value={balanceToAdd}
-                                    onChange={(e) => setBalanceToAdd(parseFloat(e.target.value) || 0)}
+                                    onChange={(e) =>
+                                        setBalanceToAdd(parseFloat(e.target.value) || 0)
+                                    }
                                     placeholder="Enter amount"
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     autoFocus
                                 />
                                 {balanceToAdd !== 0 && (
                                     <p className="text-sm text-gray-400 mt-2">
-                                        New Balance: <span className="text-emerald-400 font-semibold">{addBalanceAccount.currency} {(addBalanceAccount.balance + balanceToAdd).toLocaleString()}</span>
+                                        New Balance:{' '}
+                                        <span className="text-emerald-400 font-semibold">
+                                            {addBalanceAccount.currency}{' '}
+                                            {(
+                                                addBalanceAccount.balance + balanceToAdd
+                                            ).toLocaleString()}
+                                        </span>
                                     </p>
                                 )}
                             </div>
@@ -450,49 +509,70 @@ const PaperTradingAccounts: React.FC = () => {
 
                             <div className="space-y-4 mb-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">From</label>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        From
+                                    </label>
                                     <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white">
                                         <div className="font-medium">{transferAccount.name}</div>
-                                        <div className="text-xs text-gray-400">Balance: {transferAccount.currency} {transferAccount.balance.toLocaleString()}</div>
+                                        <div className="text-xs text-gray-400">
+                                            Balance: {transferAccount.currency}{' '}
+                                            {transferAccount.balance.toLocaleString()}
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-center -my-2 relative z-10">
                                     <div className="bg-zinc-900 border border-zinc-700 p-1.5 rounded-full">
-                                        <PlusCircleIcon className="w-5 h-5 text-gray-500 rotate-45" /> {/* Use as arrow placeholder */}
+                                        <PlusCircleIcon className="w-5 h-5 text-gray-500 rotate-45" />{' '}
+                                        {/* Use as arrow placeholder */}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">To Account</label>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        To Account
+                                    </label>
                                     <select
+                                        title="To Account"
+                                        aria-label="To Account"
                                         value={transferToId}
                                         onChange={(e) => setTransferToId(e.target.value)}
                                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="">Select Target Account</option>
                                         {accounts
-                                            .filter(a => a.id !== transferAccount.id && a.broker === transferAccount.broker)
-                                            .map(a => (
-                                                <option key={a.id} value={a.id}>{a.name} ({a.sub_type})</option>
-                                            ))
-                                        }
+                                            .filter(
+                                                (a) =>
+                                                    a.id !== transferAccount.id &&
+                                                    a.broker === transferAccount.broker
+                                            )
+                                            .map((a) => (
+                                                <option key={a.id} value={a.id}>
+                                                    {a.name} ({a.sub_type})
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Amount</label>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Amount
+                                    </label>
                                     <input
                                         type="number"
                                         value={transferAmount}
-                                        onChange={(e) => setTransferAmount(parseFloat(e.target.value) || 0)}
+                                        onChange={(e) =>
+                                            setTransferAmount(parseFloat(e.target.value) || 0)
+                                        }
                                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         placeholder="0.00"
                                         max={transferAccount.balance}
                                     />
                                     <div className="mt-2 flex justify-end">
                                         <button
-                                            onClick={() => setTransferAmount(transferAccount.balance)}
+                                            onClick={() =>
+                                                setTransferAmount(transferAccount.balance)
+                                            }
                                             className="text-xs text-blue-400 hover:text-blue-300 font-medium"
                                         >
                                             Transfer Max
@@ -504,7 +584,11 @@ const PaperTradingAccounts: React.FC = () => {
                             <div className="flex gap-3">
                                 <button
                                     onClick={handleTransferSubmit}
-                                    disabled={!transferToId || transferAmount <= 0 || transferAmount > transferAccount.balance}
+                                    disabled={
+                                        !transferToId ||
+                                        transferAmount <= 0 ||
+                                        transferAmount > transferAccount.balance
+                                    }
                                     className="flex-1 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-medium transition"
                                 >
                                     Transfer Now
@@ -525,7 +609,9 @@ const PaperTradingAccounts: React.FC = () => {
                     {accounts.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <p>No paper trading accounts yet.</p>
-                            <p className="text-sm mt-2">Click "Add Account" to create your first one.</p>
+                            <p className="text-sm mt-2">
+                                Click "Add Account" to create your first one.
+                            </p>
                         </div>
                     ) : (
                         accounts.map((account) => (
@@ -536,23 +622,31 @@ const PaperTradingAccounts: React.FC = () => {
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-white font-semibold text-lg">{account.name}</h3>
+                                            <h3 className="text-white font-semibold text-lg">
+                                                {account.name}
+                                            </h3>
                                             <span
-                                                className={`px-2.5 py-1 text-xs font-semibold rounded-full ${account.broker === 'Crypto'
-                                                    ? 'bg-yellow-500/20 text-yellow-400'
-                                                    : account.broker === 'Forex'
-                                                        ? 'bg-blue-500/20 text-blue-400'
-                                                        : 'bg-green-500/20 text-green-400'
-                                                    }`}
+                                                className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                                                    account.broker === 'Crypto'
+                                                        ? 'bg-yellow-500/20 text-yellow-400'
+                                                        : account.broker === 'Forex'
+                                                          ? 'bg-blue-500/20 text-blue-400'
+                                                          : 'bg-green-500/20 text-green-400'
+                                                }`}
                                             >
                                                 {account.broker}
                                             </span>
                                             {account.broker === 'Crypto' && (
-                                                <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${account.sub_type === 'futures'
-                                                    ? 'bg-purple-500/20 text-purple-400'
-                                                    : 'bg-emerald-500/20 text-emerald-400'
-                                                    }`}>
-                                                    {account.sub_type === 'futures' ? 'Perpetual Futures' : 'Spot Wallet'}
+                                                <span
+                                                    className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                                                        account.sub_type === 'futures'
+                                                            ? 'bg-purple-500/20 text-purple-400'
+                                                            : 'bg-emerald-500/20 text-emerald-400'
+                                                    }`}
+                                                >
+                                                    {account.sub_type === 'futures'
+                                                        ? 'Perpetual Futures'
+                                                        : 'Spot Wallet'}
                                                 </span>
                                             )}
                                         </div>
@@ -560,13 +654,16 @@ const PaperTradingAccounts: React.FC = () => {
                                             <div>
                                                 <p className="text-gray-400">Balance</p>
                                                 <p className="text-white font-semibold text-lg">
-                                                    {account.currency} {account.balance.toLocaleString()}
+                                                    {account.currency}{' '}
+                                                    {account.balance.toLocaleString()}
                                                 </p>
                                             </div>
                                             <div>
                                                 <p className="text-gray-400">Created</p>
                                                 <p className="text-white">
-                                                    {new Date(account.created_at).toLocaleDateString()}
+                                                    {new Date(
+                                                        account.created_at
+                                                    ).toLocaleDateString()}
                                                 </p>
                                             </div>
                                         </div>

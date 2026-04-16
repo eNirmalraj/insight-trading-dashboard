@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alert UX — Combined Flow (Quick Create + Inline Panel)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#08080a;color:#ccc;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+  /* ── Step indicator bar ── */
+  .step-bar{
+    display:flex;justify-content:center;align-items:center;gap:16px;
+    padding:10px 20px;
+    background:rgba(255,255,255,0.015);
+    border-bottom:1px solid rgba(255,255,255,0.04);
+    z-index:100;
+  }
+  .step-item{
+    display:flex;align-items:center;gap:6px;
+    font-size:11px;font-weight:500;color:#333;
+    transition:all 0.3s;
+  }
+  .step-item.active{color:#c4b5f0}
+  .step-item.done{color:#555}
+  .step-num{
+    width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:700;
+    border:1.5px solid #333;transition:all 0.3s;
+  }
+  .step-item.active .step-num{border-color:#c4b5f0;background:rgba(196,181,240,0.1);color:#c4b5f0}
+  .step-item.done .step-num{border-color:#34d399;background:rgba(52,211,153,0.1);color:#34d399}
+  .step-arrow{color:#222;font-size:10px}
+  .step-item.done .step-num::after{content:''}
+
+  /* ── Main layout ── */
+  .main{flex:1;display:flex;overflow:hidden}
+
+  /* ── Chart area ── */
+  .chart-area{
+    flex:1;position:relative;
+    background:
+      linear-gradient(rgba(255,255,255,0.008) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.008) 1px, transparent 1px);
+    background-size:60px 40px;
+    background-color:#0a0a0c;
+    transition:all 0.3s;
+  }
+
+  /* Fake chart decor */
+  .candle-area{position:absolute;bottom:30%;left:8%;right:8%;display:flex;align-items:flex-end;gap:10px;opacity:0.12}
+  .ck{width:10px;border-radius:1px}
+  .ck.g{background:#34d399}.ck.r{background:#ef4444}
+
+  .trend-line{
+    position:absolute;top:38%;left:12%;right:20%;height:2px;
+    background:linear-gradient(90deg,#c4b5f0 60%,rgba(196,181,240,0.2));
+    transform:rotate(-6deg);transform-origin:left center;
+  }
+  .trend-dot{
+    position:absolute;right:-5px;top:-5px;width:12px;height:12px;
+    border-radius:50%;border:2px solid #c4b5f0;background:#0a0a0c;
+  }
+  .price-tag{
+    position:absolute;right:0;top:36%;
+    background:#1a1a1e;border:1px solid #2a2a2e;
+    padding:3px 8px;border-radius:3px;
+    font-size:10px;font-family:'JetBrains Mono',monospace;color:#c4b5f0;
+  }
+
+  /* Price axis (right) */
+  .y-axis{
+    position:absolute;right:0;top:0;bottom:0;width:56px;
+    background:rgba(10,10,12,0.8);border-left:1px solid rgba(255,255,255,0.03);
+    display:flex;flex-direction:column;justify-content:space-between;
+    padding:30px 6px;
+  }
+  .y-price{font-size:9px;color:#333;font-family:'JetBrains Mono',monospace;text-align:right}
+
+  /* Time axis (bottom) */
+  .x-axis{
+    position:absolute;left:0;right:56px;bottom:0;height:24px;
+    background:rgba(10,10,12,0.8);border-top:1px solid rgba(255,255,255,0.03);
+    display:flex;justify-content:space-around;align-items:center;
+    padding:0 40px;
+  }
+  .x-time{font-size:9px;color:#333;font-family:'JetBrains Mono',monospace}
+
+  /* Alert bell marker on chart */
+  .alert-marker{
+    position:absolute;top:36%;left:28%;
+    display:none;align-items:center;gap:4px;
+    animation:popIn 0.3s ease;z-index:5;
+  }
+  .alert-marker.show{display:flex}
+  @keyframes popIn{from{opacity:0;transform:scale(0.7)}to{opacity:1;transform:scale(1)}}
+  .alert-bell{
+    width:24px;height:24px;border-radius:6px;
+    background:rgba(196,181,240,0.1);border:1px solid rgba(196,181,240,0.2);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all 0.15s;
+  }
+  .alert-bell:hover{background:rgba(196,181,240,0.15);border-color:rgba(196,181,240,0.35)}
+  .alert-bell svg{width:12px;height:12px;color:#c4b5f0}
+  .alert-line{
+    width:40px;height:1px;
+    background:linear-gradient(90deg,rgba(196,181,240,0.4),transparent);
+  }
+
+  /* ── Context Menu ── */
+  .ctx{
+    position:absolute;top:33%;left:38%;z-index:20;
+    background:#131315;border:1px solid rgba(255,255,255,0.07);
+    border-radius:10px;padding:4px;min-width:200px;
+    box-shadow:0 16px 48px -8px rgba(0,0,0,0.85);
+    transition:all 0.2s;
+  }
+  .ctx.hidden{display:none}
+  .ctx-item{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 12px;border-radius:7px;cursor:pointer;
+    font-size:12px;color:#888;transition:all 0.1s;border:none;
+    background:transparent;width:100%;text-align:left;
+    font-family:'Inter',sans-serif;
+  }
+  .ctx-item:hover{background:rgba(255,255,255,0.03);color:#ddd}
+  .ctx-item.primary{color:#c4b5f0;font-weight:500}
+  .ctx-item.primary:hover{background:rgba(196,181,240,0.06)}
+  .ctx-item.danger{color:#666}
+  .ctx-item.danger:hover{color:#ef4444;background:rgba(239,68,68,0.04)}
+  .ctx-item svg{width:15px;height:15px;flex-shrink:0;opacity:0.5}
+  .ctx-item.primary svg{opacity:0.8}
+  .ctx-sep{height:1px;background:rgba(255,255,255,0.04);margin:3px 8px}
+
+  /* ── Toast ── */
+  .toast-wrap{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    z-index:50;
+  }
+  .toast{
+    display:none;align-items:center;gap:12px;
+    padding:10px 12px 10px 14px;
+    background:#131315;border:1px solid rgba(196,181,240,0.12);
+    border-radius:12px;
+    box-shadow:0 12px 40px -8px rgba(0,0,0,0.7);
+    white-space:nowrap;
+  }
+  .toast.show{display:flex;animation:toastIn 0.35s ease}
+  @keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .toast-check{
+    width:26px;height:26px;border-radius:50%;
+    background:rgba(52,211,153,0.1);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .toast-check svg{width:14px;height:14px;color:#34d399}
+  .toast-body{}
+  .toast-msg{font-size:12px;font-weight:600;color:#e8e8e8}
+  .toast-detail{font-size:10px;color:#555;margin-top:1px}
+  .toast-actions{display:flex;gap:4px;margin-left:8px}
+  .toast-btn{
+    padding:5px 12px;border-radius:6px;font-size:10px;font-weight:600;
+    cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:all 0.12s;
+  }
+  .toast-customize{background:rgba(196,181,240,0.1);color:#c4b5f0}
+  .toast-customize:hover{background:rgba(196,181,240,0.18)}
+  .toast-dismiss{background:transparent;color:#444}
+  .toast-dismiss:hover{color:#888}
+
+  /* ── Right toolbar ── */
+  .right-bar{
+    width:44px;background:#0b0b0d;
+    border-left:1px solid rgba(255,255,255,0.04);
+    display:flex;flex-direction:column;align-items:center;
+    padding:10px 0;gap:2px;z-index:10;
+  }
+  .rb-btn{
+    width:32px;height:32px;border:none;background:transparent;
+    color:#3a3a3e;border-radius:6px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.1s;
+  }
+  .rb-btn:hover{background:rgba(255,255,255,0.03);color:#777}
+  .rb-btn svg{width:16px;height:16px}
+  .rb-sep{width:20px;height:1px;background:rgba(255,255,255,0.04);margin:6px 0}
+
+  /* ── Slide Panel ── */
+  .slide-panel{
+    width:0;overflow:hidden;background:#0d0d0f;
+    border-left:1px solid rgba(255,255,255,0.04);
+    display:flex;flex-direction:column;
+    transition:width 0.25s cubic-bezier(0.4,0,0.2,1);
+    z-index:10;
+  }
+  .slide-panel.open{width:280px}
+  .slide-panel>*{min-width:280px}
+
+  .sp-header{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:14px 16px;
+    background:rgba(255,255,255,0.01);
+    border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .sp-h-left{display:flex;align-items:center;gap:8px}
+  .sp-icon{
+    width:24px;height:24px;border-radius:6px;
+    background:rgba(196,181,240,0.08);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sp-icon svg{width:12px;height:12px;color:#c4b5f0}
+  .sp-title{font-size:12px;font-weight:600;color:#e8e8e8}
+  .sp-badge{
+    font-size:9px;color:#888;background:rgba(255,255,255,0.04);
+    padding:2px 6px;border-radius:4px;font-weight:500;margin-left:4px;
+  }
+  .sp-close{
+    width:22px;height:22px;border:none;background:transparent;
+    color:#444;border-radius:5px;cursor:pointer;font-size:13px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .sp-close:hover{color:#aaa}
+
+  .sp-body{
+    flex:1;padding:14px 16px;overflow-y:auto;
+    display:flex;flex-direction:column;gap:14px;
+    scrollbar-width:none;
+  }
+  .sp-body::-webkit-scrollbar{display:none}
+
+  .sp-section{}
+  .sp-label{
+    font-size:9px;font-weight:600;text-transform:uppercase;
+    letter-spacing:1.2px;color:#2e2e32;margin-bottom:6px;
+  }
+
+  /* Condition */
+  .sp-cond{display:flex;flex-direction:column;gap:5px}
+  .sp-sel{
+    width:100%;background:rgba(255,255,255,0.025);
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:7px;padding:8px 24px 8px 10px;
+    font-size:11.5px;color:#ccc;cursor:pointer;
+    font-family:'Inter',sans-serif;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23444' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 8px center;
+    transition:border-color 0.12s;
+  }
+  .sp-sel:focus{outline:none;border-color:rgba(196,181,240,0.25)}
+  .sp-sel option{background:#131315}
+  .sp-inp{
+    width:100%;background:rgba(255,255,255,0.025);
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:7px;padding:8px 10px;
+    font-size:12px;color:#fff;
+    font-family:'JetBrains Mono',monospace;
+    transition:border-color 0.12s;
+  }
+  .sp-inp:focus{outline:none;border-color:rgba(196,181,240,0.25)}
+
+  /* Trigger */
+  .sp-triggers{display:flex;flex-direction:column;gap:2px}
+  .sp-trig{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 10px;border:none;border-radius:7px;
+    font-size:11px;font-weight:500;cursor:pointer;
+    text-align:left;font-family:'Inter',sans-serif;
+    transition:all 0.1s;width:100%;
+  }
+  .sp-trig.off{background:transparent;color:#3e3e42}
+  .sp-trig.off:hover{background:rgba(255,255,255,0.015);color:#888}
+  .sp-trig.on{background:rgba(196,181,240,0.06);color:#c4b5f0}
+  .sp-trig-dot{
+    width:6px;height:6px;border-radius:50%;flex-shrink:0;
+    transition:all 0.12s;
+  }
+  .sp-trig.off .sp-trig-dot{background:#2a2a2e}
+  .sp-trig.on .sp-trig-dot{background:#c4b5f0;box-shadow:0 0 6px rgba(196,181,240,0.4)}
+
+  /* Actions */
+  .sp-acts{display:flex;gap:5px}
+  .sp-act{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:9px 8px;border-radius:8px;cursor:pointer;
+    font-size:10.5px;font-weight:500;transition:all 0.12s;
+  }
+  .sp-act.off{
+    background:rgba(255,255,255,0.015);color:#3e3e42;
+    border:1px solid rgba(255,255,255,0.03);
+  }
+  .sp-act.off:hover{border-color:rgba(255,255,255,0.08);color:#888}
+  .sp-act.on{
+    background:rgba(196,181,240,0.06);color:#c4b5f0;
+    border:1px solid rgba(196,181,240,0.12);
+  }
+  .sp-act svg{width:13px;height:13px;flex-shrink:0}
+
+  /* Message */
+  .sp-msg{
+    width:100%;background:rgba(255,255,255,0.02);
+    border:1px solid rgba(255,255,255,0.04);
+    border-radius:7px;padding:8px 10px;font-size:10.5px;color:#555;
+    resize:none;font-family:'Inter',sans-serif;
+    line-height:1.4;transition:all 0.12s;
+  }
+  .sp-msg:focus{border-color:rgba(196,181,240,0.15);color:#aaa;outline:none}
+
+  /* Footer */
+  .sp-footer{
+    padding:12px 16px;border-top:1px solid rgba(255,255,255,0.04);
+    display:flex;gap:6px;
+  }
+  .sp-btn{
+    flex:1;padding:9px;border:none;border-radius:8px;
+    font-size:12px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:all 0.12s;
+  }
+  .sp-save{background:#c4b5f0;color:#111}
+  .sp-save:hover{background:#d4c8f5}
+  .sp-del{background:transparent;color:#444;flex:0;padding:9px 14px}
+  .sp-del:hover{color:#ef4444}
+
+  /* ── Instruction overlay ── */
+  .instructions{
+    position:absolute;bottom:60px;left:50%;transform:translateX(-50%);
+    text-align:center;z-index:3;pointer-events:none;
+  }
+  .inst-text{
+    font-size:12px;color:#333;
+    padding:6px 14px;border-radius:8px;
+    background:rgba(0,0,0,0.4);
+    backdrop-filter:blur(8px);
+  }
+  .inst-text span{color:#c4b5f0;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- Step indicator -->
+<div class="step-bar">
+  <div class="step-item active" id="s1">
+    <div class="step-num">1</div>
+    <span>Right-click drawing</span>
+  </div>
+  <span class="step-arrow">&#8594;</span>
+  <div class="step-item" id="s2">
+    <div class="step-num">2</div>
+    <span>One-click create</span>
+  </div>
+  <span class="step-arrow">&#8594;</span>
+  <div class="step-item" id="s3">
+    <div class="step-num">3</div>
+    <span>Toast confirms</span>
+  </div>
+  <span class="step-arrow">&#8594;</span>
+  <div class="step-item" id="s4">
+    <div class="step-num">4</div>
+    <span>Customize in panel</span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Chart -->
+  <div class="chart-area" id="chart">
+    <!-- Candles -->
+    <div class="candle-area">
+      <div class="ck g" style="height:36px"></div>
+      <div class="ck r" style="height:24px"></div>
+      <div class="ck g" style="height:48px"></div>
+      <div class="ck r" style="height:20px"></div>
+      <div class="ck g" style="height:55px"></div>
+      <div class="ck g" style="height:32px"></div>
+      <div class="ck r" style="height:26px"></div>
+      <div class="ck g" style="height:60px"></div>
+      <div class="ck r" style="height:18px"></div>
+      <div class="ck g" style="height:42px"></div>
+      <div class="ck r" style="height:30px"></div>
+      <div class="ck g" style="height:50px"></div>
+      <div class="ck g" style="height:38px"></div>
+      <div class="ck r" style="height:22px"></div>
+      <div class="ck g" style="height:44px"></div>
+    </div>
+
+    <!-- Trend line -->
+    <div class="trend-line"><div class="trend-dot"></div></div>
+    <div class="price-tag">0.16842</div>
+
+    <!-- Alert marker (appears after creation) -->
+    <div class="alert-marker" id="alertMarker">
+      <div class="alert-bell" onclick="openPanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="alert-line"></div>
+    </div>
+
+    <!-- Y axis -->
+    <div class="y-axis">
+      <div class="y-price">0.1720</div>
+      <div class="y-price">0.1700</div>
+      <div class="y-price" style="color:#c4b5f0">0.1684</div>
+      <div class="y-price">0.1660</div>
+      <div class="y-price">0.1640</div>
+      <div class="y-price">0.1620</div>
+    </div>
+
+    <!-- X axis -->
+    <div class="x-axis">
+      <div class="x-time">09:00</div>
+      <div class="x-time">10:00</div>
+      <div class="x-time">11:00</div>
+      <div class="x-time">12:00</div>
+      <div class="x-time">13:00</div>
+      <div class="x-time">14:00</div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="ctx" id="ctxMenu">
+      <button class="ctx-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit drawing
+      </button>
+      <button class="ctx-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m-7-7h6m6 0h6"/></svg>
+        Properties
+      </button>
+      <button class="ctx-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Duplicate
+      </button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item primary" onclick="createAlert()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Add alert on Trend Line
+      </button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Delete drawing
+      </button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions" id="instruct">
+      <div class="inst-text">Click <span>"Add alert on Trend Line"</span> in the menu above</div>
+    </div>
+  </div>
+
+  <!-- Right toolbar -->
+  <div class="right-bar">
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h8M4 18h16"/></svg>
+    </button>
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </button>
+    <div class="rb-sep"></div>
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+    </button>
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+    </button>
+    <button class="rb-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+    </button>
+  </div>
+
+  <!-- Slide panel (initially hidden) -->
+  <div class="slide-panel" id="slidePanel">
+    <div class="sp-header">
+      <div class="sp-h-left">
+        <div class="sp-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <span class="sp-title">DOGEUSDT</span>
+        <span class="sp-badge">Trend Line</span>
+      </div>
+      <button class="sp-close" onclick="closePanel()">&times;</button>
+    </div>
+
+    <div class="sp-body">
+      <div class="sp-section">
+        <div class="sp-label">Condition</div>
+        <div class="sp-cond">
+          <select class="sp-sel">
+            <option selected>Crossing</option>
+            <option>Crossing Up</option>
+            <option>Crossing Down</option>
+            <option>Greater Than</option>
+            <option>Less Than</option>
+          </select>
+          <input class="sp-inp" value="0.16842" />
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <div class="sp-label">Trigger</div>
+        <div class="sp-triggers">
+          <button class="sp-trig on" onclick="pickTrig(this)">
+            <div class="sp-trig-dot"></div>Only once
+          </button>
+          <button class="sp-trig off" onclick="pickTrig(this)">
+            <div class="sp-trig-dot"></div>Once per bar
+          </button>
+          <button class="sp-trig off" onclick="pickTrig(this)">
+            <div class="sp-trig-dot"></div>On bar close
+          </button>
+          <button class="sp-trig off" onclick="pickTrig(this)">
+            <div class="sp-trig-dot"></div>Once per minute
+          </button>
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <div class="sp-label">Actions</div>
+        <div class="sp-acts">
+          <div class="sp-act on" onclick="toggleAct(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="sp-act off" onclick="toggleAct(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <div class="sp-label">Message</div>
+        <textarea class="sp-msg" rows="2">DOGEUSDT Price Crossing 0.16842</textarea>
+      </div>
+    </div>
+
+    <div class="sp-footer">
+      <button class="sp-btn sp-del" title="Delete alert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+      <button class="sp-btn sp-save">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap">
+  <div class="toast" id="toast">
+    <div class="toast-check">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="toast-body">
+      <div class="toast-msg">Alert created</div>
+      <div class="toast-detail">DOGEUSDT — Crossing 0.16842</div>
+    </div>
+    <div class="toast-actions">
+      <button class="toast-btn toast-customize" onclick="openPanel()">Customize</button>
+      <button class="toast-btn toast-dismiss" onclick="dismissToast()">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setStep(n) {
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById('s' + i);
+      el.className = 'step-item' + (i < n ? ' done' : i === n ? ' active' : '');
+    }
+  }
+
+  function createAlert() {
+    // Hide context menu
+    document.getElementById('ctxMenu').classList.add('hidden');
+    // Update step
+    setStep(3);
+    // Show alert marker on chart
+    document.getElementById('alertMarker').classList.add('show');
+    // Show toast
+    setTimeout(() => {
+      document.getElementById('toast').classList.add('show');
+      document.getElementById('instruct').innerHTML =
+        '<div class="inst-text">Alert created! Click <span>"Customize"</span> to open the side panel</div>';
+    }, 200);
+  }
+
+  function openPanel() {
+    // Hide toast
+    document.getElementById('toast').classList.remove('show');
+    // Open panel
+    document.getElementById('slidePanel').classList.add('open');
+    // Update step
+    setStep(4);
+    document.getElementById('instruct').innerHTML =
+      '<div class="inst-text">Configure your alert in the side panel — chart stays visible</div>';
+  }
+
+  function closePanel() {
+    document.getElementById('slidePanel').classList.remove('open');
+  }
+
+  function dismissToast() {
+    document.getElementById('toast').classList.remove('show');
+  }
+
+  function pickTrig(el) {
+    el.parentElement.querySelectorAll('.sp-trig').forEach(t => {
+      t.classList.remove('on'); t.classList.add('off');
+    });
+    el.classList.remove('off'); el.classList.add('on');
+  }
+
+  function toggleAct(el) {
+    el.classList.toggle('on');
+    el.classList.toggle('off');
+  }
+</script>
+</body>
+</html>

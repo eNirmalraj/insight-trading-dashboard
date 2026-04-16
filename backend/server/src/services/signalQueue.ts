@@ -2,9 +2,8 @@ import { supabaseAdmin } from './supabaseAdmin';
 import { TradeExecutor } from './tradeExecutor';
 
 export const startSignalListener = async () => {
-
     // 1. Reconcile missed signals (Restart Catch-up) - NON-BLOCKING
-    reconcileActiveSignals().catch(e => console.error('[SIGNAL QUEUE] Reconciliation Error:', e));
+    reconcileActiveSignals().catch((e) => console.error('[SIGNAL QUEUE] Reconciliation Error:', e));
 
     console.log('[SIGNAL QUEUE] Listening for new signals in database...');
 
@@ -19,7 +18,12 @@ export const startSignalListener = async () => {
             },
             async (payload) => {
                 const newSignal = payload.new as any;
-                console.log('[SIGNAL EVENT]', payload.eventType, newSignal.symbol, newSignal.status);
+                console.log(
+                    '[SIGNAL EVENT]',
+                    payload.eventType,
+                    newSignal.symbol,
+                    newSignal.status
+                );
                 await processSignalEvent(payload);
             }
         )
@@ -43,36 +47,42 @@ export async function reconcileActiveSignals() {
             return;
         }
 
-        console.log(`[SIGNAL QUEUE] Found ${activeSignals.length} active signals. Processing in batches...`);
+        console.log(
+            `[SIGNAL QUEUE] Found ${activeSignals.length} active signals. Processing in batches...`
+        );
 
         const BATCH_SIZE = 20;
         for (let i = 0; i < activeSignals.length; i += BATCH_SIZE) {
             const batch = activeSignals.slice(i, i + BATCH_SIZE);
             // console.log(`[SIGNAL QUEUE] Processing batch ${i / BATCH_SIZE + 1}/${Math.ceil(activeSignals.length / BATCH_SIZE)}...`);
 
-            await Promise.all(batch.map(async (signal) => {
-                try {
-                    // We can just try to open it. The RPC is idempotent!
-                    // But we need the userId.
-                    const { data: strategy } = await supabaseAdmin
-                        .from('strategies')
-                        .select('user_id')
-                        .eq('id', signal.strategy_id)
-                        .single();
+            await Promise.all(
+                batch.map(async (signal) => {
+                    try {
+                        // We can just try to open it. The RPC is idempotent!
+                        // But we need the userId.
+                        const { data: strategy } = await supabaseAdmin
+                            .from('strategies')
+                            .select('user_id')
+                            .eq('id', signal.strategy_id)
+                            .single();
 
-                    if (strategy?.user_id) {
-                        await TradeExecutor.openPosition(strategy.user_id, signal);
+                        if (strategy?.user_id) {
+                            await TradeExecutor.openPosition(strategy.user_id, signal);
+                        }
+                    } catch (err) {
+                        console.error(
+                            `[SIGNAL QUEUE] Failed to reconcile signal ${signal.id}`,
+                            err
+                        );
                     }
-                } catch (err) {
-                    console.error(`[SIGNAL QUEUE] Failed to reconcile signal ${signal.id}`, err);
-                }
-            }));
+                })
+            );
 
             // Small delay between batches to be nice to the DB/API
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 1000));
         }
         console.log('[SIGNAL QUEUE] ✅ Reconciliation Complete.');
-
     } catch (e) {
         console.error('[SIGNAL QUEUE] Reconciliation failed:', e);
     }
@@ -102,7 +112,6 @@ async function processSignalEvent(payload: any) {
             // New Active Signal -> Open Position
             console.log(`[TRADE ENTRY] Handling Entry for ${signal.symbol}`);
             await TradeExecutor.openPosition(userId, signal);
-
         } else if (payload.eventType === 'UPDATE') {
             // Status changed to Active -> Open Position (if Late Entry)
             if (signal.status === 'Active' && payload.old.status === 'Pending') {

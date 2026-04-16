@@ -1,6 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { Indicator } from './types';
-import { SettingsIcon, CloseIcon, ChevronDownIcon, EyeIcon, EyeOffIcon, BellIcon } from '../IconComponents';
+import './ActiveIndicatorsDisplay.css';
+import {
+    SettingsIcon,
+    CloseIcon,
+    ChevronDownIcon,
+    EyeIcon,
+    EyeOffIcon,
+    BellIcon,
+} from '../IconComponents';
 import { useOutsideAlerter } from './hooks';
 
 interface ActiveIndicatorsDisplayProps {
@@ -13,28 +21,21 @@ interface ActiveIndicatorsDisplayProps {
 }
 
 const getIndicatorLabel = (indicator: Indicator): string => {
-    const s = indicator.settings;
-    switch (indicator.type) {
-        case 'MA':
-        case 'EMA':
-        case 'RSI':
-        case 'BB':
-            return `${indicator.type} (${s.period})`;
-        case 'MACD':
-            return `${indicator.type} (${s.fastPeriod}, ${s.slowPeriod}, ${s.signalPeriod})`;
-        case 'Stochastic':
-            return `${indicator.type} (${s.kPeriod}, ${s.kSlowing}, ${s.dPeriod})`;
-        case 'SuperTrend':
-            return `${indicator.type} (${s.atrPeriod}, ${s.factor})`;
-        default:
-            return indicator.type;
-    }
+    const title = indicator.kuriTitle || indicator.type;
+    const params = (indicator.kuriInputDefs || [])
+        .filter((d) => d.type === 'int' || d.type === 'float')
+        .map((d) => (indicator.settings as any)[d.title] ?? d.defval);
+    return params.length > 0 ? `${title} (${params.join(', ')})` : title;
 };
 
 const getIndicatorColor = (indicator: Indicator): string => {
     if (!indicator.isVisible) return '#6B7280';
-    const s = indicator.settings;
-    return s.color || s.macdColor || s.kColor || s.upColor || '#FFFFFF';
+    return (
+        (indicator.settings as any)?.plot_0_color ??
+        indicator.kuriPlots?.[0]?.color ??
+        indicator.settings.color ??
+        '#FFFFFF'
+    );
 };
 
 const ActiveIndicatorsDisplay: React.FC<ActiveIndicatorsDisplayProps> = ({
@@ -43,7 +44,7 @@ const ActiveIndicatorsDisplay: React.FC<ActiveIndicatorsDisplayProps> = ({
     onRemove,
     onToggleVisibility,
     onToggleAllVisibility,
-    onCreateAlert
+    onCreateAlert,
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -53,7 +54,7 @@ const ActiveIndicatorsDisplay: React.FC<ActiveIndicatorsDisplayProps> = ({
         return null;
     }
 
-    const areAllVisible = indicators.every(ind => ind.isVisible);
+    const areAllVisible = indicators.every((ind) => ind.isVisible);
 
     const handleToggleAll = () => {
         onToggleAllVisibility(!areAllVisible);
@@ -62,32 +63,47 @@ const ActiveIndicatorsDisplay: React.FC<ActiveIndicatorsDisplayProps> = ({
     return (
         <div ref={wrapperRef} className="absolute top-2 left-2 z-20 min-w-[150px]">
             <div className="relative bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 rounded-md">
-                <div className={`flex items-center w-full p-2 text-xs text-gray-300 transition-colors ${isExpanded ? 'rounded-t-md' : 'rounded-md'}`}>
+                <div
+                    className={`flex items-center w-full p-2 text-xs text-gray-300 transition-colors ${isExpanded ? 'rounded-t-md' : 'rounded-md'}`}
+                >
                     <button
                         onClick={handleToggleAll}
                         className="p-1 mr-2 text-gray-400 hover:text-white"
                         title={areAllVisible ? 'Hide All Indicators' : 'Show All Indicators'}
                     >
-                        {areAllVisible ? <EyeIcon className="w-4 h-4" /> : <EyeOffIcon className="w-4 h-4" />}
+                        {areAllVisible ? (
+                            <EyeIcon className="w-4 h-4" />
+                        ) : (
+                            <EyeOffIcon className="w-4 h-4" />
+                        )}
                     </button>
                     <button
-                        onClick={() => setIsExpanded(prev => !prev)}
+                        onClick={() => setIsExpanded((prev) => !prev)}
                         className="flex-grow flex items-center justify-between font-semibold"
                         aria-expanded={isExpanded}
                         aria-controls="indicator-list"
                     >
                         <span>Indicators ({indicators.length})</span>
-                        <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        <ChevronDownIcon
+                            className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        />
                     </button>
                 </div>
 
                 {isExpanded && (
                     <div id="indicator-list" className="p-2 border-t border-gray-700/50 space-y-2">
-                        {indicators.map(ind => (
-                            <div key={ind.id} className="flex items-center justify-between text-xs group">
+                        {indicators.map((ind) => (
+                            <div
+                                key={ind.id}
+                                className="flex items-center justify-between text-xs group"
+                            >
                                 <span
-                                    style={{ color: getIndicatorColor(ind) }}
-                                    className="font-semibold cursor-pointer transition-colors"
+                                    style={
+                                        {
+                                            '--indicator-color': getIndicatorColor(ind),
+                                        } as React.CSSProperties
+                                    }
+                                    className="indicator-label"
                                     onClick={() => onEdit(ind)}
                                     title={`Edit ${getIndicatorLabel(ind)}`}
                                 >
@@ -113,9 +129,13 @@ const ActiveIndicatorsDisplay: React.FC<ActiveIndicatorsDisplayProps> = ({
                                             onToggleVisibility(ind.id);
                                         }}
                                         className="p-0.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-sm"
-                                        title={ind.isVisible ? "Hide" : "Show"}
+                                        title={ind.isVisible ? 'Hide' : 'Show'}
                                     >
-                                        {ind.isVisible ? <EyeIcon className="w-3.5 h-3.5" /> : <EyeOffIcon className="w-3.5 h-3.5" />}
+                                        {ind.isVisible ? (
+                                            <EyeIcon className="w-3.5 h-3.5" />
+                                        ) : (
+                                            <EyeOffIcon className="w-3.5 h-3.5" />
+                                        )}
                                     </button>
                                     <button
                                         onClick={(e) => {

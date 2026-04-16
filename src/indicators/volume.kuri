@@ -1,0 +1,11 @@
+---
+version: kuri 1.0
+type: indicator
+name: Volume
+short: Vol
+pane: separate
+---
+
+vol = volume
+volColor = close >= open ? #10B981 : #EF4444
+mark(vol, title="Volume", color=volColor, style=mark.draw_bar)

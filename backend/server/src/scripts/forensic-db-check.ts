@@ -1,4 +1,3 @@
-
 import { supabaseAdmin } from '../services/supabaseAdmin';
 
 async function forensicAnalysis() {
@@ -29,7 +28,7 @@ async function forensicAnalysis() {
         console.error('Error fetching active signals:', err2);
     } else {
         const counts: Record<string, number> = {};
-        active?.forEach(s => {
+        active?.forEach((s) => {
             const key = `${s.symbol} (${s.strategy})`;
             counts[key] = (counts[key] || 0) + 1;
         });

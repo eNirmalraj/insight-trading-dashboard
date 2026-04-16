@@ -11,6 +11,7 @@
         "test:parity:simple": "tsx src/kuri/tests/parity/simple_test.ts"
     },
     "dependencies": {
+        "@google/generative-ai": "^0.24.1",
         "@monaco-editor/react": "^4.7.0",
         "@supabase/supabase-js": "^2.89.0",
         "@types/js-yaml": "^4.0.9",
@@ -25,6 +26,7 @@
     },
     "devDependencies": {
         "@types/node": "^22.19.11",
+        "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^5.0.0",
         "autoprefixer": "^10.4.23",
         "docx": "^9.6.1",

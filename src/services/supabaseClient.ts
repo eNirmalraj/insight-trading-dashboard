@@ -4,21 +4,33 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Support both Vite (import.meta.env) and Node.js (process.env)
-const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+const env =
+    typeof import.meta !== 'undefined' && import.meta.env
+        ? import.meta.env
+        : typeof process !== 'undefined'
+          ? process.env
+          : {};
 const supabaseUrl = env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
 
 // Create Supabase client (will be null-ish if no credentials provided)
 export const supabase: SupabaseClient | null =
-    supabaseUrl && supabaseAnonKey
-        ? createClient(supabaseUrl, supabaseAnonKey)
-        : null;
+    supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 /**
  * Check if Supabase is properly configured
  */
 export const isSupabaseConfigured = (): boolean => {
     return Boolean(supabaseUrl && supabaseAnonKey && supabase);
+};
+
+/**
+ * Non-null Supabase accessor. Throws if client is not configured.
+ * Use this instead of raw `supabase` to avoid null-check boilerplate.
+ */
+export const db = (): SupabaseClient => {
+    if (!supabase) throw new Error('Supabase not configured');
+    return supabase;
 };
 
 export default supabase;

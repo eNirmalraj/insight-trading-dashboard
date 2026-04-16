@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alert Modal — 3 Design Options</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #050507;
+    min-height: 100vh;
+    padding: 30px 20px 60px;
+  }
+
+  .page-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 300;
+    color: #666;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .page-sub {
+    text-align: center;
+    font-size: 13px;
+    color: #444;
+    margin-bottom: 40px;
+  }
+
+  .grid {
+    display: flex;
+    justify-content: center;
+    gap: 36px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .design-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .design-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding: 4px 16px;
+    border-radius: 20px;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     DESIGN A — "GLASS"
+     Frosted glass, soft glow, floating depth
+     ═══════════════════════════════════════════════════ */
+  .label-a { color: #a78bfa; background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.15); }
+
+  .glass {
+    width: 360px;
+    background: linear-gradient(135deg, rgba(30,28,40,0.92), rgba(18,16,26,0.96));
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(167,139,250,0.12);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow:
+      0 0 80px -20px rgba(167,139,250,0.12),
+      0 30px 60px -20px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  .glass .g-header {
+    padding: 18px 20px 14px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .glass .g-title-block {}
+  .glass .g-symbol {
+    font-size: 16px; font-weight: 600; color: #fff; letter-spacing: 0.5px;
+  }
+  .glass .g-type {
+    font-size: 10px; color: #a78bfa; font-weight: 500;
+    margin-top: 2px; letter-spacing: 0.5px;
+  }
+  .glass .g-close {
+    width: 28px; height: 28px; border: none; background: rgba(255,255,255,0.04);
+    color: #666; border-radius: 50%; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .glass .g-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+  .glass .g-body { padding: 4px 20px 16px; }
+
+  .glass .g-section { margin-bottom: 16px; }
+  .glass .g-label {
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.5px; color: rgba(167,139,250,0.5); margin-bottom: 8px;
+  }
+
+  /* Condition */
+  .glass .g-cond {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+  }
+  .glass .g-sym { font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
+  .glass .g-sel {
+    flex: 1; background: transparent; border: none;
+    font-size: 12px; color: #a78bfa; font-weight: 500;
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+  }
+  .glass .g-val {
+    background: transparent; border: none; border-left: 1px solid rgba(255,255,255,0.06);
+    padding-left: 10px; font-size: 13px; color: #fff; width: 90px; text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .glass .g-val:focus, .glass .g-sel:focus { outline: none; }
+
+  /* Trigger */
+  .glass .g-triggers {
+    display: flex; gap: 4px;
+  }
+  .glass .g-trig {
+    flex: 1; padding: 7px 4px; border: none; border-radius: 10px;
+    font-size: 10px; font-weight: 500; cursor: pointer;
+    text-align: center; transition: all 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .glass .g-trig.off { background: transparent; color: #444; }
+  .glass .g-trig.off:hover { color: #888; background: rgba(255,255,255,0.02); }
+  .glass .g-trig.on {
+    background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1));
+    color: #a78bfa;
+    box-shadow: 0 0 12px -4px rgba(167,139,250,0.2);
+  }
+
+  /* Actions */
+  .glass .g-actions { display: flex; gap: 8px; }
+  .glass .g-act {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px; border-radius: 10px; cursor: pointer;
+    font-size: 11px; font-weight: 500; transition: all 0.15s;
+  }
+  .glass .g-act.off {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    color: #444;
+  }
+  .glass .g-act.on {
+    background: rgba(167,139,250,0.08);
+    border: 1px solid rgba(167,139,250,0.18);
+    color: #a78bfa;
+  }
+  .glass .g-act svg { width: 14px; height: 14px; }
+
+  /* Message */
+  .glass .g-msg {
+    width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px; padding: 9px 12px; font-size: 11px; color: #666;
+    resize: none; font-family: 'Inter', sans-serif; transition: all 0.15s;
+  }
+  .glass .g-msg:focus { border-color: rgba(167,139,250,0.25); color: #aaa; outline: none; }
+
+  /* Footer */
+  .glass .g-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 20px 16px;
+  }
+  .glass .g-btn {
+    padding: 8px 20px; border-radius: 10px; font-size: 12px;
+    font-weight: 600; cursor: pointer; border: none;
+    font-family: 'Inter', sans-serif; transition: all 0.15s;
+  }
+  .glass .g-cancel { background: transparent; color: #555; }
+  .glass .g-cancel:hover { color: #aaa; }
+  .glass .g-create {
+    background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 4px 16px -4px rgba(139,92,246,0.4);
+  }
+  .glass .g-create:hover { box-shadow: 0 4px 20px -4px rgba(139,92,246,0.6); }
+
+  /* ═══════════════════════════════════════════════════
+     DESIGN B — "EDGE"
+     Sharp lines, accent stripe, technical elegance
+     ═══════════════════════════════════════════════════ */
+  .label-b { color: #34d399; background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.15); }
+
+  .edge {
+    width: 360px;
+    background: #0c0c0e;
+    border: 1px solid #1a1a1e;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px -15px rgba(0,0,0,0.8);
+  }
+
+  .edge .e-accent { height: 2px; background: linear-gradient(90deg, #34d399, #059669, transparent); }
+
+  .edge .e-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid #1a1a1e;
+  }
+  .edge .e-hleft { display: flex; align-items: center; gap: 10px; }
+  .edge .e-symbol {
+    font-size: 14px; font-weight: 700; color: #fff;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.5px;
+  }
+  .edge .e-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: #34d399; box-shadow: 0 0 6px #34d399;
+  }
+  .edge .e-type {
+    font-size: 10px; color: #34d399; font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .edge .e-close {
+    width: 24px; height: 24px; border: 1px solid #1a1a1e; background: transparent;
+    color: #444; border-radius: 3px; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .edge .e-close:hover { border-color: #333; color: #aaa; }
+
+  .edge .e-body { padding: 14px 16px; }
+  .edge .e-section { margin-bottom: 14px; }
+  .edge .e-label {
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 2px; color: #333; margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Condition */
+  .edge .e-cond {
+    display: flex; height: 36px; border: 1px solid #1a1a1e; border-radius: 3px; overflow: hidden;
+  }
+  .edge .e-cond > * {
+    border: none; border-right: 1px solid #1a1a1e;
+    background: transparent; padding: 0 10px;
+    font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  }
+  .edge .e-cond > *:last-child { border-right: none; }
+  .edge .e-cond > *:focus { outline: none; background: rgba(52,211,153,0.03); }
+  .edge .e-cond .e-sym { color: #fff; font-weight: 600; font-size: 11px; }
+  .edge .e-cond .e-op {
+    color: #34d399; appearance: none; cursor: pointer; padding-right: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg width='7' height='4' viewBox='0 0 7 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M.5.5l3 3 3-3' stroke='%23333' stroke-width='1' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+  }
+  .edge .e-cond .e-op option { background: #0c0c0e; }
+  .edge .e-cond .e-price {
+    width: 100px; text-align: right; color: #fff; font-size: 12px;
+  }
+
+  /* Trigger */
+  .edge .e-triggers { display: flex; gap: 2px; }
+  .edge .e-trig {
+    flex: 1; height: 30px; border: 1px solid #1a1a1e; border-radius: 3px;
+    font-size: 9.5px; font-weight: 600; cursor: pointer;
+    text-align: center; font-family: 'JetBrains Mono', monospace;
+    transition: all 0.1s; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .edge .e-trig.off { background: transparent; color: #333; }
+  .edge .e-trig.off:hover { border-color: #333; color: #666; }
+  .edge .e-trig.on {
+    background: rgba(52,211,153,0.06); border-color: rgba(52,211,153,0.2);
+    color: #34d399;
+  }
+
+  /* Actions */
+  .edge .e-actions { display: flex; gap: 4px; }
+  .edge .e-act {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+    height: 32px; border: 1px solid #1a1a1e; border-radius: 3px;
+    cursor: pointer; font-size: 10px; font-weight: 600;
+    font-family: 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.5px; transition: all 0.1s;
+  }
+  .edge .e-act.off { background: transparent; color: #333; }
+  .edge .e-act.on {
+    background: rgba(52,211,153,0.05); border-color: rgba(52,211,153,0.2);
+    color: #34d399;
+  }
+  .edge .e-act svg { width: 12px; height: 12px; }
+
+  /* Message */
+  .edge .e-msg {
+    width: 100%; background: transparent; border: 1px solid #1a1a1e;
+    border-radius: 3px; padding: 8px 10px; font-size: 11px; color: #555;
+    resize: none; font-family: 'JetBrains Mono', monospace; transition: all 0.1s;
+  }
+  .edge .e-msg:focus { border-color: rgba(52,211,153,0.2); color: #888; outline: none; }
+
+  /* Footer */
+  .edge .e-footer {
+    display: flex; justify-content: flex-end; gap: 6px;
+    padding: 10px 16px 14px; border-top: 1px solid #1a1a1e;
+  }
+  .edge .e-btn {
+    padding: 7px 18px; border-radius: 3px; font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none; font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.1s;
+  }
+  .edge .e-ghost { background: transparent; color: #444; }
+  .edge .e-ghost:hover { color: #888; }
+  .edge .e-go {
+    background: #34d399; color: #0c0c0e;
+  }
+  .edge .e-go:hover { background: #4ade80; }
+
+  /* ═══════════════════════════════════════════════════
+     DESIGN C — "SOFT"
+     Warm, rounded, subtle gradients, premium feel
+     ═══════════════════════════════════════════════════ */
+  .label-c { color: #f0a870; background: rgba(240,168,112,0.08); border: 1px solid rgba(240,168,112,0.15); }
+
+  .soft {
+    width: 360px;
+    background: #131315;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px -16px rgba(0,0,0,0.7);
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .soft .s-header {
+    padding: 20px 20px 0;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .soft .s-hleft { display: flex; align-items: center; gap: 10px; }
+  .soft .s-avatar {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, #f0a870, #e07840);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .soft .s-meta {}
+  .soft .s-symbol { font-size: 14px; font-weight: 600; color: #fff; }
+  .soft .s-type { font-size: 10px; color: #777; font-weight: 400; margin-top: 1px; }
+  .soft .s-close {
+    width: 28px; height: 28px; border: none; background: rgba(255,255,255,0.04);
+    color: #555; border-radius: 8px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .soft .s-close:hover { background: rgba(255,255,255,0.08); color: #aaa; }
+
+  .soft .s-body { padding: 16px 20px; }
+  .soft .s-section { margin-bottom: 16px; }
+  .soft .s-label {
+    font-size: 11px; font-weight: 500; color: #555; margin-bottom: 8px;
+  }
+
+  /* Condition — stacked */
+  .soft .s-cond {
+    background: rgba(255,255,255,0.02); border-radius: 12px;
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .soft .s-cond-row { display: flex; align-items: center; gap: 8px; }
+  .soft .s-chip {
+    padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; color: #fff;
+    background: rgba(240,168,112,0.1); border: 1px solid rgba(240,168,112,0.15);
+    white-space: nowrap;
+  }
+  .soft .s-sel {
+    flex: 1; appearance: none; -webkit-appearance: none;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 7px 24px 7px 10px; font-size: 12px;
+    color: #ccc; cursor: pointer; font-family: 'Inter', sans-serif;
+    background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23555' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+  }
+  .soft .s-sel:focus { outline: none; border-color: rgba(240,168,112,0.25); }
+  .soft .s-sel option { background: #1a1a1e; }
+  .soft .s-input {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; color: #fff;
+    font-family: 'JetBrains Mono', monospace; width: 100px; text-align: right;
+  }
+  .soft .s-input:focus { outline: none; border-color: rgba(240,168,112,0.25); }
+
+  /* Trigger — horizontal pills */
+  .soft .s-triggers {
+    display: flex; gap: 5px;
+  }
+  .soft .s-trig {
+    flex: 1; padding: 8px 4px; border: none; border-radius: 8px;
+    font-size: 10px; font-weight: 500; cursor: pointer;
+    text-align: center; transition: all 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .soft .s-trig.off { background: rgba(255,255,255,0.02); color: #444; }
+  .soft .s-trig.off:hover { background: rgba(255,255,255,0.04); color: #888; }
+  .soft .s-trig.on {
+    background: linear-gradient(135deg, rgba(240,168,112,0.12), rgba(224,120,64,0.08));
+    color: #f0a870;
+  }
+
+  /* Actions */
+  .soft .s-actions { display: flex; gap: 6px; }
+  .soft .s-act {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px; border-radius: 10px; cursor: pointer;
+    font-size: 11.5px; font-weight: 500; transition: all 0.15s;
+  }
+  .soft .s-act.off {
+    background: rgba(255,255,255,0.02); color: #444;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .soft .s-act.on {
+    background: rgba(240,168,112,0.06); color: #f0a870;
+    border: 1px solid rgba(240,168,112,0.12);
+  }
+  .soft .s-act svg { width: 14px; height: 14px; }
+
+  /* Message */
+  .soft .s-msg {
+    width: 100%; background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 10px; padding: 9px 12px; font-size: 11.5px; color: #666;
+    resize: none; font-family: 'Inter', sans-serif;
+  }
+  .soft .s-msg:focus { border-color: rgba(240,168,112,0.2); color: #aaa; outline: none; }
+
+  /* Footer */
+  .soft .s-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 8px 20px 18px;
+  }
+  .soft .s-btn {
+    padding: 9px 22px; border-radius: 10px; font-size: 12px;
+    font-weight: 600; cursor: pointer; border: none;
+    font-family: 'Inter', sans-serif; transition: all 0.15s;
+  }
+  .soft .s-ghost { background: transparent; color: #444; }
+  .soft .s-ghost:hover { color: #aaa; }
+  .soft .s-primary {
+    background: linear-gradient(135deg, #f0a870, #e07840);
+    color: #fff;
+    box-shadow: 0 4px 16px -6px rgba(224,120,64,0.4);
+  }
+  .soft .s-primary:hover { box-shadow: 0 4px 20px -4px rgba(224,120,64,0.5); }
+</style>
+</head>
+<body>
+
+<div class="page-title">Pick a Design</div>
+<div class="page-sub">Click through and choose the one that feels right</div>
+
+<div class="grid">
+
+<!-- ═══════════════ DESIGN A — GLASS ═══════════════ -->
+<div class="design-col">
+  <div class="design-label label-a">A &mdash; Glass</div>
+  <div class="glass">
+    <div class="g-header">
+      <div class="g-title-block">
+        <div class="g-symbol">DOGEUSDT</div>
+        <div class="g-type">Trend Line Alert</div>
+      </div>
+      <button class="g-close">&times;</button>
+    </div>
+    <div class="g-body">
+      <div class="g-section">
+        <div class="g-label">Condition</div>
+        <div class="g-cond">
+          <span class="g-sym">DOGE</span>
+          <select class="g-sel">
+            <option>Crossing</option><option>Crossing Up</option>
+            <option>Crossing Down</option><option>Greater Than</option><option>Less Than</option>
+          </select>
+          <input class="g-val" value="0.16842" />
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-label">Trigger</div>
+        <div class="g-triggers">
+          <button class="g-trig on">Once</button>
+          <button class="g-trig off">Per Bar</button>
+          <button class="g-trig off">Bar Close</button>
+          <button class="g-trig off">Per Min</button>
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-label">Actions</div>
+        <div class="g-actions">
+          <div class="g-act on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="g-act off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+      <div class="g-section">
+        <div class="g-label">Message</div>
+        <textarea class="g-msg" rows="1">DOGEUSDT Price Crossing 0.16842</textarea>
+      </div>
+    </div>
+    <div class="g-footer">
+      <button class="g-btn g-cancel">Cancel</button>
+      <button class="g-btn g-create">Create Alert</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DESIGN B — EDGE ═══════════════ -->
+<div class="design-col">
+  <div class="design-label label-b">B &mdash; Edge</div>
+  <div class="edge">
+    <div class="e-accent"></div>
+    <div class="e-header">
+      <div class="e-hleft">
+        <span class="e-symbol">DOGEUSDT</span>
+        <span class="e-dot"></span>
+        <span class="e-type">TREND_LINE</span>
+      </div>
+      <button class="e-close">&times;</button>
+    </div>
+    <div class="e-body">
+      <div class="e-section">
+        <div class="e-label">Condition</div>
+        <div class="e-cond">
+          <span class="e-sym">DOGE</span>
+          <select class="e-op">
+            <option>CROSSING</option><option>CROSS_UP</option>
+            <option>CROSS_DOWN</option><option>GT</option><option>LT</option>
+          </select>
+          <input class="e-price" value="0.16842" />
+        </div>
+      </div>
+      <div class="e-section">
+        <div class="e-label">Trigger</div>
+        <div class="e-triggers">
+          <button class="e-trig on">ONCE</button>
+          <button class="e-trig off">BAR</button>
+          <button class="e-trig off">CLOSE</button>
+          <button class="e-trig off">1MIN</button>
+        </div>
+      </div>
+      <div class="e-section">
+        <div class="e-label">Actions</div>
+        <div class="e-actions">
+          <div class="e-act on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            NOTIFY
+          </div>
+          <div class="e-act off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            SOUND
+          </div>
+        </div>
+      </div>
+      <div class="e-section">
+        <div class="e-label">Message</div>
+        <textarea class="e-msg" rows="1">DOGEUSDT CROSSING 0.16842</textarea>
+      </div>
+    </div>
+    <div class="e-footer">
+      <button class="e-btn e-ghost">CANCEL</button>
+      <button class="e-btn e-go">CREATE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DESIGN C — SOFT ═══════════════ -->
+<div class="design-col">
+  <div class="design-label label-c">C &mdash; Soft</div>
+  <div class="soft">
+    <div class="s-header">
+      <div class="s-hleft">
+        <div class="s-avatar">D</div>
+        <div class="s-meta">
+          <div class="s-symbol">DOGEUSDT</div>
+          <div class="s-type">Trend Line</div>
+        </div>
+      </div>
+      <button class="s-close">&times;</button>
+    </div>
+    <div class="s-body">
+      <div class="s-section">
+        <div class="s-label">Condition</div>
+        <div class="s-cond">
+          <div class="s-cond-row">
+            <span class="s-chip">DOGE</span>
+            <select class="s-sel">
+              <option>Crossing</option><option>Crossing Up</option>
+              <option>Crossing Down</option><option>Greater Than</option><option>Less Than</option>
+            </select>
+          </div>
+          <div class="s-cond-row">
+            <input class="s-input" value="0.16842" style="width:100%;text-align:left;" />
+          </div>
+        </div>
+      </div>
+      <div class="s-section">
+        <div class="s-label">Trigger</div>
+        <div class="s-triggers">
+          <button class="s-trig on">Once</button>
+          <button class="s-trig off">Per Bar</button>
+          <button class="s-trig off">Bar Close</button>
+          <button class="s-trig off">Per Min</button>
+        </div>
+      </div>
+      <div class="s-section">
+        <div class="s-label">Actions</div>
+        <div class="s-actions">
+          <div class="s-act on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="s-act off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+      <div class="s-section">
+        <div class="s-label">Message</div>
+        <textarea class="s-msg" rows="1">DOGEUSDT Price Crossing 0.16842</textarea>
+      </div>
+    </div>
+    <div class="s-footer">
+      <button class="s-btn s-ghost">Cancel</button>
+      <button class="s-btn s-primary">Create Alert</button>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

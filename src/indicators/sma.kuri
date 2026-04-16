@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Simple Moving Average
+short: SMA
+pane: overlay
+---
+
+len = param.int(9, title="Length", min=1)
+src = param.source(close, title="Source")
+out = kuri.sma(src, len)
+mark(out, title="SMA", color=color.blue, linewidth=2)

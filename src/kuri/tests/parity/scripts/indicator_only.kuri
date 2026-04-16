@@ -1,3 +1,0 @@
-ema20 = ema(close, 20)
-sma50 = sma(close, 50)
-rsi_val = rsi(close, 14)

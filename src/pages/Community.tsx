@@ -1,3 +1,4 @@
+// cspell:ignore hormozi backtesting
 import React, { useState, useEffect } from 'react';
 import { getSharedStrategies, likeStrategy } from '../services/socialService';
 import { SharedStrategy } from '../types/social';
@@ -14,7 +15,7 @@ import {
     NewspaperIcon,
     PlayIcon,
     GlobeIcon,
-    UserGroupIcon
+    UserGroupIcon,
 } from '../components/IconComponents';
 
 const Community: React.FC = () => {
@@ -50,11 +51,11 @@ const Community: React.FC = () => {
     const handleLike = async (id: string) => {
         try {
             await likeStrategy(id);
-            setStrategies(strategies.map(s =>
-                s.id === id
-                    ? { ...s, likes_count: s.likes_count + 1, is_liked_by_me: true }
-                    : s
-            ));
+            setStrategies(
+                strategies.map((s) =>
+                    s.id === id ? { ...s, likes_count: s.likes_count + 1, is_liked_by_me: true } : s
+                )
+            );
         } catch (err) {
             console.error('Failed to like', err);
         }
@@ -70,7 +71,7 @@ const Community: React.FC = () => {
             level: 'Intermediate',
             image: 'https://images.unsplash.com/photo-1611974765270-ca12586343bb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
             author: 'Alex Hormozi',
-            progress: 0
+            progress: 0,
         },
         {
             id: 2,
@@ -80,7 +81,7 @@ const Community: React.FC = () => {
             level: 'Beginner',
             image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
             author: 'QuantDad',
-            progress: 35
+            progress: 35,
         },
         {
             id: 3,
@@ -90,7 +91,7 @@ const Community: React.FC = () => {
             level: 'Advanced',
             image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
             author: 'TradingView',
-            progress: 100
+            progress: 100,
         },
         {
             id: 4,
@@ -100,19 +101,24 @@ const Community: React.FC = () => {
             level: 'Advanced',
             image: 'https://images.unsplash.com/photo-1555421689-491a97ff2040?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
             author: 'Insight Team',
-            progress: 0
-        }
+            progress: 0,
+        },
     ];
 
     // --- Components ---
 
-    const TabButton: React.FC<{ id: string; label: string; icon: any }> = ({ id, label, icon: Icon }) => (
+    const TabButton: React.FC<{ id: string; label: string; icon: any }> = ({
+        id,
+        label,
+        icon: Icon,
+    }) => (
         <button
             onClick={() => setActiveTab(id as any)}
-            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-t-lg transition-all border-b-2 ${activeTab === id
-                ? 'border-blue-500 text-white bg-blue-500/5'
-                : 'border-transparent text-gray-400 hover:text-white hover:bg-gray-800'
-                }`}
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-t-lg transition-all border-b-2 ${
+                activeTab === id
+                    ? 'border-blue-500 text-white bg-blue-500/5'
+                    : 'border-transparent text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
         >
             <Icon className={`w-4 h-4 ${activeTab === id ? 'text-blue-400' : ''}`} />
             {label}
@@ -124,14 +130,15 @@ const Community: React.FC = () => {
             {/* Feed Filters */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-[#202024] p-4 rounded-xl border border-gray-800">
                 <div className="flex items-center gap-1 bg-[#18181b] p-1 rounded-lg border border-gray-700">
-                    {['trending', 'top', 'new'].map(f => (
+                    {['trending', 'top', 'new'].map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
-                            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all uppercase tracking-wide ${filter === f
-                                ? 'bg-blue-600 text-white shadow-lg'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                                }`}
+                            className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all uppercase tracking-wide ${
+                                filter === f
+                                    ? 'bg-blue-600 text-white shadow-lg'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            }`}
                         >
                             {f}
                         </button>
@@ -147,7 +154,9 @@ const Community: React.FC = () => {
             </div>
 
             {/* Strategy Grid */}
-            {isLoading ? <Loader /> : (
+            {isLoading ? (
+                <Loader />
+            ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {strategies.length === 0 ? (
                         <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500 space-y-4">
@@ -157,27 +166,43 @@ const Community: React.FC = () => {
                             <p>No strategies found. Be the first to share one!</p>
                         </div>
                     ) : (
-                        strategies.map(strategy => (
-                            <div key={strategy.id} className="bg-[#202024] border border-gray-800 rounded-xl overflow-hidden hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5 transition-all group duration-300">
+                        strategies.map((strategy) => (
+                            <div
+                                key={strategy.id}
+                                className="bg-[#202024] border border-gray-800 rounded-xl overflow-hidden hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5 transition-all group duration-300"
+                            >
                                 <div className="p-5">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
                                                 {strategy.author_avatar ? (
-                                                    <img src={strategy.author_avatar} className="w-full h-full rounded-full" alt="avatar" />
+                                                    <img
+                                                        src={strategy.author_avatar}
+                                                        className="w-full h-full rounded-full"
+                                                        alt="avatar"
+                                                    />
                                                 ) : (
-                                                    strategy.author_name.substring(0, 2).toUpperCase()
+                                                    (strategy.author_name ?? '')
+                                                        .substring(0, 2)
+                                                        .toUpperCase()
                                                 )}
                                             </div>
                                             <div>
                                                 <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors cursor-pointer">
                                                     {strategy.strategy_name}
                                                 </h3>
-                                                <p className="text-xs text-gray-500">by {strategy.author_name}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    by {strategy.author_name}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className={`px-2 py-1 rounded text-xs font-mono font-bold ${strategy.performance_metrics.winRate > 60 ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'
-                                            }`}>
+                                        <div
+                                            className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                                                strategy.performance_metrics.winRate > 60
+                                                    ? 'bg-green-500/10 text-green-400'
+                                                    : 'bg-yellow-500/10 text-yellow-400'
+                                            }`}
+                                        >
                                             {strategy.performance_metrics.winRate}% WR
                                         </div>
                                     </div>
@@ -188,12 +213,20 @@ const Community: React.FC = () => {
 
                                     <div className="grid grid-cols-2 gap-2 mb-4">
                                         <div className="bg-[#18181b] p-3 rounded-lg text-center border border-gray-800/50">
-                                            <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Profit Factor</span>
-                                            <span className="font-mono text-sm text-white font-semibold">{strategy.performance_metrics.profitFactor}</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+                                                Profit Factor
+                                            </span>
+                                            <span className="font-mono text-sm text-white font-semibold">
+                                                {strategy.performance_metrics.profitFactor}
+                                            </span>
                                         </div>
                                         <div className="bg-[#18181b] p-3 rounded-lg text-center border border-gray-800/50">
-                                            <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Trades</span>
-                                            <span className="font-mono text-sm text-white font-semibold">{strategy.performance_metrics.totalTrades}</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+                                                Trades
+                                            </span>
+                                            <span className="font-mono text-sm text-white font-semibold">
+                                                {strategy.performance_metrics.totalTrades}
+                                            </span>
                                         </div>
                                     </div>
 
@@ -201,12 +234,15 @@ const Community: React.FC = () => {
                                         <button
                                             onClick={() => handleLike(strategy.id)}
                                             disabled={strategy.is_liked_by_me}
-                                            className={`flex items-center gap-2 text-xs font-semibold transition-colors px-3 py-1.5 rounded-full ${strategy.is_liked_by_me
-                                                ? 'text-pink-400 bg-pink-500/10'
-                                                : 'text-gray-400 hover:text-pink-400 hover:bg-gray-800'
-                                                }`}
+                                            className={`flex items-center gap-2 text-xs font-semibold transition-colors px-3 py-1.5 rounded-full ${
+                                                strategy.is_liked_by_me
+                                                    ? 'text-pink-400 bg-pink-500/10'
+                                                    : 'text-gray-400 hover:text-pink-400 hover:bg-gray-800'
+                                            }`}
                                         >
-                                            <HeartIcon className={`w-4 h-4 ${strategy.is_liked_by_me ? 'fill-current' : ''}`} />
+                                            <HeartIcon
+                                                className={`w-4 h-4 ${strategy.is_liked_by_me ? 'fill-current' : ''}`}
+                                            />
                                             {strategy.likes_count}
                                         </button>
 
@@ -231,10 +267,15 @@ const Community: React.FC = () => {
                 <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
                 <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
                     <div className="flex-1 space-y-4">
-                        <span className="inline-block px-3 py-1 bg-blue-500 text-white text-xs font-bold uppercase tracking-wider rounded-full">New Course</span>
-                        <h2 className="text-3xl md:text-4xl font-bold text-white">Algorithmic Trading Masterclass</h2>
+                        <span className="inline-block px-3 py-1 bg-blue-500 text-white text-xs font-bold uppercase tracking-wider rounded-full">
+                            New Course
+                        </span>
+                        <h2 className="text-3xl md:text-4xl font-bold text-white">
+                            Algorithmic Trading Masterclass
+                        </h2>
                         <p className="text-blue-100 text-lg max-w-xl">
-                            Learn how to build, test, and deploy automated trading strategies using Python and our proprietary engine.
+                            Learn how to build, test, and deploy automated trading strategies using
+                            Python and our proprietary engine.
                         </p>
                         <button className="mt-4 px-6 py-3 bg-white text-blue-900 font-bold rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2">
                             <PlayIcon className="w-5 h-5" /> Start Learning
@@ -254,7 +295,10 @@ const Community: React.FC = () => {
                     { name: 'Articles', icon: NewspaperIcon, count: 89 },
                     { name: 'Live Events', icon: GlobeIcon, count: 2 },
                 ].map((cat) => (
-                    <div key={cat.name} className="bg-[#202024] p-4 rounded-xl border border-gray-800 hover:border-blue-500/30 hover:bg-[#25252a] transition-all cursor-pointer group">
+                    <div
+                        key={cat.name}
+                        className="bg-[#202024] p-4 rounded-xl border border-gray-800 hover:border-blue-500/30 hover:bg-[#25252a] transition-all cursor-pointer group"
+                    >
                         <cat.icon className="w-8 h-8 text-blue-500 mb-3 group-hover:scale-110 transition-transform" />
                         <h3 className="font-bold text-white">{cat.name}</h3>
                         <p className="text-xs text-gray-500">{cat.count} items</p>
@@ -269,30 +313,51 @@ const Community: React.FC = () => {
                     Latest Resources
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {educationResources.map(resource => (
-                        <div key={resource.id} className="bg-[#202024] rounded-xl overflow-hidden border border-gray-800 hover:border-blue-500/30 hover:shadow-xl transition-all group flex flex-col h-full">
+                    {educationResources.map((resource) => (
+                        <div
+                            key={resource.id}
+                            className="bg-[#202024] rounded-xl overflow-hidden border border-gray-800 hover:border-blue-500/30 hover:shadow-xl transition-all group flex flex-col h-full"
+                        >
                             <div className="relative h-40 overflow-hidden">
-                                <img src={resource.image} alt={resource.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <style>{`
+                                    .progress-bar-w-${resource.id} { width: ${resource.progress}%; }
+                                `}</style>
+                                <img
+                                    src={resource.image}
+                                    alt={resource.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
                                 <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-xs text-white font-medium">
                                     {resource.type}
                                 </div>
                                 {resource.progress > 0 && (
                                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700">
-                                        <div className="h-full bg-green-500" style={{ width: `${resource.progress}%` }}></div>
+                                        <div
+                                            className={`h-full bg-green-500 progress-bar-w-${resource.id}`}
+                                        ></div>
                                     </div>
                                 )}
                             </div>
                             <div className="p-4 flex-1 flex flex-col">
                                 <div className="flex justify-between items-start mb-2">
-                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${resource.level === 'Beginner' ? 'bg-green-500/10 text-green-400' :
-                                        resource.level === 'Intermediate' ? 'bg-yellow-500/10 text-yellow-400' :
-                                            'bg-red-500/10 text-red-400'
-                                        }`}>{resource.level}</span>
+                                    <span
+                                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                            resource.level === 'Beginner'
+                                                ? 'bg-green-500/10 text-green-400'
+                                                : resource.level === 'Intermediate'
+                                                  ? 'bg-yellow-500/10 text-yellow-400'
+                                                  : 'bg-red-500/10 text-red-400'
+                                        }`}
+                                    >
+                                        {resource.level}
+                                    </span>
                                     <span className="text-xs text-gray-500 flex items-center gap-1">
                                         <PlayIcon className="w-3 h-3" /> {resource.duration}
                                     </span>
                                 </div>
-                                <h4 className="font-bold text-white mb-1 group-hover:text-blue-400 transition-colors line-clamp-2">{resource.title}</h4>
+                                <h4 className="font-bold text-white mb-1 group-hover:text-blue-400 transition-colors line-clamp-2">
+                                    {resource.title}
+                                </h4>
                                 <p className="text-xs text-gray-500 mb-4">by {resource.author}</p>
 
                                 <div className="mt-auto pt-4 border-t border-gray-800">
@@ -319,7 +384,8 @@ const Community: React.FC = () => {
                             Community & Hub
                         </h1>
                         <p className="text-gray-400 mt-2 max-w-2xl text-sm md:text-base">
-                            The central place for trading knowledge, social strategies, and community events. Learn, share, and grow together.
+                            The central place for trading knowledge, social strategies, and
+                            community events. Learn, share, and grow together.
                         </p>
                     </div>
 

@@ -1,4 +1,3 @@
-
 /**
  * specific precision rules for crypto symbols.
  * In a real app, this would be fetched from the exchange API (e.g. GET /api/v3/exchangeInfo).
@@ -8,31 +7,30 @@
 export interface SymbolPrecision {
     stepSize: number; // For Quantity (e.g. 0.001 BTC)
     tickSize: number; // For Price (e.g. 0.01 USDT)
-    minQty: number;   // Minimum order quantity
+    minQty: number; // Minimum order quantity
 }
 
 export const DEFAULT_PRECISION: SymbolPrecision = {
     stepSize: 0.0001,
     tickSize: 0.01,
-    minQty: 0.0001
+    minQty: 0.0001,
 };
 
 // Hardcoded defaults for top pairs to make paper trading realistic
 export const SYMBOL_PRECISION_MAP: Record<string, SymbolPrecision> = {
-    'BTCUSDT': { stepSize: 0.001, tickSize: 0.01, minQty: 0.001 },
-    'ETHUSDT': { stepSize: 0.01, tickSize: 0.01, minQty: 0.01 },
-    'SOLUSDT': { stepSize: 1, tickSize: 0.01, minQty: 1 },
-    'BNBUSDT': { stepSize: 0.01, tickSize: 0.1, minQty: 0.01 },
-    'XRPUSDT': { stepSize: 1, tickSize: 0.0001, minQty: 10 },
-    'ADAUSDT': { stepSize: 1, tickSize: 0.0001, minQty: 10 },
-    'DOGEUSDT': { stepSize: 1, tickSize: 0.00001, minQty: 10 },
-    'DOTUSDT': { stepSize: 0.1, tickSize: 0.001, minQty: 1 },
-    'LTCUSDT': { stepSize: 0.001, tickSize: 0.01, minQty: 0.001 },
-    'MATICUSDT': { stepSize: 1, tickSize: 0.0001, minQty: 10 },
+    BTCUSDT: { stepSize: 0.001, tickSize: 0.01, minQty: 0.001 },
+    ETHUSDT: { stepSize: 0.01, tickSize: 0.01, minQty: 0.01 },
+    SOLUSDT: { stepSize: 1, tickSize: 0.01, minQty: 1 },
+    BNBUSDT: { stepSize: 0.01, tickSize: 0.1, minQty: 0.01 },
+    XRPUSDT: { stepSize: 1, tickSize: 0.0001, minQty: 10 },
+    ADAUSDT: { stepSize: 1, tickSize: 0.0001, minQty: 10 },
+    DOGEUSDT: { stepSize: 1, tickSize: 0.00001, minQty: 10 },
+    DOTUSDT: { stepSize: 0.1, tickSize: 0.001, minQty: 1 },
+    LTCUSDT: { stepSize: 0.001, tickSize: 0.01, minQty: 0.001 },
+    MATICUSDT: { stepSize: 1, tickSize: 0.0001, minQty: 10 },
 };
 
 export class SymbolUtils {
-
     /**
      * Get precision settings for a symbol.
      * Returns hardcoded defaults if not found.

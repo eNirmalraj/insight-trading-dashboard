@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -9,14 +8,14 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing Supabase credentials");
+    console.error('Missing Supabase credentials');
     process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const testMonitoring = async () => {
-    console.log("🔍 Fetching an active signal to test...");
+    console.log('🔍 Fetching an active signal to test...');
 
     const { data: signal, error: fetchError } = await supabase
         .from('signals')
@@ -26,17 +25,22 @@ const testMonitoring = async () => {
         .single();
 
     if (fetchError || !signal) {
-        console.error("No active signal found to test.", fetchError);
+        console.error('No active signal found to test.', fetchError);
         return;
     }
 
-    console.log(`📡 Found signal: ${signal.symbol} ${signal.direction} Entry: ${signal.entry_price} TP: ${signal.take_profit} SL: ${signal.stop_loss}`);
+    console.log(
+        `📡 Found signal: ${signal.symbol} ${signal.direction} Entry: ${signal.entry_price} TP: ${signal.take_profit} SL: ${signal.stop_loss}`
+    );
 
-    // Since we can't easily trigger the running backend's memory, we'll verify the Logic 
+    // Since we can't easily trigger the running backend's memory, we'll verify the Logic
     // by manually calling the updateSignalStatus function (or simulating what it would do).
     // Actually, let's just use the monitor's code logic to see if it would trigger.
 
-    const currentPrice = signal.direction === 'BUY' ? (signal.take_profit || signal.entry_price * 1.1) : (signal.take_profit || signal.entry_price * 0.9);
+    const currentPrice =
+        signal.direction === 'BUY'
+            ? signal.take_profit || signal.entry_price * 1.1
+            : signal.take_profit || signal.entry_price * 0.9;
 
     console.log(`🚀 Simulating Price: ${currentPrice}`);
 
@@ -67,27 +71,29 @@ const testMonitoring = async () => {
     }
 
     if (shouldClose) {
-        console.log(`✅ Logic Check PASSED: Signal would close as ${closeReason} with ${profitLoss.toFixed(2)}% PnL`);
+        console.log(
+            `✅ Logic Check PASSED: Signal would close as ${closeReason} with ${profitLoss.toFixed(2)}% PnL`
+        );
 
         // Now try to update the DB to verify the updateSignalStatus service
-        console.log("💾 Testing DB update...");
+        console.log('💾 Testing DB update...');
         const { error: updateError } = await supabase
             .from('signals')
             .update({
                 status: 'Closed',
                 close_reason: closeReason,
                 profit_loss: profitLoss,
-                closed_at: new Date().toISOString()
+                closed_at: new Date().toISOString(),
             })
             .eq('id', signal.id);
 
         if (updateError) {
-            console.error("❌ DB Update FAILED:", updateError);
+            console.error('❌ DB Update FAILED:', updateError);
         } else {
-            console.log("✅ DB Update SUCCESSFUL. Engine logic and DB connectivity verified.");
+            console.log('✅ DB Update SUCCESSFUL. Engine logic and DB connectivity verified.');
         }
     } else {
-        console.log("❌ Logic Check FAILED: Signal would NOT close with the simulated price.");
+        console.log('❌ Logic Check FAILED: Signal would NOT close with the simulated price.');
     }
 };
 

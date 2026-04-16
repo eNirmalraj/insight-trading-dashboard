@@ -1,127 +1,98 @@
 // src/services/strategyService.ts
-import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { Strategy, StrategyParameter } from '../types';
+import { db, isSupabaseConfigured } from './supabaseClient';
+import { Strategy } from '../types';
 
 export const getStrategies = async (): Promise<Strategy[]> => {
     if (!isSupabaseConfigured()) {
         return [];
     }
 
-    const { data, error } = await supabase
-        .from('strategies')
-        .select(`
-            *,
-            strategy_parameters (*)
-        `)
+    const { data, error } = await db()
+        .from('scripts')
+        .select('*')
         .order('created_at', { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+        // Gracefully degrade: log the error but return empty list so the UI
+        // doesn't surface a scary banner when the scripts table is empty,
+        // misconfigured, or transiently unreachable.
+        console.warn('[strategyService] getStrategies failed:', error.message);
+        return [];
+    }
 
-    return data.map((d: any) => {
-        if (d.content) {
-            // If content column exists, use it as the source of truth for the script structure
-            // but ensure DB-managed fields (ID) are preserved.
-            return {
-                ...d.content,
-                id: d.id,
-                isActive: d.is_active,
-                // Ensure type matches DB column if needed, or trust content
-                type: d.type || d.content.type || 'STRATEGY'
-            };
-        }
-        // Fallback for old records
+    return (data || []).map((d: any) => {
+        // Read configuration from the jsonb column if available
+        const config =
+            d.configuration && typeof d.configuration === 'object' ? d.configuration : {};
         return {
             id: d.id,
-            name: d.name,
-            description: d.description,
-            timeframe: d.timeframe,
-            symbolScope: d.symbol_scope,
-            entryRules: d.entry_rules,
-            exitRules: d.exit_rules,
-            indicators: d.indicators,
-            isActive: d.is_active,
-            parameters: d.strategy_parameters,
-            type: d.type || 'STRATEGY',
-            tradingMode: d.trading_mode || 'paper' // Added field
+            name: d.name || '',
+            description: d.description || '',
+            timeframe: config.timeframe || '1h',
+            symbolScope: config.symbolScope || [],
+            entryRules: config.entryRules || [],
+            exitRules: config.exitRules || [],
+            indicators: config.indicators || [],
+            isActive: d.is_active ?? true,
+            type: d.script_type || 'STRATEGY',
+            scriptSource: d.source_code || '',
         };
     });
 };
 
-export const saveStrategy = async (strategy: Omit<Strategy, 'id'> & { id?: string }): Promise<void> => {
-    const { data: { user } } = await supabase.auth.getUser();
+export const saveStrategy = async (
+    strategy: Omit<Strategy, 'id'> & { id?: string }
+): Promise<string> => {
+    const {
+        data: { user },
+    } = await db().auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    if (strategy.id && !strategy.id.startsWith('new-') && !strategy.id.startsWith('builtin-')) {
-        // UPDATE existing strategy
-        const { error: sError } = await supabase
-            .from('strategies')
-            .update({
-                name: strategy.name,
-                description: strategy.description,
-                timeframe: strategy.timeframe,
-                symbol_scope: strategy.symbolScope,
-                entry_rules: strategy.entryRules,
-                exit_rules: strategy.exitRules,
-                indicators: strategy.indicators,
-                is_active: strategy.isActive,
-                type: strategy.type,
-                content: strategy // Save full JSON content
-            })
-            .eq('id', strategy.id)
-            .eq('user_id', user.id); // Security check
+    const row = {
+        name: strategy.name,
+        description: strategy.description || '',
+        script_type: strategy.type || 'STRATEGY',
+        is_active: strategy.isActive ?? true,
+        source_code: strategy.scriptSource || '',
+        configuration: {
+            timeframe: strategy.timeframe,
+            symbolScope: strategy.symbolScope,
+            entryRules: strategy.entryRules,
+            exitRules: strategy.exitRules,
+            indicators: strategy.indicators,
+        },
+    };
 
-        if (sError) throw new Error(sError.message);
+    if (strategy.id && !strategy.id.startsWith('new-') && !strategy.id.startsWith('builtin-')) {
+        // UPDATE existing script
+        const { error } = await db()
+            .from('scripts')
+            .update(row)
+            .eq('id', strategy.id)
+            .eq('user_id', user.id);
+
+        if (error) throw new Error(error.message);
+        return strategy.id;
     } else {
-        // INSERT new strategy
-        const { data: sData, error: sError } = await supabase
-            .from('strategies')
-            .insert({
-                user_id: user.id,
-                name: strategy.name,
-                description: strategy.description,
-                timeframe: strategy.timeframe,
-                symbol_scope: strategy.symbolScope,
-                entry_rules: strategy.entryRules,
-                exit_rules: strategy.exitRules,
-                indicators: strategy.indicators,
-                is_active: strategy.isActive,
-                type: strategy.type,
-                content: strategy // Save full JSON content
-            })
-            .select()
+        // INSERT new script
+        const { data, error } = await db()
+            .from('scripts')
+            .insert({ ...row, user_id: user.id })
+            .select('id')
             .single();
 
-        if (sError) throw new Error(sError.message);
-
-        // For new strategies, we'd normally handle params here, but basic logic above suffices for now.
-        // We might want to clear old params on update if we supported them fully.
-
-        if (strategy.parameters && strategy.parameters.length > 0) {
-            const params = strategy.parameters.map(p => ({
-                strategy_id: sData.id,
-                name: p.name,
-                value: p.value,
-                type: p.type
-            }));
-
-            const { error: pError } = await supabase
-                .from('strategy_parameters')
-                .insert(params);
-
-            if (pError) throw new Error(pError.message);
-        }
+        if (error) throw new Error(error.message);
+        return data.id;
     }
 };
 
 export const deleteStrategy = async (id: string): Promise<void> => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await db().auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    const { error } = await supabase
-        .from('strategies')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+    const { error } = await db().from('scripts').delete().eq('id', id).eq('user_id', user.id);
 
     if (error) throw new Error(error.message);
 };
@@ -130,11 +101,13 @@ export const validateStrategyJson = (json: any): { valid: boolean; errors: strin
     const errors: string[] = [];
     if (!json.name) errors.push('Missing "name"');
     if (!json.timeframe) errors.push('Missing "timeframe"');
-    if (!json.indicators || !Array.isArray(json.indicators)) errors.push('Missing or invalid "indicators" array');
-    // Rules optional for Indicators?
+    if (!json.indicators || !Array.isArray(json.indicators))
+        errors.push('Missing or invalid "indicators" array');
     if (json.type === 'STRATEGY') {
-        if (!json.entry_rules || !Array.isArray(json.entry_rules)) errors.push('Missing or invalid "entry_rules" array');
-        if (!json.exit_rules || !Array.isArray(json.exit_rules)) errors.push('Missing or invalid "exit_rules" array');
+        if (!json.entry_rules || !Array.isArray(json.entry_rules))
+            errors.push('Missing or invalid "entry_rules" array');
+        if (!json.exit_rules || !Array.isArray(json.exit_rules))
+            errors.push('Missing or invalid "exit_rules" array');
     }
 
     return { valid: errors.length === 0, errors };

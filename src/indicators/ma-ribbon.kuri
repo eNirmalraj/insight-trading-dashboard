@@ -1,0 +1,29 @@
+---
+version: kuri 1.0
+type: indicator
+name: Moving Average Ribbon
+short: MA Ribbon
+pane: overlay
+---
+
+ma1_length = param.int(20, title="MA #1 Length", min=1)
+ma1_color = param.color(#f6c309, title="MA #1 Color")
+
+ma2_length = param.int(50, title="MA #2 Length", min=1)
+ma2_color = param.color(#fb9800, title="MA #2 Color")
+
+ma3_length = param.int(100, title="MA #3 Length", min=1)
+ma3_color = param.color(#fb6500, title="MA #3 Color")
+
+ma4_length = param.int(200, title="MA #4 Length", min=1)
+ma4_color = param.color(#f60c0c, title="MA #4 Color")
+
+ma1 = kuri.sma(close, ma1_length)
+ma2 = kuri.sma(close, ma2_length)
+ma3 = kuri.sma(close, ma3_length)
+ma4 = kuri.sma(close, ma4_length)
+
+mark(ma1, title="MA #1", color=ma1_color)
+mark(ma2, title="MA #2", color=ma2_color)
+mark(ma3, title="MA #3", color=ma3_color)
+mark(ma4, title="MA #4", color=ma4_color)

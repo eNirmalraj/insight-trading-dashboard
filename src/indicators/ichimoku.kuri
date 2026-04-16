@@ -1,0 +1,30 @@
+---
+version: kuri 1.0
+type: indicator
+name: Ichimoku Cloud
+short: Ichimoku
+pane: overlay
+---
+
+conversionPeriods = param.int(9, title="Conversion Line Length", min=1)
+basePeriods = param.int(26, title="Base Line Length", min=1)
+laggingSpan2Periods = param.int(52, title="Leading Span B Length", min=1)
+
+convLow = kuri.lowest(low, conversionPeriods)
+convHigh = kuri.highest(high, conversionPeriods)
+conversionLine = (convLow + convHigh) / 2
+
+baseLow = kuri.lowest(low, basePeriods)
+baseHigh = kuri.highest(high, basePeriods)
+baseLine = (baseLow + baseHigh) / 2
+
+leadLine1 = (conversionLine + baseLine) / 2
+
+spanBLow = kuri.lowest(low, laggingSpan2Periods)
+spanBHigh = kuri.highest(high, laggingSpan2Periods)
+leadLine2 = (spanBLow + spanBHigh) / 2
+
+mark(conversionLine, title="Conversion Line", color=#2962FF)
+mark(baseLine, title="Base Line", color=#B71C1C)
+mark(leadLine1, title="Leading Span A", color=#A5D6A7)
+mark(leadLine2, title="Leading Span B", color=#EF9A9A)

@@ -44,6 +44,7 @@ export interface Signal {
     timeframe: Timeframe;
     chartData?: any[];
     closeReason?: 'TP' | 'SL' | 'MANUAL' | 'TIMEOUT';
+    closePrice?: number;
     profitLoss?: number;
     isPinned?: boolean;
     activatedAt?: string;

@@ -1,0 +1,23 @@
+---
+version: kuri 1.0
+type: indicator
+name: Stochastic
+short: Stoch
+pane: separate
+---
+
+periodK = param.int(14, title="%K Length", min=1)
+smoothK = param.int(1, title="%K Smoothing", min=1)
+periodD = param.int(3, title="%D Smoothing", min=1)
+
+hh = kuri.highest(high, periodK)
+ll = kuri.lowest(low, periodK)
+rawK = (hh - ll) != 0 ? (close - ll) / (hh - ll) * 100 : 50
+k = kuri.sma(rawK, smoothK)
+d = kuri.sma(k, periodD)
+
+mark(k, title="%K", color=#2962FF)
+mark(d, title="%D", color=#FF6D00)
+mark.level(80, title="Overbought", color=#787B86)
+mark.level(50, title="Middle", color=#787B86)
+mark.level(20, title="Oversold", color=#787B86)

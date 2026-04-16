@@ -1,4 +1,0 @@
-fast = ema(close, 10)
-slow = ema(close, 20)
-buy = crossover(fast, slow)
-sell = crossunder(fast, slow)

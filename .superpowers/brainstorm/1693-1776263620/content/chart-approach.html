@@ -1,0 +1,255 @@
+<h2>Chart Approach</h2>
+<p class="subtitle">A = click opens a full chart view. B = preview embedded inside every card. Click to select.</p>
+
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; }
+  .demo-wrap { background:#0f0f13; padding:14px; border-radius:8px; }
+
+  /* Signal card mock */
+  .sig-card {
+    background:#14141a; border:1px solid #2a2a35; border-left:3px solid #22c55e;
+    border-radius:10px; padding:14px; font-size:12px; color:#e5e7eb;
+    display:flex; flex-direction:column; gap:10px; max-width:320px;
+  }
+  .sig-head { display:flex; justify-content:space-between; align-items:flex-start; }
+  .sig-pair { font-weight:700; color:#fff; font-size:18px; }
+  .sig-tf { font-size:10px; color:#94a3b8; background:#1f1f2a; padding:2px 7px; border-radius:4px; margin-left:6px; }
+  .sig-strat { color:#94a3b8; font-size:11px; margin-top:3px; }
+  .sig-badges { display:flex; gap:4px; }
+  .badge { font-size:9px; padding:2px 7px; border-radius:3px; font-weight:700; text-transform:uppercase; }
+  .b-buy { background:rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.3); }
+  .b-active { background:#1f2937; color:#cbd5e1; }
+
+  .pnl-block { background:rgba(30,30,40,0.5); border:1px solid rgba(55,65,81,0.4); border-radius:8px; padding:8px; }
+  .pnl-header { display:flex; justify-content:space-between; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; margin-bottom:6px; }
+  .pnl-val { color:#22c55e; font-family:ui-monospace,monospace; font-size:13px; }
+  .pnl-bar { position:relative; height:5px; background:#111116; border-radius:3px; }
+  .pnl-bar .tick { position:absolute; left:50%; top:-2px; width:1px; height:9px; background:#64748b; }
+  .pnl-bar .fill { position:absolute; top:0; left:50%; height:100%; width:18%; background:linear-gradient(90deg,#16a34a,#22c55e); border-radius:3px; }
+
+  .price-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; text-align:center; }
+  .price-cell { background:rgba(30,30,40,0.4); border:1px solid rgba(55,65,81,0.3); border-radius:6px; padding:6px 4px; }
+  .price-cell .lbl { font-size:9px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+  .price-cell .val { font-size:11px; font-family:ui-monospace,monospace; font-weight:700; margin-top:2px; }
+  .price-cell .val.entry { color:#fff; }
+  .price-cell .val.sl { color:#ef4444; }
+  .price-cell .val.tp { color:#22c55e; }
+  .price-cell .val.rr { color:#3b82f6; }
+
+  .sig-actions { display:flex; justify-content:flex-end; gap:6px; padding-top:8px; border-top:1px solid #374151; }
+  .sig-btn { font-size:10px; padding:4px 10px; border-radius:5px; border:1px solid #374151; background:#1f2937; color:#cbd5e1; }
+  .sig-btn.chart { background:#1f1f2a; }
+  .sig-btn.exec { background:rgba(34,197,94,0.15); color:#22c55e; border-color:rgba(34,197,94,0.3); }
+
+  /* Embedded preview for B */
+  .mini-chart {
+    background:#0b0b10; border:1px solid #1f1f2a; border-radius:6px; padding:6px;
+  }
+  .mini-chart svg { width:100%; height:70px; display:block; }
+
+  /* Full-screen chart overlay for A */
+  .full-chart-wrap {
+    background:#0a0a0f; border:1px solid #2a2a35; border-radius:8px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .full-chart-toolbar {
+    display:flex; align-items:center; gap:10px; padding:10px 14px;
+    background:#111116; border-bottom:1px solid #1f1f2a; font-size:11px;
+  }
+  .full-chart-toolbar .ft-sym { font-weight:700; color:#fff; font-size:14px; }
+  .full-chart-toolbar .ft-tf { background:#1f1f2a; border:1px solid #2a2a35; padding:2px 7px; border-radius:4px; color:#cbd5e1; font-size:10px; }
+  .full-chart-toolbar .ft-ind {
+    background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.4); color:#a78bfa;
+    padding:2px 7px; border-radius:4px; font-size:10px;
+  }
+  .full-chart-toolbar .ft-spacer { flex:1; }
+  .full-chart-toolbar .ft-close { background:#1f1f2a; border:1px solid #2a2a35; color:#cbd5e1; padding:3px 9px; border-radius:4px; font-size:11px; }
+
+  .full-chart-body { background:#0a0a0f; padding:14px; }
+  .full-chart-body svg { width:100%; height:260px; display:block; }
+</style>
+
+<div class="cards">
+  <!-- OPTION A -->
+  <div class="card" data-choice="a-fullchart" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f; padding:14px;">
+      <!-- small cards on left, arrow, full chart on right -->
+      <div style="display:flex; align-items:center; gap:10px;">
+        <!-- Signal card as-is (no preview) -->
+        <div class="sig-card" style="flex:0 0 auto; transform:scale(0.82); transform-origin:top left;">
+          <div class="sig-head">
+            <div>
+              <span class="sig-pair">BTCUSDT</span>
+              <span class="sig-tf">1H</span>
+              <div class="sig-strat">SMA Trend</div>
+            </div>
+            <div class="sig-badges">
+              <span class="badge b-active">Active</span>
+              <span class="badge b-buy">BUY</span>
+            </div>
+          </div>
+          <div class="pnl-block">
+            <div class="pnl-header"><span>P&amp;L</span><span class="pnl-val">+1.23%</span></div>
+            <div class="pnl-bar"><div class="tick"></div><div class="fill"></div></div>
+          </div>
+          <div class="price-grid">
+            <div class="price-cell"><div class="lbl">Entry</div><div class="val entry">67,421</div></div>
+            <div class="price-cell"><div class="lbl">Stop</div><div class="val sl">66,100</div></div>
+            <div class="price-cell"><div class="lbl">Target</div><div class="val tp">68,900</div></div>
+            <div class="price-cell"><div class="lbl">R:R</div><div class="val rr">1:2</div></div>
+          </div>
+          <div class="sig-actions">
+            <button class="sig-btn chart">Chart</button>
+            <button class="sig-btn exec">Execute</button>
+          </div>
+        </div>
+
+        <div style="flex:0 0 30px; color:#64748b; font-size:24px; text-align:center;">→</div>
+
+        <!-- Full chart modal mock -->
+        <div class="full-chart-wrap" style="flex:1; min-width:0;">
+          <div class="full-chart-toolbar">
+            <span class="ft-sym">BTCUSDT</span>
+            <span class="ft-tf">1H</span>
+            <span class="ft-ind">SMA 20</span>
+            <span class="ft-ind">SMA 50</span>
+            <div class="ft-spacer"></div>
+            <button class="ft-close">Close</button>
+          </div>
+          <div class="full-chart-body">
+            <svg viewBox="0 0 500 260">
+              <defs>
+                <linearGradient id="aFull" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#22c55e" stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- SL / Entry / TP -->
+              <line x1="0" y1="60" x2="500" y2="60" stroke="#22c55e" stroke-dasharray="5,4" stroke-width="1"/>
+              <text x="496" y="56" text-anchor="end" font-size="9" fill="#22c55e" font-family="monospace">TP 68,900</text>
+              <line x1="0" y1="140" x2="500" y2="140" stroke="#eab308" stroke-dasharray="5,4" stroke-width="1"/>
+              <text x="496" y="136" text-anchor="end" font-size="9" fill="#eab308" font-family="monospace">E 67,421</text>
+              <line x1="0" y1="210" x2="500" y2="210" stroke="#ef4444" stroke-dasharray="5,4" stroke-width="1"/>
+              <text x="496" y="206" text-anchor="end" font-size="9" fill="#ef4444" font-family="monospace">SL 66,100</text>
+              <!-- Mock candles -->
+              <g stroke="#22c55e" fill="#22c55e">
+                <line x1="20" y1="155" x2="20" y2="175" stroke-width="1"/><rect x="15" y="160" width="10" height="12"/>
+                <line x1="40" y1="150" x2="40" y2="170" stroke-width="1"/><rect x="35" y="155" width="10" height="12"/>
+              </g>
+              <g stroke="#ef4444" fill="#ef4444">
+                <line x1="60" y1="148" x2="60" y2="168" stroke-width="1"/><rect x="55" y="152" width="10" height="12"/>
+              </g>
+              <g stroke="#22c55e" fill="#22c55e">
+                <line x1="80" y1="140" x2="80" y2="160" stroke-width="1"/><rect x="75" y="144" width="10" height="12"/>
+                <line x1="100" y1="135" x2="100" y2="155" stroke-width="1"/><rect x="95" y="138" width="10" height="12"/>
+                <line x1="120" y1="130" x2="120" y2="148" stroke-width="1"/><rect x="115" y="134" width="10" height="10"/>
+                <line x1="140" y1="125" x2="140" y2="145" stroke-width="1"/><rect x="135" y="130" width="10" height="10"/>
+                <line x1="160" y1="120" x2="160" y2="140" stroke-width="1"/><rect x="155" y="124" width="10" height="10"/>
+                <line x1="180" y1="118" x2="180" y2="138" stroke-width="1"/><rect x="175" y="122" width="10" height="10"/>
+                <line x1="200" y1="115" x2="200" y2="132" stroke-width="1"/><rect x="195" y="118" width="10" height="10"/>
+              </g>
+              <g stroke="#ef4444" fill="#ef4444">
+                <line x1="220" y1="112" x2="220" y2="128" stroke-width="1"/><rect x="215" y="116" width="10" height="8"/>
+              </g>
+              <g stroke="#22c55e" fill="#22c55e">
+                <line x1="240" y1="108" x2="240" y2="124" stroke-width="1"/><rect x="235" y="112" width="10" height="8"/>
+                <line x1="260" y1="104" x2="260" y2="122" stroke-width="1"/><rect x="255" y="108" width="10" height="10"/>
+                <line x1="280" y1="102" x2="280" y2="118" stroke-width="1"/><rect x="275" y="106" width="10" height="8"/>
+                <line x1="300" y1="98" x2="300" y2="116" stroke-width="1"/><rect x="295" y="102" width="10" height="10"/>
+                <line x1="320" y1="96" x2="320" y2="114" stroke-width="1"/><rect x="315" y="100" width="10" height="10"/>
+                <line x1="340" y1="92" x2="340" y2="110" stroke-width="1"/><rect x="335" y="96" width="10" height="10"/>
+                <line x1="360" y1="88" x2="360" y2="108" stroke-width="1"/><rect x="355" y="92" width="10" height="12"/>
+                <line x1="380" y1="85" x2="380" y2="105" stroke-width="1"/><rect x="375" y="88" width="10" height="12"/>
+                <line x1="400" y1="82" x2="400" y2="100" stroke-width="1"/><rect x="395" y="86" width="10" height="10"/>
+                <line x1="420" y1="80" x2="420" y2="98" stroke-width="1"/><rect x="415" y="84" width="10" height="10"/>
+                <line x1="440" y1="78" x2="440" y2="98" stroke-width="1"/><rect x="435" y="82" width="10" height="12"/>
+                <line x1="460" y1="76" x2="460" y2="94" stroke-width="1"/><rect x="455" y="80" width="10" height="10"/>
+                <line x1="480" y1="74" x2="480" y2="92" stroke-width="1"/><rect x="475" y="78" width="10" height="10"/>
+              </g>
+              <!-- SMA 20 overlay -->
+              <path d="M20,172 C80,160 160,140 240,120 S380,95 480,82"
+                    stroke="#3b82f6" stroke-width="1.8" fill="none" opacity="0.9"/>
+              <!-- SMA 50 overlay -->
+              <path d="M20,180 C80,170 160,155 240,138 S380,115 480,98"
+                    stroke="#a855f7" stroke-width="1.8" fill="none" opacity="0.9"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full chart opens on click</h3>
+      <p>Card stays compact. Clicking Chart opens a full-screen modal (or navigates to the Market page) loaded with the signal's symbol and timeframe, and the strategy's indicators auto-applied. Entry / SL / TP drawn as horizontal lines.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card" data-choice="b-embed" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0f; padding:14px; display:flex; justify-content:center;">
+      <!-- Signal card WITH embedded mini chart -->
+      <div class="sig-card">
+        <div class="sig-head">
+          <div>
+            <span class="sig-pair">BTCUSDT</span>
+            <span class="sig-tf">1H</span>
+            <div class="sig-strat">SMA Trend</div>
+          </div>
+          <div class="sig-badges">
+            <span class="badge b-active">Active</span>
+            <span class="badge b-buy">BUY</span>
+          </div>
+        </div>
+
+        <!-- Embedded chart -->
+        <div class="mini-chart">
+          <svg viewBox="0 0 300 70">
+            <line x1="0" y1="12" x2="300" y2="12" stroke="#22c55e" stroke-dasharray="3,3" stroke-width="1" opacity="0.7"/>
+            <line x1="0" y1="35" x2="300" y2="35" stroke="#eab308" stroke-dasharray="3,3" stroke-width="1" opacity="0.7"/>
+            <line x1="0" y1="58" x2="300" y2="58" stroke="#ef4444" stroke-dasharray="3,3" stroke-width="1" opacity="0.7"/>
+            <g stroke="#22c55e" fill="#22c55e">
+              <line x1="15" y1="40" x2="15" y2="52" stroke-width="1"/><rect x="11" y="43" width="8" height="7"/>
+              <line x1="35" y1="36" x2="35" y2="50" stroke-width="1"/><rect x="31" y="40" width="8" height="8"/>
+            </g>
+            <g stroke="#ef4444" fill="#ef4444">
+              <line x1="55" y1="36" x2="55" y2="48" stroke-width="1"/><rect x="51" y="40" width="8" height="6"/>
+            </g>
+            <g stroke="#22c55e" fill="#22c55e">
+              <line x1="75" y1="32" x2="75" y2="46" stroke-width="1"/><rect x="71" y="36" width="8" height="8"/>
+              <line x1="95" y1="28" x2="95" y2="42" stroke-width="1"/><rect x="91" y="32" width="8" height="8"/>
+              <line x1="115" y1="26" x2="115" y2="40" stroke-width="1"/><rect x="111" y="30" width="8" height="8"/>
+              <line x1="135" y1="24" x2="135" y2="38" stroke-width="1"/><rect x="131" y="28" width="8" height="8"/>
+              <line x1="155" y1="22" x2="155" y2="36" stroke-width="1"/><rect x="151" y="26" width="8" height="8"/>
+              <line x1="175" y1="20" x2="175" y2="34" stroke-width="1"/><rect x="171" y="24" width="8" height="8"/>
+              <line x1="195" y1="18" x2="195" y2="32" stroke-width="1"/><rect x="191" y="22" width="8" height="8"/>
+              <line x1="215" y1="18" x2="215" y2="30" stroke-width="1"/><rect x="211" y="20" width="8" height="8"/>
+              <line x1="235" y1="16" x2="235" y2="28" stroke-width="1"/><rect x="231" y="18" width="8" height="8"/>
+              <line x1="255" y1="14" x2="255" y2="28" stroke-width="1"/><rect x="251" y="18" width="8" height="8"/>
+              <line x1="275" y1="14" x2="275" y2="26" stroke-width="1"/><rect x="271" y="16" width="8" height="8"/>
+            </g>
+            <path d="M15,48 Q90,38 180,26 T290,16" stroke="#3b82f6" stroke-width="1.3" fill="none"/>
+            <path d="M15,54 Q90,46 180,32 T290,22" stroke="#a855f7" stroke-width="1.3" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="pnl-block">
+          <div class="pnl-header"><span>P&amp;L</span><span class="pnl-val">+1.23%</span></div>
+          <div class="pnl-bar"><div class="tick"></div><div class="fill"></div></div>
+        </div>
+        <div class="price-grid">
+          <div class="price-cell"><div class="lbl">Entry</div><div class="val entry">67,421</div></div>
+          <div class="price-cell"><div class="lbl">Stop</div><div class="val sl">66,100</div></div>
+          <div class="price-cell"><div class="lbl">Target</div><div class="val tp">68,900</div></div>
+          <div class="price-cell"><div class="lbl">R:R</div><div class="val rr">1:2</div></div>
+        </div>
+        <div class="sig-actions">
+          <button class="sig-btn chart">Chart</button>
+          <button class="sig-btn exec">Execute</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Embedded preview in every card</h3>
+      <p>Mini candles + strategy indicators + levels rendered inside each card. Uses a lightweight version of the charting library. Heavy for 20+ cards, and tiny at typical card sizes, but gives an always-visible glance.</p>
+    </div>
+  </div>
+</div>

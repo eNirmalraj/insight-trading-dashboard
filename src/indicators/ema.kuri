@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Exponential Moving Average
+short: EMA
+pane: overlay
+---
+
+len = param.int(9, title="Length", min=1)
+src = param.source(close, title="Source")
+out = kuri.ema(src, len)
+mark(out, title="EMA", color=color.blue, linewidth=2)

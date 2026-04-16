@@ -58,10 +58,14 @@ const mapDbStatus = (status: string): PositionStatus => {
  */
 const mapStatusToDb = (status: PositionStatus): string => {
     switch (status) {
-        case PositionStatus.OPEN: return 'open';
-        case PositionStatus.PENDING: return 'pending';
-        case PositionStatus.CLOSED: return 'closed';
-        default: return 'open';
+        case PositionStatus.OPEN:
+            return 'open';
+        case PositionStatus.PENDING:
+            return 'pending';
+        case PositionStatus.CLOSED:
+            return 'closed';
+        default:
+            return 'open';
     }
 };
 
@@ -86,13 +90,13 @@ export const getPositions = async (): Promise<Position[]> => {
 /**
  * Create a new position
  */
-export const createPosition = async (
-    position: Omit<Position, 'id'>
-): Promise<Position> => {
+export const createPosition = async (position: Omit<Position, 'id'>): Promise<Position> => {
     if (!supabase) throw new Error('Supabase not configured');
 
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
     const { data, error } = await supabase
@@ -165,9 +169,10 @@ export const closePosition = async (
     // Calculate PnL
     const contractSize = existingPos.account === 'forex' ? 100000 : 1;
     const priceDiff = closingPrice - Number(existingPos.entry_price);
-    const pnl = existingPos.direction.toLowerCase() === 'buy'
-        ? priceDiff * Number(existingPos.quantity) * contractSize
-        : -priceDiff * Number(existingPos.quantity) * contractSize;
+    const pnl =
+        existingPos.direction.toLowerCase() === 'buy'
+            ? priceDiff * Number(existingPos.quantity) * contractSize
+            : -priceDiff * Number(existingPos.quantity) * contractSize;
 
     // Update position
     const { data, error } = await supabase
@@ -211,10 +216,7 @@ export const cancelPosition = async (id: string): Promise<Position | undefined> 
 /**
  * Reverse a position (close current and open opposite)
  */
-export const reversePosition = async (
-    id: string,
-    closingPrice: number
-): Promise<Position> => {
+export const reversePosition = async (id: string, closingPrice: number): Promise<Position> => {
     if (!supabase) throw new Error('Supabase not configured');
 
     // Fetch the current position
@@ -231,7 +233,8 @@ export const reversePosition = async (
     await closePosition(id, closingPrice);
 
     // Create new position with opposite direction
-    const newDirection = pos.direction.toLowerCase() === 'buy' ? TradeDirection.SELL : TradeDirection.BUY;
+    const newDirection =
+        pos.direction.toLowerCase() === 'buy' ? TradeDirection.SELL : TradeDirection.BUY;
     const entryPrice = Number(pos.entry_price);
     const stopLoss = Number(pos.stop_loss);
     const takeProfit = Number(pos.take_profit);

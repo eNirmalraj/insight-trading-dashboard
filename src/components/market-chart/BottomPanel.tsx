@@ -1,11 +1,19 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Position, PositionStatus, TradeDirection } from '../../types';
 import {
-    ArrowUpIcon, ArrowDownIcon, CrossingIcon,
-    BriefcaseIcon, ClockIcon, CalendarIcon,
-    PencilIcon, IndicatorIcon, WatchlistIcon, MoreHorizontalIcon,
-    UndoIcon, RedoIcon, SettingsIcon
+    ArrowUpIcon,
+    ArrowDownIcon,
+    CrossingIcon,
+    BriefcaseIcon,
+    ClockIcon,
+    CalendarIcon,
+    PencilIcon,
+    IndicatorIcon,
+    WatchlistIcon,
+    MoreHorizontalIcon,
+    UndoIcon,
+    RedoIcon,
+    SettingsIcon,
 } from '../IconComponents';
 
 interface EditableRowProps {
@@ -16,7 +24,13 @@ interface EditableRowProps {
     onReverse: (positionId: string) => void;
 }
 
-const EditableRow: React.FC<EditableRowProps> = ({ position, onModify, onClose, onCancel, onReverse }) => {
+const EditableRow: React.FC<EditableRowProps> = ({
+    position,
+    onModify,
+    onClose,
+    onCancel,
+    onReverse,
+}) => {
     const [editableSl, setEditableSl] = useState(position.stopLoss.toString());
     const [editableTp, setEditableTp] = useState(position.takeProfit.toString());
 
@@ -25,7 +39,9 @@ const EditableRow: React.FC<EditableRowProps> = ({ position, onModify, onClose, 
         setEditableTp(position.takeProfit.toString());
     }, [position.stopLoss, position.takeProfit]);
 
-    const isModified = position.stopLoss.toString() !== editableSl || position.takeProfit.toString() !== editableTp;
+    const isModified =
+        position.stopLoss.toString() !== editableSl ||
+        position.takeProfit.toString() !== editableTp;
 
     const handleUpdate = () => {
         const newSl = parseFloat(editableSl);
@@ -37,7 +53,8 @@ const EditableRow: React.FC<EditableRowProps> = ({ position, onModify, onClose, 
 
     const pnlColor = position.pnl >= 0 ? 'text-green-400' : 'text-red-400';
     const dirColor = position.direction === TradeDirection.BUY ? 'text-green-400' : 'text-red-400';
-    const isEditable = position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING;
+    const isEditable =
+        position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING;
 
     return (
         <tr className="border-b border-gray-700/50 hover:bg-gray-800 text-xs">
@@ -47,14 +64,28 @@ const EditableRow: React.FC<EditableRowProps> = ({ position, onModify, onClose, 
             <td className="px-2 py-1.5">{position.entryPrice}</td>
             <td className="px-2 py-1.5">
                 {isEditable ? (
-                    <input type="number" value={editableSl} onChange={e => setEditableSl(e.target.value)} className="w-16 bg-gray-800 border border-gray-700 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    <input
+                        type="number"
+                        value={editableSl}
+                        onChange={(e) => setEditableSl(e.target.value)}
+                        className="w-16 bg-gray-800 border border-gray-700 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Stop Loss"
+                        placeholder="SL"
+                    />
                 ) : (
                     position.stopLoss
                 )}
             </td>
             <td className="px-2 py-1.5">
                 {isEditable ? (
-                    <input type="number" value={editableTp} onChange={e => setEditableTp(e.target.value)} className="w-16 bg-gray-800 border border-gray-700 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    <input
+                        type="number"
+                        value={editableTp}
+                        onChange={(e) => setEditableTp(e.target.value)}
+                        className="w-16 bg-gray-800 border border-gray-700 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Take Profit"
+                        placeholder="TP"
+                    />
                 ) : (
                     position.takeProfit
                 )}
@@ -63,21 +94,50 @@ const EditableRow: React.FC<EditableRowProps> = ({ position, onModify, onClose, 
             <td className="px-2 py-1.5">
                 {position.status === PositionStatus.OPEN && (
                     <div className="flex items-center gap-2">
-                        <button onClick={handleUpdate} disabled={!isModified} className="px-2 py-0.5 font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600">Update</button>
-                        <button onClick={() => onReverse(position.id)} className="px-2 py-0.5 font-semibold rounded bg-yellow-500 text-white hover:bg-yellow-600">Rev</button>
-                        <button onClick={() => onClose(position.id)} className="text-gray-400 hover:text-white"><CrossingIcon className="w-4 h-4" /></button>
+                        <button
+                            onClick={handleUpdate}
+                            disabled={!isModified}
+                            className="px-2 py-0.5 font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600"
+                        >
+                            Update
+                        </button>
+                        <button
+                            onClick={() => onReverse(position.id)}
+                            className="px-2 py-0.5 font-semibold rounded bg-yellow-500 text-white hover:bg-yellow-600"
+                        >
+                            Rev
+                        </button>
+                        <button
+                            onClick={() => onClose(position.id)}
+                            className="text-gray-400 hover:text-white"
+                            title="Close Position"
+                        >
+                            <CrossingIcon className="w-4 h-4" />
+                        </button>
                     </div>
                 )}
                 {position.status === PositionStatus.PENDING && (
                     <div className="flex items-center gap-2">
-                        <button onClick={handleUpdate} disabled={!isModified} className="px-2 py-0.5 font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600">Update</button>
-                        <button onClick={() => onCancel(position.id)} className="text-gray-400 hover:text-white"><CrossingIcon className="w-4 h-4" /></button>
+                        <button
+                            onClick={handleUpdate}
+                            disabled={!isModified}
+                            className="px-2 py-0.5 font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600"
+                        >
+                            Update
+                        </button>
+                        <button
+                            onClick={() => onCancel(position.id)}
+                            className="text-gray-400 hover:text-white"
+                            title="Cancel Order"
+                        >
+                            <CrossingIcon className="w-4 h-4" />
+                        </button>
                     </div>
                 )}
             </td>
         </tr>
     );
-}
+};
 
 const PositionsTable: React.FC<{
     positions: Position[];
@@ -88,7 +148,11 @@ const PositionsTable: React.FC<{
     statusFilter: PositionStatus;
 }> = ({ positions, onModify, onClose, onCancel, onReverse, statusFilter }) => {
     if (positions.length === 0) {
-        return <div className="p-4 text-center text-gray-500 text-sm">No {statusFilter.toLowerCase()} positions to display for this symbol.</div>
+        return (
+            <div className="p-4 text-center text-gray-500 text-sm">
+                No {statusFilter.toLowerCase()} positions to display for this symbol.
+            </div>
+        );
     }
     return (
         <div className="overflow-x-auto">
@@ -106,15 +170,21 @@ const PositionsTable: React.FC<{
                     </tr>
                 </thead>
                 <tbody className="text-gray-300">
-                    {positions.map(p => (
-                        <EditableRow key={p.id} position={p} onModify={onModify} onClose={onClose} onCancel={onCancel} onReverse={onReverse} />
+                    {positions.map((p) => (
+                        <EditableRow
+                            key={p.id}
+                            position={p}
+                            onModify={onModify}
+                            onClose={onClose}
+                            onCancel={onCancel}
+                            onReverse={onReverse}
+                        />
                     ))}
                 </tbody>
             </table>
         </div>
-    )
-}
-
+    );
+};
 
 interface BottomPanelProps {
     isOpen: boolean;
@@ -136,20 +206,35 @@ interface BottomPanelProps {
     onRedo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
-
 }
 
 const BottomPanel: React.FC<BottomPanelProps> = (props) => {
     const {
-        isOpen, onToggle, activeTab, setActiveTab, currentTime, symbol, height, setHeight, positions,
-        onModifyPosition, onClosePosition, onCancelOrder, onReversePosition, isMobile, onToolAction,
-        onUndo, onRedo, canUndo, canRedo
+        isOpen,
+        onToggle,
+        activeTab,
+        setActiveTab,
+        currentTime,
+        symbol,
+        height,
+        setHeight,
+        positions,
+        onModifyPosition,
+        onClosePosition,
+        onCancelOrder,
+        onReversePosition,
+        isMobile,
+        onToolAction,
+        onUndo,
+        onRedo,
+        canUndo,
+        canRedo,
     } = props;
 
-    const TAB_CONFIG: Record<string, { label: string, icon: React.ReactNode }> = {
-        'Positions': { label: 'Positions', icon: <BriefcaseIcon className="w-5 h-5" /> },
+    const TAB_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
+        Positions: { label: 'Positions', icon: <BriefcaseIcon className="w-5 h-5" /> },
         'Pending Orders': { label: 'Pending', icon: <ClockIcon className="w-5 h-5" /> },
-        'History': { label: 'History', icon: <CalendarIcon className="w-5 h-5" /> },
+        History: { label: 'History', icon: <CalendarIcon className="w-5 h-5" /> },
     };
 
     const tabs = Object.keys(TAB_CONFIG);
@@ -158,7 +243,7 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
         const timeString = date.toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
-            hour12: true
+            hour12: true,
         });
         return timeString.toUpperCase();
     };
@@ -166,9 +251,33 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
     const { positionsToDisplay, statusFilter } = useMemo(() => {
         const normalizedSymbol = symbol.replace('/', '').toUpperCase();
 
-        if (activeTab === 'Positions') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.OPEN && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.OPEN };
-        if (activeTab === 'Pending Orders') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.PENDING && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.PENDING };
-        if (activeTab === 'History') return { positionsToDisplay: positions.filter(p => p.status === PositionStatus.CLOSED && p.symbol.replace('/', '').toUpperCase() === normalizedSymbol), statusFilter: PositionStatus.CLOSED };
+        if (activeTab === 'Positions')
+            return {
+                positionsToDisplay: positions.filter(
+                    (p) =>
+                        p.status === PositionStatus.OPEN &&
+                        p.symbol.replace('/', '').toUpperCase() === normalizedSymbol
+                ),
+                statusFilter: PositionStatus.OPEN,
+            };
+        if (activeTab === 'Pending Orders')
+            return {
+                positionsToDisplay: positions.filter(
+                    (p) =>
+                        p.status === PositionStatus.PENDING &&
+                        p.symbol.replace('/', '').toUpperCase() === normalizedSymbol
+                ),
+                statusFilter: PositionStatus.PENDING,
+            };
+        if (activeTab === 'History')
+            return {
+                positionsToDisplay: positions.filter(
+                    (p) =>
+                        p.status === PositionStatus.CLOSED &&
+                        p.symbol.replace('/', '').toUpperCase() === normalizedSymbol
+                ),
+                statusFilter: PositionStatus.CLOSED,
+            };
 
         return { positionsToDisplay: [], statusFilter: PositionStatus.OPEN };
     }, [activeTab, symbol, positions]);
@@ -217,8 +326,12 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
                         <div className="flex items-center gap-3 w-full">
                             {/* Mobile Tools */}
                             <div className="flex items-center gap-4 flex-shrink-0">
-                                {mobileTools.map(tool => (
-                                    <button key={tool.id} onClick={() => onToolAction(tool.id)} className="text-gray-400 hover:text-white transition-colors p-1">
+                                {mobileTools.map((tool) => (
+                                    <button
+                                        key={tool.id}
+                                        onClick={() => onToolAction(tool.id)}
+                                        className="text-gray-400 hover:text-white transition-colors p-1"
+                                    >
                                         {tool.icon}
                                     </button>
                                 ))}
@@ -228,47 +341,72 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
 
                             {/* Mobile Undo/Redo & Trades */}
                             <div className="flex items-center gap-2 flex-shrink-0">
-                                <button onClick={onUndo} disabled={!canUndo} className="text-gray-400 hover:text-white disabled:text-gray-700 transition-colors p-1" title="Undo">
+                                <button
+                                    onClick={onUndo}
+                                    disabled={!canUndo}
+                                    className="text-gray-400 hover:text-white disabled:text-gray-700 transition-colors p-1"
+                                    title="Undo"
+                                >
                                     <UndoIcon className="w-5 h-5" />
                                 </button>
-                                <button onClick={onRedo} disabled={!canRedo} className="text-gray-400 hover:text-white disabled:text-gray-700 transition-colors p-1" title="Redo">
+                                <button
+                                    onClick={onRedo}
+                                    disabled={!canRedo}
+                                    className="text-gray-400 hover:text-white disabled:text-gray-700 transition-colors p-1"
+                                    title="Redo"
+                                >
                                     <RedoIcon className="w-5 h-5" />
                                 </button>
 
                                 <div className="w-px h-5 bg-gray-700 flex-shrink-0 mx-1"></div>
 
                                 <button
-                                    onClick={() => { if (!isOpen) onToggle(); }}
+                                    onClick={() => {
+                                        if (!isOpen) onToggle();
+                                    }}
                                     className={`transition-colors p-1 ${isOpen ? 'text-blue-500' : 'text-gray-500'}`}
                                     title="Trades"
                                 >
                                     <BriefcaseIcon className="w-5 h-5" />
                                 </button>
-
-
                             </div>
                         </div>
                     ) : (
-                        !isOpen && <span className="text-xs font-bold text-gray-300 cursor-pointer" onClick={onToggle}>{activeTab}</span>
+                        !isOpen && (
+                            <span
+                                className="text-xs font-bold text-gray-300 cursor-pointer"
+                                onClick={onToggle}
+                            >
+                                {activeTab}
+                            </span>
+                        )
                     )}
                 </div>
 
                 <div className="flex items-center gap-3 text-gray-400 text-xs flex-shrink-0 ml-2">
-                    {!isMobile && <span className="hidden sm:inline">{formatCurrentTime(currentTime)} (UTC+5:30)</span>}
+                    {!isMobile && (
+                        <span className="hidden sm:inline">
+                            {formatCurrentTime(currentTime)} (UTC+5:30)
+                        </span>
+                    )}
 
                     <button
                         onClick={onToggle}
                         className="p-1 text-gray-400 hover:bg-gray-800 rounded-md flex items-center gap-2"
                     >
                         {!isMobile && !isOpen && TAB_CONFIG[activeTab].icon}
-                        {isOpen ? <ArrowDownIcon className="w-5 h-5" /> : <ArrowUpIcon className="w-5 h-5" />}
+                        {isOpen ? (
+                            <ArrowDownIcon className="w-5 h-5" />
+                        ) : (
+                            <ArrowUpIcon className="w-5 h-5" />
+                        )}
                     </button>
                 </div>
             </div>
             {isOpen && (
                 <div className="flex-grow flex flex-col min-h-0">
                     <div className="flex items-center gap-1 p-2 border-b border-gray-800/50 bg-gray-900">
-                        {tabs.map(tab => (
+                        {tabs.map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -292,8 +430,7 @@ const BottomPanel: React.FC<BottomPanelProps> = (props) => {
                 </div>
             )}
         </div>
-    )
+    );
 };
 
 export default BottomPanel;
-

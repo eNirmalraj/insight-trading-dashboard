@@ -8,7 +8,12 @@ interface CoordinateInputProps {
     onUpdate: (point: Point) => void;
 }
 
-export const CoordinateInput: React.FC<CoordinateInputProps> = ({ label, price, time, onUpdate }) => {
+export const CoordinateInput: React.FC<CoordinateInputProps> = ({
+    label,
+    price,
+    time,
+    onUpdate,
+}) => {
     const [priceStr, setPriceStr] = useState(price.toString());
 
     useEffect(() => {
@@ -47,7 +52,7 @@ export const CoordinateInput: React.FC<CoordinateInputProps> = ({ label, price, 
                     onKeyDown={handleKeyDown}
                     className="w-full bg-[#131722] border border-[#2A2E39] rounded px-2 py-1 text-xs text-[#D1D4DC] focus:border-[#2962FF] outline-none transition-colors"
                     title="Price"
-                    step={price > 100 ? "0.01" : "0.00001"}
+                    step={price > 100 ? '0.01' : '0.00001'}
                 />
             </div>
         </div>

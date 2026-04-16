@@ -54,7 +54,8 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
                 ema.push(null);
             }
         } else {
-            const currentEma: number = (price - (prevEma as number)) * multiplier + (prevEma as number);
+            const currentEma: number =
+                (price - (prevEma as number)) * multiplier + (prevEma as number);
             ema.push(currentEma);
             prevEma = currentEma;
         }
@@ -66,7 +67,7 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
  * Calculate RSI
  */
 export const calculateRSI = (candles: Candle[], period: number): (number | null)[] => {
-    const prices = candles.map(d => d.close);
+    const prices = candles.map((d) => d.close);
     if (period >= prices.length || period <= 0) return Array(prices.length).fill(null);
 
     const rsi: (number | null)[] = [];
@@ -90,7 +91,7 @@ export const calculateRSI = (candles: Candle[], period: number): (number | null)
     for (let i = 0; i < period; i++) rsi.push(null);
 
     let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-    rsi[period] = 100 - (100 / (1 + rs));
+    rsi[period] = 100 - 100 / (1 + rs);
 
     // Subsequent calculations
     for (let i = period + 1; i < prices.length; i++) {
@@ -108,7 +109,7 @@ export const calculateRSI = (candles: Candle[], period: number): (number | null)
         avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
 
         rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-        rsi[i] = 100 - (100 / (1 + rs));
+        rsi[i] = 100 - 100 / (1 + rs);
     }
 
     return rsi;
@@ -139,8 +140,8 @@ export const calculateBollingerBands = (
         }
 
         const sd = Math.sqrt(sumSqDiff / period);
-        upper.push((sma[i] as number) + (sd * stdDev));
-        lower.push((sma[i] as number) - (sd * stdDev));
+        upper.push((sma[i] as number) + sd * stdDev);
+        lower.push((sma[i] as number) - sd * stdDev);
     }
 
     return { upper, middle: sma, lower };
@@ -179,7 +180,7 @@ export const calculateIndicator = (
     candles: Candle[],
     parameters: Record<string, any>
 ): Record<string, (number | null)[]> => {
-    const prices = candles.map(c => c.close);
+    const prices = candles.map((c) => c.close);
 
     switch (type.toUpperCase()) {
         case 'MA':

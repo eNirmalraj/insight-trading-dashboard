@@ -17,7 +17,14 @@ interface PositionRowProps {
     isPaper: boolean;
 }
 
-const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, onCancel, onReverse, isPaper }) => {
+const PositionRow: React.FC<PositionRowProps> = ({
+    position,
+    onModify,
+    onClose,
+    onCancel,
+    onReverse,
+    isPaper,
+}) => {
     const [currentPrice, setCurrentPrice] = useState(position.entryPrice);
     const [editableSl, setEditableSl] = useState(position.stopLoss.toString());
     const [editableTp, setEditableTp] = useState(position.takeProfit.toString());
@@ -27,7 +34,9 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
         setEditableTp(position.takeProfit.toString());
     }, [position.stopLoss, position.takeProfit]);
 
-    const isModified = position.stopLoss.toString() !== editableSl || position.takeProfit.toString() !== editableTp;
+    const isModified =
+        position.stopLoss.toString() !== editableSl ||
+        position.takeProfit.toString() !== editableTp;
 
     // Real-time Price Subscription
     useEffect(() => {
@@ -70,14 +79,16 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
         if (!isNaN(newSl) && !isNaN(newTp)) {
             onModify(position.id, { sl: newSl, tp: newTp });
         } else {
-            alert("Invalid Stop Loss or Take Profit value.");
+            alert('Invalid Stop Loss or Take Profit value.');
         }
     };
 
-
     const pnlColor = pnl >= 0 ? 'text-green-400' : 'text-red-400';
-    const directionColor = position.direction === TradeDirection.BUY ? 'text-green-400' : 'text-red-400';
-    const isEditable = !isPaper && (position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING); // Disable edit for paper history for now
+    const directionColor =
+        position.direction === TradeDirection.BUY ? 'text-green-400' : 'text-red-400';
+    const isEditable =
+        !isPaper &&
+        (position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING); // Disable edit for paper history for now
 
     return (
         <tr className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700/50 text-sm">
@@ -87,9 +98,13 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
                     <div className="flex gap-1 mt-1">
                         {/* Market Type Badge */}
                         {position.marketType === 'futures' ? (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">FUTURES</span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                FUTURES
+                            </span>
                         ) : position.marketType === 'spot' ? (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">SPOT</span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                                SPOT
+                            </span>
                         ) : null}
                     </div>
                 </div>
@@ -101,6 +116,8 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
                 {isEditable ? (
                     <input
                         type="number"
+                        title="Stop Loss"
+                        aria-label="Stop Loss"
                         value={editableSl}
                         onChange={(e) => setEditableSl(e.target.value)}
                         className="w-24 bg-gray-900/50 border border-gray-600 rounded-md p-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -113,6 +130,8 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
                 {isEditable ? (
                     <input
                         type="number"
+                        title="Take Profit"
+                        aria-label="Take Profit"
                         value={editableTp}
                         onChange={(e) => setEditableTp(e.target.value)}
                         className="w-24 bg-gray-900/50 border border-gray-600 rounded-md p-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -123,7 +142,9 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
             </td>
             <td className={`px-4 py-3 font-semibold ${pnlColor}`}>${pnl.toFixed(2)}</td>
             <td className="px-4 py-3">{new Date(position.openTime).toLocaleString()}</td>
-            <td className="px-4 py-3">{position.closeTime ? new Date(position.closeTime).toLocaleString() : 'N/A'}</td>
+            <td className="px-4 py-3">
+                {position.closeTime ? new Date(position.closeTime).toLocaleString() : 'N/A'}
+            </td>
             <td className="px-4 py-3">
                 {isPaper ? (
                     <span className="text-gray-500 text-xs italic">View Only</span>
@@ -131,15 +152,42 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, onModify, onClose, 
                     <>
                         {position.status === PositionStatus.OPEN && (
                             <div className="flex items-center gap-2">
-                                <button onClick={handleUpdate} disabled={!isModified} className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed">Update</button>
-                                <button onClick={() => onReverse(position.id, currentPrice)} className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Reverse</button>
-                                <button onClick={() => onClose(position.id, currentPrice)} className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Close</button>
+                                <button
+                                    onClick={handleUpdate}
+                                    disabled={!isModified}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                >
+                                    Update
+                                </button>
+                                <button
+                                    onClick={() => onReverse(position.id, currentPrice)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600"
+                                >
+                                    Reverse
+                                </button>
+                                <button
+                                    onClick={() => onClose(position.id, currentPrice)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500 text-white hover:bg-red-600"
+                                >
+                                    Close
+                                </button>
                             </div>
                         )}
                         {position.status === PositionStatus.PENDING && (
                             <div className="flex items-center gap-2">
-                                <button onClick={handleUpdate} disabled={!isModified} className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed">Update</button>
-                                <button onClick={() => onCancel(position.id)} className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Cancel</button>
+                                <button
+                                    onClick={handleUpdate}
+                                    disabled={!isModified}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                >
+                                    Update
+                                </button>
+                                <button
+                                    onClick={() => onCancel(position.id)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600"
+                                >
+                                    Cancel
+                                </button>
                             </div>
                         )}
                     </>
@@ -165,7 +213,7 @@ const PositionMonitoring: React.FC = () => {
             if (tradingMode === 'Paper') {
                 const paperTrades = await api.getPaperTrades();
                 // Map PaperTrade to Position
-                data = (paperTrades as any[]).map(pt => ({
+                data = (paperTrades as any[]).map((pt) => ({
                     id: pt.id,
                     symbol: pt.symbol,
                     account: 'Paper',
@@ -178,7 +226,7 @@ const PositionMonitoring: React.FC = () => {
                     pnl: pt.pnl || 0,
                     status: pt.status === 'OPEN' ? PositionStatus.OPEN : PositionStatus.CLOSED,
                     openTime: pt.filled_at,
-                    closeTime: pt.closed_at
+                    closeTime: pt.closed_at,
                 }));
             } else {
                 data = await api.getPositions();
@@ -187,7 +235,7 @@ const PositionMonitoring: React.FC = () => {
             setPositions(data);
             setError(null);
         } catch (err) {
-            setError("Failed to load positions.");
+            setError('Failed to load positions.');
             console.error(err);
         } finally {
             setIsLoading(false);
@@ -198,7 +246,10 @@ const PositionMonitoring: React.FC = () => {
         fetchPositions();
     }, [fetchPositions]);
 
-    const handleModifyPosition = async (positionId: string, newValues: { sl: number; tp: number }) => {
+    const handleModifyPosition = async (
+        positionId: string,
+        newValues: { sl: number; tp: number }
+    ) => {
         await api.updatePosition(positionId, newValues);
         fetchPositions();
     };
@@ -219,7 +270,7 @@ const PositionMonitoring: React.FC = () => {
     };
 
     // Filter Logic
-    const filteredPositions = positions.filter(p => {
+    const filteredPositions = positions.filter((p) => {
         // Mode Filter (Implicit by fetch, but double check?)
         // Status Filter
         if (p.status !== activeStatus) return false;
@@ -231,12 +282,12 @@ const PositionMonitoring: React.FC = () => {
         return true;
     });
 
-    const accountTabs: { name: AccountType, label: string }[] = [
+    const accountTabs: { name: AccountType; label: string }[] = [
         { name: 'Forex', label: 'Forex Positions (MT5)' },
         { name: 'Binance', label: 'Binance Positions' },
     ];
 
-    const statusTabs: { name: PositionStatus, label: string }[] = [
+    const statusTabs: { name: PositionStatus; label: string }[] = [
         { name: PositionStatus.OPEN, label: 'Open' },
         { name: PositionStatus.PENDING, label: 'Pending' },
         { name: PositionStatus.CLOSED, label: 'History' },
@@ -277,7 +328,7 @@ const PositionMonitoring: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredPositions.map(pos => (
+                            {filteredPositions.map((pos) => (
                                 <PositionRow
                                     key={pos.id}
                                     position={pos}
@@ -293,7 +344,7 @@ const PositionMonitoring: React.FC = () => {
                 </div>
                 {/* Mobile Cards */}
                 <div className="md:hidden p-4 space-y-4">
-                    {filteredPositions.map(pos => (
+                    {filteredPositions.map((pos) => (
                         <PositionCard
                             key={pos.id}
                             position={pos}
@@ -306,8 +357,8 @@ const PositionMonitoring: React.FC = () => {
                     ))}
                 </div>
             </>
-        )
-    }
+        );
+    };
 
     return (
         <div className="space-y-6 p-6">
@@ -331,15 +382,16 @@ const PositionMonitoring: React.FC = () => {
                         </div>
 
                         {/* Account Tabs (Only show if Live) */}
-                        {tradingMode === 'Live' && accountTabs.map((tab) => (
-                            <button
-                                key={tab.name}
-                                onClick={() => setActiveAccount(tab.name)}
-                                className={`px-4 py-2 font-medium text-sm rounded-md transition-colors ${activeAccount === tab.name ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'text-gray-300 hover:bg-gray-700'}`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
+                        {tradingMode === 'Live' &&
+                            accountTabs.map((tab) => (
+                                <button
+                                    key={tab.name}
+                                    onClick={() => setActiveAccount(tab.name)}
+                                    className={`px-4 py-2 font-medium text-sm rounded-md transition-colors ${activeAccount === tab.name ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'text-gray-300 hover:bg-gray-700'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                     </nav>
                 </div>
                 <div className="p-4 border-b border-gray-700">
@@ -361,8 +413,14 @@ const PositionMonitoring: React.FC = () => {
     );
 };
 
-
-const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose, onCancel, onReverse, isPaper }) => {
+const PositionCard: React.FC<PositionRowProps> = ({
+    position,
+    onModify,
+    onClose,
+    onCancel,
+    onReverse,
+    isPaper,
+}) => {
     // Real-time Price Subscription (Duplicated for Card)
     const [currentPrice, setCurrentPrice] = useState(position.entryPrice);
     const [editableSl, setEditableSl] = useState(position.stopLoss.toString());
@@ -373,7 +431,9 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
         setEditableTp(position.takeProfit.toString());
     }, [position.stopLoss, position.takeProfit]);
 
-    const isModified = position.stopLoss.toString() !== editableSl || position.takeProfit.toString() !== editableTp;
+    const isModified =
+        position.stopLoss.toString() !== editableSl ||
+        position.takeProfit.toString() !== editableTp;
 
     useEffect(() => {
         if (position.status !== PositionStatus.OPEN) {
@@ -389,7 +449,9 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
         if (position.status !== PositionStatus.OPEN) return position.pnl;
         const contractSize = position.account === 'Forex' ? 100000 : 1;
         const priceDifference = currentPrice - position.entryPrice;
-        return position.direction === TradeDirection.BUY ? priceDifference * position.quantity * contractSize : -priceDifference * position.quantity * contractSize;
+        return position.direction === TradeDirection.BUY
+            ? priceDifference * position.quantity * contractSize
+            : -priceDifference * position.quantity * contractSize;
     }, [currentPrice, position]);
 
     const handleUpdate = () => {
@@ -399,8 +461,11 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
     };
 
     const pnlColor = pnl >= 0 ? 'text-green-400' : 'text-red-400';
-    const directionColor = position.direction === TradeDirection.BUY ? 'text-green-400' : 'text-red-400';
-    const isEditable = !isPaper && (position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING);
+    const directionColor =
+        position.direction === TradeDirection.BUY ? 'text-green-400' : 'text-red-400';
+    const isEditable =
+        !isPaper &&
+        (position.status === PositionStatus.OPEN || position.status === PositionStatus.PENDING);
 
     return (
         <div className="bg-gray-800 p-4 rounded-lg space-y-3 text-sm">
@@ -409,10 +474,14 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
                     <h3 className="font-bold text-white flex items-center gap-2">
                         {position.symbol}
                         {position.marketType === 'futures' && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">FUTURES</span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                FUTURES
+                            </span>
                         )}
                         {position.marketType === 'spot' && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">SPOT</span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                                SPOT
+                            </span>
                         )}
                     </h3>
                     <span className="text-xs text-gray-400">Qty: {position.quantity}</span>
@@ -423,17 +492,34 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-400">Entry</span><span>{position.entryPrice}</span></div>
+                <div className="flex justify-between">
+                    <span className="text-gray-400">Entry</span>
+                    <span>{position.entryPrice}</span>
+                </div>
             </div>
             {isEditable && (
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs text-gray-400">Stop Loss</label>
-                        <input type="number" value={editableSl} onChange={e => setEditableSl(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-md p-1.5 mt-1 text-sm text-white" />
+                        <input
+                            type="number"
+                            title="Stop Loss"
+                            aria-label="Stop Loss"
+                            value={editableSl}
+                            onChange={(e) => setEditableSl(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-md p-1.5 mt-1 text-sm text-white"
+                        />
                     </div>
                     <div>
                         <label className="text-xs text-gray-400">Take Profit</label>
-                        <input type="number" value={editableTp} onChange={e => setEditableTp(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-md p-1.5 mt-1 text-sm text-white" />
+                        <input
+                            type="number"
+                            title="Take Profit"
+                            aria-label="Take Profit"
+                            value={editableTp}
+                            onChange={(e) => setEditableTp(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-md p-1.5 mt-1 text-sm text-white"
+                        />
                     </div>
                 </div>
             )}
@@ -444,22 +530,54 @@ const PositionCard: React.FC<PositionRowProps> = ({ position, onModify, onClose,
                     <>
                         {position.status === PositionStatus.OPEN && (
                             <>
-                                <button onClick={handleUpdate} disabled={!isModified} className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600">Update</button>
-                                <button onClick={() => onReverse(position.id, currentPrice)} className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Reverse</button>
-                                <button onClick={() => onClose(position.id, currentPrice)} className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500 text-white hover:bg-red-600">Close</button>
+                                <button
+                                    onClick={handleUpdate}
+                                    disabled={!isModified}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600"
+                                >
+                                    Update
+                                </button>
+                                <button
+                                    onClick={() => onReverse(position.id, currentPrice)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600"
+                                >
+                                    Reverse
+                                </button>
+                                <button
+                                    onClick={() => onClose(position.id, currentPrice)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500 text-white hover:bg-red-600"
+                                >
+                                    Close
+                                </button>
                             </>
                         )}
                         {position.status === PositionStatus.PENDING && (
                             <>
-                                <button onClick={handleUpdate} disabled={!isModified} className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600">Update</button>
-                                <button onClick={() => onCancel(position.id)} className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Cancel</button>
+                                <button
+                                    onClick={handleUpdate}
+                                    disabled={!isModified}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-600"
+                                >
+                                    Update
+                                </button>
+                                <button
+                                    onClick={() => onCancel(position.id)}
+                                    className="px-3 py-1 text-xs font-semibold rounded-md bg-yellow-500 text-white hover:bg-yellow-600"
+                                >
+                                    Cancel
+                                </button>
                             </>
                         )}
                     </>
                 )}
 
                 {position.status === PositionStatus.CLOSED && (
-                    <p className="text-xs text-gray-500">Closed on {position.closeTime ? new Date(position.closeTime).toLocaleDateString() : ''}</p>
+                    <p className="text-xs text-gray-500">
+                        Closed on{' '}
+                        {position.closeTime
+                            ? new Date(position.closeTime).toLocaleDateString()
+                            : ''}
+                    </p>
                 )}
             </div>
         </div>

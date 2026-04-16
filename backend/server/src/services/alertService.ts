@@ -1,7 +1,12 @@
-
 import { supabaseAdmin } from './supabaseAdmin';
 
-export type AlertType = 'CREATED' | 'ACTIVATED' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_MANUAL' | 'CLOSED_OTHER';
+export type AlertType =
+    | 'CREATED'
+    | 'ACTIVATED'
+    | 'CLOSED_TP'
+    | 'CLOSED_SL'
+    | 'CLOSED_MANUAL'
+    | 'CLOSED_OTHER';
 
 const formatMessage = (type: AlertType, symbol: string, data?: any): string => {
     switch (type) {
@@ -17,7 +22,6 @@ const formatMessage = (type: AlertType, symbol: string, data?: any): string => {
             return `Signal Closed Manually: ${symbol}`;
         default:
             return `Signal Update: ${symbol}`;
-
     }
 };
 
@@ -52,7 +56,7 @@ export const createAlert = async (
                 type,
                 message,
                 user_id: null, // System Alert
-                read: false
+                read: false,
             })
             .select('id')
             .single();
@@ -64,7 +68,6 @@ export const createAlert = async (
 
         console.log(`[AlertService] 🔔 Alert Created: ${message}`);
         return alert.id;
-
     } catch (error) {
         console.error('[AlertService] Unexpected error:', error);
         return null;

@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Hull Moving Average
+short: HMA
+pane: overlay
+---
+
+length = param.int(9, title="Length", min=2)
+src = param.source(close, title="Source")
+hullma = kuri.hma(src, length)
+mark(hullma, title="HMA", color=color.blue, linewidth=2)

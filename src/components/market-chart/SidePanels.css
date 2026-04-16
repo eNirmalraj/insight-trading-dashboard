@@ -1,0 +1,16 @@
+.no-select {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.col-width-dynamic {
+    width: var(--col-width);
+}
+
+.price-color-dynamic {
+    color: var(--price-color);
+}
+
+.indicator-color-dynamic {
+    color: var(--indicator-color);
+}

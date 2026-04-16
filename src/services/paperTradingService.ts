@@ -63,7 +63,7 @@ export const createPaperTrade = async (
         filled_at: new Date().toISOString(),
         stop_loss: overrides?.stopLoss ?? signal.stopLoss,
         take_profit: overrides?.takeProfit ?? signal.takeProfit,
-        trailing_stop_loss: overrides?.trailingStopLoss ?? signal.trailingStopLoss
+        trailing_stop_loss: overrides?.trailingStopLoss ?? signal.trailingStopLoss,
     };
 
     const { data, error } = await supabase
@@ -73,7 +73,10 @@ export const createPaperTrade = async (
         .single();
 
     if (error) {
-        console.error(`[PaperTrading] Failed to create trade for signal ${signal.id}:`, error.message);
+        console.error(
+            `[PaperTrading] Failed to create trade for signal ${signal.id}:`,
+            error.message
+        );
         return null;
     }
 
@@ -126,14 +129,16 @@ export const closePaperTrade = async (
             pnl: pnl,
             pnl_percent: pnlPercent,
             exit_reason: reason,
-            closed_at: new Date().toISOString()
+            closed_at: new Date().toISOString(),
         })
         .eq('id', trade.id);
 
     if (error) {
         console.error(`[PaperTrading] Failed to close trade ${trade.id}:`, error.message);
     } else {
-        console.log(`[PaperTrading] Closed trade ${trade.id}. PnL: ${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
+        console.log(
+            `[PaperTrading] Closed trade ${trade.id}. PnL: ${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`
+        );
     }
 };
 

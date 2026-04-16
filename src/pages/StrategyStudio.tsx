@@ -9,15 +9,42 @@ import {
 } from '../services/strategyService';
 import { Strategy } from '../types';
 import {
-    BUILT_IN_INDICATORS,
-    indicatorToJSON,
-    indicatorToKuri,
-} from '../services/builtInIndicators';
-import { BUILTIN_STRATEGY_NAMES } from '../constants';
-import { kuriLanguageDef, kuriLanguageConfig } from '../config/kuriLanguage';
-import { KURI_DOCS } from '../config/kuriDocs';
-import { Kuri } from '@insight/kuri-engine';
-import type { KuriDiagnostic } from '@insight/kuri-engine';
+    registerKuriLanguage,
+    setKuriDiagnostics,
+    clearKuriDiagnostics,
+} from '../lib/kuri/kuri-monaco';
+import { getKuriBridge } from '../lib/kuri/kuri-bridge';
+import type { KuriError } from '../lib/kuri/types';
+type ScriptDiagnostic = {
+    severity: string;
+    message: string;
+    line: number;
+    column: number;
+    endLine: number;
+    endColumn: number;
+    code: string;
+    suggestion?: string;
+};
+const ScriptEngine = {
+    provideDiagnostics: (script: string): ScriptDiagnostic[] => {
+        try {
+            const bridge = getKuriBridge();
+            const { errors } = bridge.compile(script);
+            return errors.map((e: KuriError) => ({
+                severity: e.phase === 'runtime' ? 'warning' : 'error',
+                message: e.message,
+                line: e.line || 1,
+                column: e.col || 1,
+                endLine: e.line || 1,
+                endColumn: 1000,
+                code: e.phase,
+                suggestion: undefined,
+            }));
+        } catch {
+            return [];
+        }
+    },
+};
 
 // --- Components ---
 import { TopToolbar } from '../components/strategy-studio/TopToolbar';
@@ -48,8 +75,8 @@ const StrategyStudio = () => {
     const navigate = ReactRouterDOM.useNavigate();
 
     // Editor State - Persisted
-    const [kuriContent, setKuriContent] = useState(
-        () => localStorage.getItem('strategyStudio_kuriContent') || ''
+    const [scriptContent, setScriptContent] = useState(
+        () => localStorage.getItem('strategyStudio_scriptContent') || ''
     );
     const [strategyName, setStrategyName] = useState(
         () => localStorage.getItem('strategyStudio_strategyName') || 'Untitled'
@@ -122,205 +149,34 @@ const StrategyStudio = () => {
 
     // Detect script type from content
     const detectedScriptType = useMemo((): 'INDICATOR' | 'STRATEGY' | 'KURI' => {
-        if (!kuriContent.trim()) return 'KURI';
-        const lines = kuriContent.split('\n');
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('//') || trimmed === '') continue;
-            if (/^indicator\s*\(/.test(trimmed)) return 'INDICATOR';
-            if (/^strategy\s*\(/.test(trimmed)) return 'STRATEGY';
-            break;
+        if (!scriptContent.trim()) return 'KURI';
+        // Kuri v2: detect type from YAML header "type: indicator" or "type: strategy"
+        const yamlMatch = scriptContent.match(
+            /^---[\s\S]*?type:\s*(indicator|strategy)[\s\S]*?---/m
+        );
+        if (yamlMatch) {
+            return yamlMatch[1] === 'strategy' ? 'STRATEGY' : 'INDICATOR';
         }
-        if (/\bindicator\s*\(/.test(kuriContent)) return 'INDICATOR';
-        if (/\bstrategy\s*\(/.test(kuriContent)) return 'STRATEGY';
         return 'KURI';
-    }, [kuriContent]);
+    }, [scriptContent]);
 
     // --- Effects ---
 
     useEffect(() => {
         if (!monaco) return;
 
-        // Guard against duplicate language registration
+        // Register Kuri v2.0 language (syntax, autocomplete, hover, theme)
         const registeredLanguages = monaco.languages.getLanguages();
         const alreadyRegistered = registeredLanguages.some((lang: any) => lang.id === 'kuri');
         if (!alreadyRegistered) {
-            monaco.languages.register({ id: 'kuri' });
+            registerKuriLanguage(monaco);
         }
 
-        monaco.languages.setMonarchTokensProvider('kuri', kuriLanguageDef);
-        monaco.languages.setLanguageConfiguration('kuri', kuriLanguageConfig as any);
-
-        // Register Hover Provider (store disposable for cleanup)
-        const hoverDisposable = monaco.languages.registerHoverProvider('kuri', {
-            provideHover: (model: any, position: any) => {
-                const word = model.getWordAtPosition(position);
-                if (!word) return null;
-
-                const lineContent = model.getLineContent(position.lineNumber);
-                const wordStart = word.startColumn - 1; // 0-based index
-                let fullWord = word.word;
-
-                // Detect namespace prefix by scanning backwards from the word
-                const prefixes = ['strategy.', 'ta.', 'math.', 'array.', 'map.', 'request.', 'ml.'];
-                for (const prefix of prefixes) {
-                    const prefixLen = prefix.length;
-                    if (
-                        wordStart >= prefixLen &&
-                        lineContent.substring(wordStart - prefixLen, wordStart) === prefix
-                    ) {
-                        fullWord = prefix + word.word;
-                        break;
-                    }
-                }
-
-                const doc = (KURI_DOCS as any)[fullWord];
-                if (doc) {
-                    const contents = [{ value: `**${fullWord}**` }, { value: doc.description }];
-
-                    if (doc.params && doc.params.length > 0) {
-                        let paramsMd = '**Parameters:**\n';
-                        doc.params.forEach((p: any) => {
-                            paramsMd += `- \`${p.name || ''}\`${p.type ? ` (${p.type})` : ''}: ${p.desc}\n`;
-                        });
-                        contents.push({ value: paramsMd });
-                    }
-
-                    if (doc.example) {
-                        contents.push({
-                            value: `**Example:**\n\`\`\`kuri\n${doc.example}\n\`\`\``,
-                        });
-                    }
-
-                    return {
-                        range: new monaco.Range(
-                            position.lineNumber,
-                            word.startColumn,
-                            position.lineNumber,
-                            word.endColumn
-                        ),
-                        contents: contents,
-                    };
-                }
-
-                return null;
-            },
-        });
-
-        // Register Completion Provider for Kuri built-in functions
-        const completionDisposable = monaco.languages.registerCompletionItemProvider('kuri', {
-            triggerCharacters: ['.'],
-            provideCompletionItems: (model: any, position: any) => {
-                const word = model.getWordUntilPosition(position);
-                const lineContent = model.getLineContent(position.lineNumber);
-                const textBefore = lineContent.substring(0, position.column - 1);
-                const range = {
-                    startLineNumber: position.lineNumber,
-                    endLineNumber: position.lineNumber,
-                    startColumn: word.startColumn,
-                    endColumn: word.endColumn,
-                };
-
-                const suggestions: any[] = [];
-
-                // Check if user typed a namespace prefix (e.g. "ta.")
-                const nsPrefixMatch = textBefore.match(
-                    /\b(ta|strategy|math|array|map|request|ml)\.\s*$/
-                );
-                const nsPrefix = nsPrefixMatch ? nsPrefixMatch[1] + '.' : null;
-
-                // Add matching docs entries as completions
-                for (const [key, doc] of Object.entries(KURI_DOCS as Record<string, any>)) {
-                    // Skip internal VM methods (no dot = internal unless it's a top-level Kuri function)
-                    if (/^execute|^apply|^resolve|^evaluate/.test(key)) continue;
-
-                    if (nsPrefix) {
-                        // Only suggest functions matching the typed namespace
-                        if (key.startsWith(nsPrefix)) {
-                            const funcName = key.substring(nsPrefix.length);
-                            suggestions.push({
-                                label: funcName,
-                                kind: monaco.languages.CompletionItemKind.Function,
-                                insertText: funcName,
-                                documentation: doc.description,
-                                detail: key,
-                                range,
-                            });
-                        }
-                    } else {
-                        suggestions.push({
-                            label: key,
-                            kind: key.includes('.')
-                                ? monaco.languages.CompletionItemKind.Method
-                                : monaco.languages.CompletionItemKind.Function,
-                            insertText: key,
-                            documentation: doc.description,
-                            range,
-                        });
-                    }
-                }
-
-                // Add keyword completions when not in namespace context
-                if (!nsPrefix) {
-                    const keywords = [
-                        'if',
-                        'else',
-                        'for',
-                        'while',
-                        'return',
-                        'break',
-                        'continue',
-                        'var',
-                        'func',
-                        'plot',
-                        'input',
-                    ];
-                    for (const kw of keywords) {
-                        suggestions.push({
-                            label: kw,
-                            kind: monaco.languages.CompletionItemKind.Keyword,
-                            insertText: kw,
-                            range,
-                        });
-                    }
-                    // Add namespace suggestions
-                    const namespaces = ['ta', 'strategy', 'math', 'array', 'map', 'request', 'ml'];
-                    for (const ns of namespaces) {
-                        suggestions.push({
-                            label: ns,
-                            kind: monaco.languages.CompletionItemKind.Module,
-                            insertText: ns,
-                            range,
-                        });
-                    }
-                }
-
-                return { suggestions };
-            },
-        });
-
-        // Define Theme
-        monaco.editor.defineTheme('kuri-dark', {
-            base: 'vs-dark',
-            inherit: true,
-            rules: [
-                { token: 'keyword', foreground: 'C586C0' },
-                { token: 'type', foreground: '4EC9B0' },
-                { token: 'identifier', foreground: '9CDCFE' },
-                { token: 'string', foreground: 'CE9178' },
-                { token: 'number', foreground: 'B5CEA8' },
-                { token: 'comment', foreground: '6A9955' },
-            ],
-            colors: {
-                'editor.background': '#0f0f0f',
-            },
-        });
-
-        // Cleanup: dispose providers to prevent stacking on re-render/HMR
-        return () => {
-            hoverDisposable.dispose();
-            completionDisposable.dispose();
-        };
+        // Also register legacy 'script' ID pointing to kuri tokenizer for backward compat
+        const scriptRegistered = registeredLanguages.some((lang: any) => lang.id === 'script');
+        if (!scriptRegistered) {
+            monaco.languages.register({ id: 'script' });
+        }
     }, [monaco]);
 
     // Validate script type — mark strategy.* calls as errors in indicator scripts
@@ -331,7 +187,7 @@ const StrategyStudio = () => {
 
         if (detectedScriptType === 'INDICATOR') {
             const markers: any[] = [];
-            const lines = kuriContent.split('\n');
+            const lines = scriptContent.split('\n');
             lines.forEach((line, i) => {
                 // Skip comment lines — don't flag strategy.* inside comments
                 const trimmed = line.trim();
@@ -346,7 +202,7 @@ const StrategyStudio = () => {
                         startColumn: match.index + 1,
                         endLineNumber: i + 1,
                         endColumn: match.index + match[0].length + 1,
-                        message: `'${match[0]}()' is not allowed in indicator scripts. Indicators should only use plot() — remove strategy functions or change to strategy().`,
+                        message: `'${match[0]}()' is not allowed in indicator scripts. Indicators should only use mark() — remove strategy functions or change type to strategy in the YAML header.`,
                         severity: monaco.MarkerSeverity.Error,
                     });
                 }
@@ -356,14 +212,14 @@ const StrategyStudio = () => {
             const model2 = editorRef.current?.getModel?.();
             if (model2) monaco.editor.setModelMarkers(model2, 'kuri-type-check', []);
         }
-    }, [monaco, kuriContent, detectedScriptType, activeScript]);
+    }, [monaco, scriptContent, detectedScriptType, activeScript]);
 
-    // Real-time Kuri diagnostics — parse/typecheck on every content change (debounced)
+    // Real-time ScriptEngine diagnostics — parse/typecheck on every content change (debounced)
     useEffect(() => {
         if (!monaco) return;
         const model = editorRef.current?.getModel?.();
         if (!model) return;
-        if (!kuriContent || kuriContent.trim().length === 0) {
+        if (!scriptContent || scriptContent.trim().length === 0) {
             monaco.editor.setModelMarkers(model, 'kuri-diagnostics', []);
             setDiagnosticCounts({ errors: 0, warnings: 0 });
             return;
@@ -371,8 +227,8 @@ const StrategyStudio = () => {
 
         const timeoutId = setTimeout(() => {
             try {
-                const diagnostics = Kuri.provideDiagnostics(kuriContent);
-                const markers = diagnostics.map((d: KuriDiagnostic) => ({
+                const diagnostics = ScriptEngine.provideDiagnostics(scriptContent);
+                const markers = diagnostics.map((d: ScriptDiagnostic) => ({
                     startLineNumber: d.line,
                     startColumn: d.column,
                     endLineNumber: d.endLine,
@@ -391,16 +247,16 @@ const StrategyStudio = () => {
                 }
 
                 // Update error/warning counts for toolbar badge
-                const errors = diagnostics.filter((d: KuriDiagnostic) => d.severity === 'error');
+                const errors = diagnostics.filter((d: ScriptDiagnostic) => d.severity === 'error');
                 const warnings = diagnostics.filter(
-                    (d: KuriDiagnostic) => d.severity === 'warning'
+                    (d: ScriptDiagnostic) => d.severity === 'warning'
                 );
                 setDiagnosticCounts({ errors: errors.length, warnings: warnings.length });
 
                 // Surface errors and warnings in bottom console (deduplicated)
                 if (diagnostics.length > 0) {
                     const summaryKey = diagnostics
-                        .map((d: KuriDiagnostic) => `${d.severity}:${d.line}:${d.message}`)
+                        .map((d: ScriptDiagnostic) => `${d.severity}:${d.line}:${d.message}`)
                         .join('|');
                     if (summaryKey !== lastDiagnosticMsg.current) {
                         lastDiagnosticMsg.current = summaryKey;
@@ -436,7 +292,7 @@ const StrategyStudio = () => {
         }, 500); // 500ms debounce
 
         return () => clearTimeout(timeoutId);
-    }, [monaco, kuriContent]);
+    }, [monaco, scriptContent]);
 
     useEffect(() => {
         localStorage.setItem('strategyStudio_consoleHeight', consoleHeight.toString());
@@ -457,16 +313,16 @@ const StrategyStudio = () => {
     useEffect(() => {
         if (activeScript) {
             localStorage.setItem('strategyStudio_activeScript', activeScript);
-            localStorage.setItem('strategyStudio_kuriContent', kuriContent);
+            localStorage.setItem('strategyStudio_scriptContent', scriptContent);
             localStorage.setItem('strategyStudio_strategyName', strategyName);
             localStorage.setItem('strategyStudio_isDirty', String(isDirty));
         } else {
             localStorage.removeItem('strategyStudio_activeScript');
-            localStorage.removeItem('strategyStudio_kuriContent');
+            localStorage.removeItem('strategyStudio_scriptContent');
             localStorage.removeItem('strategyStudio_strategyName');
             localStorage.removeItem('strategyStudio_isDirty');
         }
-    }, [activeScript, kuriContent, strategyName, isDirty]);
+    }, [activeScript, scriptContent, strategyName, isDirty]);
 
     useEffect(() => {
         if (lastActiveScript) {
@@ -590,26 +446,30 @@ const StrategyStudio = () => {
         }, 2000);
     };
 
-    const createNew = (type: 'STRATEGY' | 'INDICATOR' = 'STRATEGY') => {
-        if (type === 'INDICATOR') {
-            setKuriContent(
-                `//@version=3\nindicator("My Indicator", shorttitle="Ind", overlay=true)\n`
-            );
-            setStrategyName('New Indicator');
-        } else {
-            setKuriContent(
-                `//@version=3\nstrategy("My Strategy", shorttitle="Strat", overlay=true, initial_capital=10000)\n`
-            );
-            setStrategyName('New Strategy');
-        }
+    const createNew = () => {
+        setScriptContent(`---
+version: kuri 1.0
+name: New Strategy
+type: strategy
+---
+
+fastMA = kuri.sma(close, 10)
+slowMA = kuri.sma(close, 20)
+
+if kuri.crossover(fastMA, slowMA)
+    strategy.entry("Long", strategy.long)
+if kuri.crossunder(fastMA, slowMA)
+    strategy.close("Long")
+`);
+        setStrategyName('New Strategy');
         setActiveScript('new-' + Date.now());
-        setIsDirty(true);
-        addLog({ message: `Created new Kuri ${type.toLowerCase()}.`, type: 'success' });
+        setIsDirty(false);
+        addLog({ message: 'Created new strategy.', type: 'success' });
     };
 
     const loadStrategy = (s: Strategy) => {
-        const content = s.kuriScript || '';
-        setKuriContent(content);
+        const content = s.scriptSource || '';
+        setScriptContent(content);
         setStrategyName(s.name);
         setActiveScript(s.id);
         setIsDirty(false);
@@ -620,23 +480,16 @@ const StrategyStudio = () => {
         }
     };
 
-    const loadHelper = (json: string, name: string, id: string) => {
-        try {
-            const indicator = JSON.parse(json);
-            const code = indicatorToKuri(indicator);
-
-            setKuriContent(code);
-            setStrategyName(name);
-            setActiveScript(id);
-            setIsDirty(true);
-            addLog({ message: `Loaded built-in indicator: ${name}`, type: 'success' });
-        } catch (e) {
-            addLog({ message: `Failed to load indicator: ${(e as Error).message}`, type: 'error' });
-        }
+    const loadHelper = (kuriScript: string, name: string, id: string) => {
+        setScriptContent(kuriScript.trim());
+        setStrategyName(name);
+        setActiveScript(id);
+        setIsDirty(true);
+        addLog({ message: `Loaded built-in indicator: ${name}`, type: 'success' });
     };
 
     const loadTemplate = (code: string, name: string, id: string) => {
-        setKuriContent(code.trim());
+        setScriptContent(code.trim());
         setStrategyName(name);
         setActiveScript(id);
         setIsDirty(true);
@@ -645,18 +498,18 @@ const StrategyStudio = () => {
 
     const requestSave = async (): Promise<string | null> => {
         try {
-            if (!kuriContent.trim()) throw new Error('Script is empty');
+            if (!scriptContent.trim()) throw new Error('Script is empty');
             if (!strategyName.trim()) throw new Error('Script name cannot be empty');
 
             // Pre-save compilation check — block saving scripts with errors
             // Warnings are shown but don't block saving (e.g., unused variables)
-            const diagnostics = Kuri.provideDiagnostics(kuriContent);
-            const errors = diagnostics.filter((d: KuriDiagnostic) => d.severity === 'error');
-            const warnings = diagnostics.filter((d: KuriDiagnostic) => d.severity === 'warning');
+            const diagnostics = ScriptEngine.provideDiagnostics(scriptContent);
+            const errors = diagnostics.filter((d: ScriptDiagnostic) => d.severity === 'error');
+            const warnings = diagnostics.filter((d: ScriptDiagnostic) => d.severity === 'warning');
 
             // Log warnings to console but don't block
             if (warnings.length > 0) {
-                warnings.forEach((w: KuriDiagnostic) =>
+                warnings.forEach((w: ScriptDiagnostic) =>
                     addLog({
                         message: w.message,
                         type: 'warn',
@@ -671,9 +524,9 @@ const StrategyStudio = () => {
             // Block save on errors
             if (errors.length > 0) {
                 const msg = errors
-                    .map((e: KuriDiagnostic) => `Line ${e.line}: ${e.message}`)
+                    .map((e: ScriptDiagnostic) => `Line ${e.line}: ${e.message}`)
                     .join('\n');
-                errors.forEach((e: KuriDiagnostic) =>
+                errors.forEach((e: ScriptDiagnostic) =>
                     addLog({
                         message: e.message,
                         type: 'error',
@@ -688,35 +541,31 @@ const StrategyStudio = () => {
                 );
             }
 
-            // Must declare as indicator() or strategy() — no untyped scripts allowed
+            // Must have YAML header with type: strategy
             const scriptType = detectedScriptType;
-            if (scriptType !== 'INDICATOR' && scriptType !== 'STRATEGY') {
+            if (scriptType === 'INDICATOR') {
                 throw new Error(
-                    'Script must start with indicator("Name") or strategy("Name"). Add a declaration at the top of your script.'
+                    'Indicators should be created in the Market page editor.\n\nUse the </> icon on the chart\'s right toolbar to open the Indicator Editor.'
+                );
+            }
+            if (scriptType !== 'STRATEGY') {
+                throw new Error(
+                    'Script must have a YAML header with type: strategy.\n\nExample:\n---\nversion: kuri 1.0\ntype: strategy\nname: "My Strategy"\n---'
                 );
             }
 
             // Script-type-specific checks
-            if (scriptType === 'STRATEGY' && !/\bstrategy\.entry\s*\(/.test(kuriContent)) {
+            if (scriptType === 'STRATEGY' && !/\bstrategy\.entry\s*\(/.test(scriptContent)) {
                 throw new Error(
                     'Strategy must have at least one strategy.entry() call to generate signals.'
                 );
             }
-            if (
-                scriptType === 'INDICATOR' &&
-                !/\bplot\s*\(|\bline\.new\s*\(|\blabel\.new\s*\(|\bbox\.new\s*\(|\bplotshape\s*\(|\bplotchar\s*\(|\bhline\s*\(/.test(
-                    kuriContent
-                )
-            ) {
-                throw new Error(
-                    'Indicator must have at least one plot() or drawing call (line.new, label.new) to display output on the chart.'
-                );
-            }
+            // Indicator validation removed — indicators are created in Market page editor
 
             setIsSaving(true);
             const strategyToSave = {
                 name: strategyName,
-                description: `Kuri ${scriptType.toLowerCase()}: ${strategyName}`,
+                description: `ScriptEngine ${scriptType.toLowerCase()}: ${strategyName}`,
                 type: scriptType as 'INDICATOR' | 'STRATEGY',
                 id:
                     activeScript &&
@@ -724,7 +573,7 @@ const StrategyStudio = () => {
                     !activeScript.startsWith('builtin-')
                         ? activeScript
                         : undefined,
-                kuriScript: kuriContent,
+                scriptSource: scriptContent,
                 timeframe: '1h',
                 symbolScope: [],
                 indicators: [],
@@ -744,6 +593,7 @@ const StrategyStudio = () => {
             }
 
             addLog({ message: `${scriptType} "${strategyName}" saved to cloud!`, type: 'success' });
+
             loadHistory();
             setIsDirty(false);
             return savedId;
@@ -760,7 +610,7 @@ const StrategyStudio = () => {
             await deleteStrategy(strategy.id);
             addLog({ message: `Deleted strategy: ${strategy.name}`, type: 'success' });
             if (activeScript === strategy.id) {
-                setKuriContent('');
+                setScriptContent('');
                 setStrategyName('New Strategy');
                 setActiveScript(null);
             }
@@ -774,29 +624,30 @@ const StrategyStudio = () => {
     };
 
     const handleCheck = () => {
-        if (!kuriContent.trim()) {
+        if (!scriptContent.trim()) {
             addLog({ message: 'Script is empty — nothing to check.', type: 'error' });
             return;
         }
         setIsChecking(true);
         try {
-            // 1. Must have indicator() or strategy() declaration
+            // 1. Must have YAML header with type: indicator or type: strategy
             const scriptType = detectedScriptType;
             if (scriptType !== 'INDICATOR' && scriptType !== 'STRATEGY') {
                 addLog({
-                    message: '✗ Script must start with indicator("Name") or strategy("Name").',
+                    message:
+                        '✗ Script must have a YAML header with type: indicator or type: strategy.',
                     type: 'error',
                 });
                 return;
             }
 
             // 2. Run full diagnostics (lexer → parser → type checker → IR → semantic)
-            const diagnostics = Kuri.provideDiagnostics(kuriContent);
-            const errors = diagnostics.filter((d: KuriDiagnostic) => d.severity === 'error');
-            const warnings = diagnostics.filter((d: KuriDiagnostic) => d.severity === 'warning');
+            const diagnostics = ScriptEngine.provideDiagnostics(scriptContent);
+            const errors = diagnostics.filter((d: ScriptDiagnostic) => d.severity === 'error');
+            const warnings = diagnostics.filter((d: ScriptDiagnostic) => d.severity === 'warning');
 
             if (errors.length > 0) {
-                errors.forEach((e: KuriDiagnostic) =>
+                errors.forEach((e: ScriptDiagnostic) =>
                     addLog({
                         message: e.message,
                         type: 'error',
@@ -813,7 +664,7 @@ const StrategyStudio = () => {
                 return;
             }
             if (warnings.length > 0) {
-                warnings.forEach((w: KuriDiagnostic) =>
+                warnings.forEach((w: ScriptDiagnostic) =>
                     addLog({
                         message: w.message,
                         type: 'warn',
@@ -831,20 +682,15 @@ const StrategyStudio = () => {
             }
 
             // 3. Script-type-specific checks
-            if (
-                scriptType === 'INDICATOR' &&
-                !/\bplot\s*\(|\bline\.new\s*\(|\blabel\.new\s*\(|\bbox\.new\s*\(|\bplotshape\s*\(|\bplotchar\s*\(|\bhline\s*\(/.test(
-                    kuriContent
-                )
-            ) {
+            if (scriptType === 'INDICATOR' && !/\bmark\s*\(|\bmark\.\w+\s*\(/.test(scriptContent)) {
                 addLog({
                     message:
-                        '✗ Indicator must have at least one plot() or drawing call (line.new, label.new).',
+                        '✗ Indicator must have at least one mark() or mark.*() call to display output on the chart.',
                     type: 'error',
                 });
                 return;
             }
-            if (scriptType === 'STRATEGY' && !/\bstrategy\.entry\s*\(/.test(kuriContent)) {
+            if (scriptType === 'STRATEGY' && !/\bstrategy\.entry\s*\(/.test(scriptContent)) {
                 addLog({
                     message: '✗ Strategy must have at least one strategy.entry() call.',
                     type: 'error',
@@ -865,11 +711,31 @@ const StrategyStudio = () => {
     };
 
     const handleAddToChart = async () => {
-        if (!kuriContent.trim()) {
+        if (!scriptContent.trim()) {
             addLog({ message: 'Script is empty — nothing to add.', type: 'error' });
             return;
         }
         try {
+            // Compile first to catch errors before saving
+            const bridge = getKuriBridge();
+            const { errors } = bridge.compile(scriptContent);
+            const compileErrors = errors.filter((e: KuriError) => e.phase !== 'runtime');
+            if (compileErrors.length > 0) {
+                compileErrors.forEach((e: KuriError) =>
+                    addLog({
+                        message: e.message,
+                        type: 'error',
+                        line: e.line,
+                        column: e.col,
+                    })
+                );
+                addLog({
+                    message: `Compilation failed — ${compileErrors.length} error${compileErrors.length > 1 ? 's' : ''}. Fix errors before adding to chart.`,
+                    type: 'error',
+                });
+                return;
+            }
+
             const savedId = await requestSave();
             if (savedId) {
                 navigate(`/market?addScript=${savedId}`);
@@ -896,19 +762,12 @@ const StrategyStudio = () => {
                     activeScript={activeScript}
                     isDirty={isDirty}
                     isSaving={isSaving}
-                    isChecking={isChecking}
                     onSave={requestSave}
                     onOpenScript={() => setIsScriptModalOpen(true)}
                     onRun={handleAddToChart}
-                    onCheck={handleCheck}
-                    errorCount={diagnosticCounts.errors}
-                    warningCount={diagnosticCounts.warnings}
                     onCreateNew={createNew}
-                    scriptType={detectedScriptType}
                     editorMode={editorMode}
                     onModeChange={setEditorMode}
-                    isAIOpen={isAIOpen}
-                    onToggleAI={() => setIsAIOpen(!isAIOpen)}
                 />
 
                 {/* Main Editor Area + AI Sidebar */}
@@ -916,42 +775,31 @@ const StrategyStudio = () => {
                     {/* Editor */}
                     <div className="flex-1 overflow-hidden relative">
                         {activeScript ? (
-                            editorMode === 'visual' ? (
+                            <>
+                            <div className={editorMode === 'visual' ? 'h-full' : 'hidden'}>
                                 <VisualBuilder
-                                    onCodeChange={(code) => {
-                                        setKuriContent(code);
-                                        setIsDirty(true);
+                                    onCodeChange={() => {
+                                        // Disabled: Visual Builder → Code Editor sync is turned off
                                     }}
                                     strategyName={strategyName}
                                 />
-                            ) : (
+                            </div>
+                            {editorMode === 'code' && (
                                 <Editor
                                     height="100%"
                                     defaultLanguage="kuri"
                                     language="kuri"
-                                    value={kuriContent}
+                                    value={scriptContent}
                                     theme="kuri-dark"
                                     beforeMount={(m) => {
-                                        m.editor.defineTheme('kuri-dark', {
-                                            base: 'vs-dark',
-                                            inherit: true,
-                                            rules: [
-                                                { token: 'keyword', foreground: 'C586C0' },
-                                                { token: 'type', foreground: '4EC9B0' },
-                                                { token: 'identifier', foreground: '9CDCFE' },
-                                                { token: 'string', foreground: 'CE9178' },
-                                                { token: 'number', foreground: 'B5CEA8' },
-                                                { token: 'comment', foreground: '6A9955' },
-                                            ],
-                                            colors: { 'editor.background': '#0f0f0f' },
-                                        });
+                                        registerKuriLanguage(m);
                                     }}
                                     onMount={(editor) => {
                                         editorRef.current = editor;
                                     }}
                                     onChange={(value) => {
                                         if (value !== undefined) {
-                                            setKuriContent(value);
+                                            setScriptContent(value);
                                             setIsDirty(true);
                                         }
                                     }}
@@ -966,23 +814,18 @@ const StrategyStudio = () => {
                                             "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                                     }}
                                 />
-                            )
+                            )}
+                            </>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                 <div className="mb-4 text-6xl opacity-10">Waiting for Script</div>
                                 <h2 className="text-xl font-medium mb-4">No Script Selected</h2>
                                 <div className="flex gap-4">
                                     <button
-                                        onClick={() => createNew('STRATEGY')}
+                                        onClick={() => createNew()}
                                         className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded shadow-lg transition-colors"
                                     >
                                         New Strategy
-                                    </button>
-                                    <button
-                                        onClick={() => createNew('INDICATOR')}
-                                        className="px-6 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded shadow-lg transition-colors"
-                                    >
-                                        New Indicator
                                     </button>
                                     <button
                                         onClick={() => setIsScriptModalOpen(true)}
@@ -999,13 +842,13 @@ const StrategyStudio = () => {
                     <AIChatSidebar
                         isOpen={isAIOpen}
                         onClose={() => setIsAIOpen(false)}
-                        currentCode={kuriContent}
+                        currentCode={scriptContent}
                         consoleErrors={logs
                             .filter((l) => l.type === 'error')
                             .slice(-5)
                             .map((l) => l.message)}
                         onApplyCode={(code) => {
-                            setKuriContent(code);
+                            setScriptContent(code);
                             setIsDirty(true);
                             addLog({ message: 'AI code applied to editor.', type: 'success' });
                         }}
@@ -1027,7 +870,7 @@ const StrategyStudio = () => {
                     onNavigateToLine={navigateToLine}
                     onSendErrorToAI={(errors) => {
                         setIsAIOpen(true);
-                        const prompt = `Fix the errors in this Kuri script. Here are the console errors:\n${errors.join('\n')}\n\nCode:\n\`\`\`kuri\n${kuriContent}\n\`\`\``;
+                        const prompt = `Fix the errors in this script. Here are the console errors:\n${errors.join('\n')}\n\nCode:\n\`\`\`kuri\n${scriptContent}\n\`\`\``;
                         setAiExternalMessage(prompt);
                     }}
                 />
@@ -1035,10 +878,11 @@ const StrategyStudio = () => {
                 <OpenScriptModal
                     isOpen={isScriptModalOpen}
                     onClose={() => setIsScriptModalOpen(false)}
-                    savedStrategies={savedStrategies}
+                    savedStrategies={savedStrategies.filter((s) => s.type !== 'INDICATOR')}
                     onLoadStrategy={loadStrategy}
-                    onLoadIndicator={loadHelper}
+                    onLoadHelper={loadHelper}
                     onDelete={deleteStrategyHandler}
+                    loading={loadingHistory}
                 />
             </div>
         </>

@@ -1,0 +1,256 @@
+backend/server/src/debug_ccxt.ts(1,18): error TS2307: Cannot find module 'ccxt' or its corresponding type declarations.
+backend/server/src/engine/alertEngine.ts(3,24): error TS2307: Cannot find module '@insight/types' or its corresponding type declarations.
+backend/server/src/engine/alertEvaluator.ts(6,24): error TS2307: Cannot find module '@insight/types' or its corresponding type declarations.
+backend/server/src/engine/cryptoEngine.ts(4,18): error TS2307: Cannot find module 'ccxt' or its corresponding type declarations.
+backend/server/src/index.ts(1,21): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+backend/server/tests/kuri/__tests__/special_types.test.ts(2,25): error TS2307: Cannot find module '../../../src/kuri/context' or its corresponding type declarations.
+backend/server/tests/kuri/__tests__/special_types.test.ts(4,1): error TS2593: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+backend/server/tests/kuri/__tests__/special_types.test.ts(7,5): error TS2304: Cannot find name 'beforeEach'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(17,5): error TS2593: Cannot find name 'test'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+backend/server/tests/kuri/__tests__/special_types.test.ts(25,9): error TS2304: Cannot find name 'expect'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(26,9): error TS2304: Cannot find name 'expect'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(29,5): error TS2593: Cannot find name 'test'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+backend/server/tests/kuri/__tests__/special_types.test.ts(41,9): error TS2304: Cannot find name 'expect'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(44,5): error TS2593: Cannot find name 'test'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+backend/server/tests/kuri/__tests__/special_types.test.ts(53,9): error TS2304: Cannot find name 'expect'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(54,9): error TS2304: Cannot find name 'expect'.
+backend/server/tests/kuri/__tests__/special_types.test.ts(57,5): error TS2593: Cannot find name 'test'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+backend/server/tests/kuri/__tests__/special_types.test.ts(65,9): error TS2304: Cannot find name 'expect'.
+src/components/alerts/AlertConditionSelector.tsx(37,27): error TS2304: Cannot find name 'alerts'.
+src/components/alerts/AlertConditionSelector.tsx(61,27): error TS2304: Cannot find name 'alerts'.
+src/components/alerts/AlertUsageExample.tsx(8,61): error TS2307: Cannot find module '@/src/core' or its corresponding type declarations.
+src/components/market-chart/CandlestickChart.tsx(152,14): error TS2678: Type '"SMA"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(156,14): error TS2678: Type '"WMA"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(158,14): error TS2678: Type '"VWMA"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(160,14): error TS2678: Type '"HMA"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(184,14): error TS2678: Type '"ADX"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(189,14): error TS2678: Type '"Bollinger Bands"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(211,14): error TS2678: Type '"DONCHIAN"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(212,14): error TS2678: Type '"DC"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(214,14): error TS2678: Type '"ICHIMOKU"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(215,14): error TS2678: Type '"Ichimoku"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(217,14): error TS2678: Type '"KELTNER"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(218,14): error TS2678: Type '"KC"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(219,34): error TS2353: Object literal may only specify known properties, and 'multiplier' does not exist in type 'IndicatorSettings'.
+src/components/market-chart/CandlestickChart.tsx(220,14): error TS2678: Type '"ADR"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(222,14): error TS2678: Type '"KURI_LINE"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(223,14): error TS2678: Type '"KURI_AREA"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(224,14): error TS2678: Type '"KURI_HISTOGRAM"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(225,14): error TS2678: Type '"KURI_BAND"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(226,14): error TS2678: Type '"KURI_COLUMNS"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(227,14): error TS2678: Type '"KURI_MARKERS"' is not comparable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(440,76): error TS2694: Namespace '"C:/Users/nirma/OneDrive/Desktop/My Project/src/components/market-chart/BottomPanel"' has no exported member 'ConsoleLog'.
+src/components/market-chart/CandlestickChart.tsx(920,41): error TS2353: Object literal may only specify known properties, and 'seriesColors' does not exist in type 'IndicatorSettings'.
+src/components/market-chart/CandlestickChart.tsx(922,83): error TS2339: Property 'kuriInputDefs' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(931,78): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(968,33): error TS2353: Object literal may only specify known properties, and 'kuriInputDefs' does not exist in type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(968,79): error TS2339: Property 'kuriInputDefs' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(976,79): error TS2554: Expected 1 arguments, but got 2.
+src/components/market-chart/CandlestickChart.tsx(991,49): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1015,33): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1031,33): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1047,33): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1167,29): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1182,29): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1527,79): error TS2554: Expected 1 arguments, but got 2.
+src/components/market-chart/CandlestickChart.tsx(1541,33): error TS2322: Type '"KURI_HISTOGRAM"' is not assignable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(1543,33): error TS2322: Type '"KURI_AREA"' is not assignable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(1545,33): error TS2322: Type '"KURI_BAND"' is not assignable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(1549,33): error TS2322: Type '"KURI_MARKERS"' is not assignable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(1551,33): error TS2322: Type '"KURI_LINE"' is not assignable to type 'IndicatorType'.
+src/components/market-chart/CandlestickChart.tsx(1596,33): error TS2353: Object literal may only specify known properties, and 'seriesColors' does not exist in type 'IndicatorSettings'.
+src/components/market-chart/CandlestickChart.tsx(1662,29): error TS2353: Object literal may only specify known properties, and 'kuriPlotType' does not exist in type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1699,50): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1700,50): error TS2339: Property 'kuriPlotType' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(1892,41): error TS2353: Object literal may only specify known properties, and 'seriesColors' does not exist in type 'IndicatorSettings'.
+src/components/market-chart/CandlestickChart.tsx(1898,69): error TS2339: Property 'kuriPlotTitle' does not exist on type '{ settings: IndicatorSettings; id: string; type: IndicatorType; data: Record<string, number[]>; isVisible: boolean; registryId?: string; kuriScript?: string; kuriPlotColors?: Record<...>; kuriOverlay?: boolean; }'.
+src/components/market-chart/CandlestickChart.tsx(1934,37): error TS2339: Property 'kuriInputDefs' does not exist on type '{ settings: IndicatorSettings; id: string; type: IndicatorType; data: Record<string, number[]>; isVisible: boolean; registryId?: string; kuriScript?: string; kuriPlotColors?: Record<...>; kuriOverlay?: boolean; }'.
+src/components/market-chart/CandlestickChart.tsx(1935,68): error TS2339: Property 'kuriInputDefs' does not exist on type '{ settings: IndicatorSettings; id: string; type: IndicatorType; data: Record<string, number[]>; isVisible: boolean; registryId?: string; kuriScript?: string; kuriPlotColors?: Record<...>; kuriOverlay?: boolean; }'.
+src/components/market-chart/CandlestickChart.tsx(1940,57): error TS2339: Property 'kuriPlotTitle' does not exist on type '{ settings: IndicatorSettings; id: string; type: IndicatorType; data: Record<string, number[]>; isVisible: boolean; registryId?: string; kuriScript?: string; kuriPlotColors?: Record<...>; kuriOverlay?: boolean; }'.
+src/components/market-chart/CandlestickChart.tsx(1947,77): error TS2339: Property 'kuriPlotTitle' does not exist on type '{ settings: IndicatorSettings; id: string; type: IndicatorType; data: Record<string, number[]>; isVisible: boolean; registryId?: string; kuriScript?: string; kuriPlotColors?: Record<...>; kuriOverlay?: boolean; }'.
+src/components/market-chart/CandlestickChart.tsx(2995,28): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "Volume" | "BB" | "MACD" | "SuperTrend" | "MA Ribbon" | "ATR" | "VWAP" | "OBV"' and '"ADX"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3172,24): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "BB" | "SuperTrend" | "MA Ribbon" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"ADX"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3214,24): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "BB" | "SuperTrend" | "MA Ribbon" | "ATR" | "VWAP"' and '"KURI_HISTOGRAM"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3214,63): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "BB" | "SuperTrend" | "MA Ribbon" | "ATR" | "VWAP"' and '"KURI_COLUMNS"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3246,24): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "BB" | "SuperTrend" | "MA Ribbon" | "ATR" | "VWAP"' and '"KURI_LINE"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3246,58): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "BB" | "SuperTrend" | "MA Ribbon" | "ATR" | "VWAP"' and '"KURI_AREA"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3470,17): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Date Range" | "Price Range" | "Date & Price Range" | "Long Position" | "Arrow" | "Path" | "Brush" | "Short Position"' and '"Price Label"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3471,17): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Date Range" | "Price Range" | "Date & Price Range" | "Long Position" | "Arrow" | "Path" | "Brush" | "Short Position"' and '"Signal Marker"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3472,17): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Date Range" | "Price Range" | "Date & Price Range" | "Long Position" | "Arrow" | "Path" | "Brush" | "Short Position"' and '"Note Flag"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3473,17): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Date Range" | "Price Range" | "Date & Price Range" | "Long Position" | "Arrow" | "Path" | "Brush" | "Short Position"' and '"Emoji Sticker"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3475,24): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3476,39): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3477,38): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3478,32): error TS2339: Property 'type' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3481,23): error TS2339: Property 'type' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3686,25): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Arrow"' and '"Highlight Zone"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3687,25): error TS2367: This comparison appears to be unintentional because the types '"Trend Line" | "Ray" | "Arrow"' and '"Measure Tool"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(3722,26): error TS2339: Property 'type' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3723,24): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3723,37): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3724,38): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3725,35): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3726,38): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3727,35): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3754,26): error TS2339: Property 'type' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3755,24): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3755,33): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3755,42): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3756,43): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3756,65): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3757,43): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3757,65): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3758,43): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3758,65): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3791,26): error TS2339: Property 'type' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3792,24): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3792,36): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(3793,35): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4143,17): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 6 more ... | "Short Position"' and '"Triangle"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(4144,36): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4149,43): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4150,38): error TS2700: Rest types may only be created from object types.
+src/components/market-chart/CandlestickChart.tsx(4161,17): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 6 more ... | "Short Position"' and '"Arc"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(4162,36): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4167,43): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4168,38): error TS2700: Rest types may only be created from object types.
+src/components/market-chart/CandlestickChart.tsx(4179,17): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 6 more ... | "Short Position"' and '"Polygon"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(4179,69): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4181,25): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"' and '"Polygon"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(4182,46): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4183,34): error TS2698: Spread types may only be created from object types.
+src/components/market-chart/CandlestickChart.tsx(4463,25): error TS2322: Type '"Circle"' is not assignable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4473,25): error TS2322: Type '"Ellipse"' is not assignable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4483,25): error TS2322: Type '"Triangle"' is not assignable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4495,25): error TS2322: Type '"Arc"' is not assignable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4507,25): error TS2322: Type '"Polygon"' is not assignable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4800,22): error TS2678: Type '"Highlight Zone"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4801,22): error TS2678: Type '"Measure Tool"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4836,22): error TS2678: Type '"Circle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4839,22): error TS2678: Type '"Ellipse"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4842,22): error TS2678: Type '"Triangle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4843,40): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4845,47): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4849,22): error TS2678: Type '"Arc"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4850,40): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4852,47): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4856,22): error TS2678: Type '"Polygon"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4857,40): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4981,30): error TS2678: Type '"Circle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4984,30): error TS2678: Type '"Ellipse"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4987,30): error TS2678: Type '"Triangle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4988,48): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4990,53): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4993,30): error TS2678: Type '"Arc"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(4994,48): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4996,53): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(4999,30): error TS2678: Type '"Polygon"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(5000,48): error TS2339: Property 'step' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(5451,25): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Date Range" | "Price Range" | "Date & Price Range" | ... 4 more ... | "Short Position"' and '"Triangle"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(5452,25): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Date Range" | "Price Range" | "Date & Price Range" | ... 4 more ... | "Short Position"' and '"Arc"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(5453,25): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Date Range" | "Price Range" | "Date & Price Range" | ... 4 more ... | "Short Position"' and '"Polygon"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(5550,55): error TS2367: This comparison appears to be unintentional because the types '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 6 more ... | "Short Position"' and '"Polygon"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(6763,30): error TS2678: Type '"Circle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(6764,36): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6764,49): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6765,51): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6766,48): error TS2339: Property 'center' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6767,51): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6768,48): error TS2339: Property 'edge' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6795,30): error TS2678: Type '"Ellipse"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(6796,36): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6796,48): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6797,52): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6798,49): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6799,52): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6800,49): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6831,30): error TS2678: Type '"Triangle"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(6832,36): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6832,45): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6832,54): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6833,56): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6833,78): error TS2339: Property 'p1' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6834,56): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6834,78): error TS2339: Property 'p2' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6835,56): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6835,78): error TS2339: Property 'p3' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6862,30): error TS2678: Type '"Arc"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(6863,36): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6863,48): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6863,58): error TS2339: Property 'control' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6864,57): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6864,82): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6865,57): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6865,80): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6866,57): error TS2339: Property 'control' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6866,84): error TS2339: Property 'control' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6922,30): error TS2678: Type '"Polygon"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(6923,36): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6923,48): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(6924,45): error TS2339: Property 'points' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7837,30): error TS2678: Type '"Price Label"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(7838,36): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7839,51): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7840,50): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7842,65): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7907,30): error TS2678: Type '"Signal Marker"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(7908,36): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7909,51): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7910,50): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7916,35): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7917,41): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7918,41): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7974,30): error TS2678: Type '"Note Flag"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(7975,36): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7976,51): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(7977,50): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8040,30): error TS2678: Type '"Highlight Zone"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(8041,36): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8041,48): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8042,52): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8043,49): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8044,52): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8045,49): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8111,30): error TS2678: Type '"Emoji Sticker"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(8112,36): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8113,51): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8114,50): error TS2339: Property 'point' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8151,30): error TS2678: Type '"Measure Tool"' is not comparable to type '"Horizontal Line" | "Horizontal Ray" | "Trend Line" | "Ray" | "Rectangle" | "Parallel Channel" | "Fibonacci Retracement" | "Gann Box" | "Text Note" | "Callout" | "Date Range" | ... 7 more ... | "Short Position"'.
+src/components/market-chart/CandlestickChart.tsx(8152,36): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8152,48): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8153,52): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8154,49): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8155,52): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8156,49): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8157,47): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8157,61): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8159,35): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8160,63): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8163,44): error TS2339: Property 'end' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8163,57): error TS2339: Property 'start' does not exist on type 'never'.
+src/components/market-chart/CandlestickChart.tsx(8384,33): error TS2367: This comparison appears to be unintentional because the types 'IndicatorType' and '"KURI_LINE"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8436,52): error TS2339: Property 'domain' does not exist on type '(price: number) => number'.
+src/components/market-chart/CandlestickChart.tsx(8436,77): error TS2339: Property 'domain' does not exist on type '(price: number) => number'.
+src/components/market-chart/CandlestickChart.tsx(8481,29): error TS2367: This comparison appears to be unintentional because the types 'IndicatorType' and '"KURI_AREA"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8526,29): error TS2367: This comparison appears to be unintentional because the types 'IndicatorType' and '"KURI_BAND"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8568,29): error TS2367: This comparison appears to be unintentional because the types 'IndicatorType' and '"KURI_MARKERS"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8791,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"DONCHIAN"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8792,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"DC"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8832,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"ICHIMOKU"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8833,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"Ichimoku"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8881,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"KELTNER"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(8882,29): error TS2367: This comparison appears to be unintentional because the types '"MA" | "EMA" | "RSI" | "Volume" | "SuperTrend" | "CCI" | "MFI" | "ATR" | "VWAP" | "OBV"' and '"KC"' have no overlap.
+src/components/market-chart/CandlestickChart.tsx(9007,109): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(9022,60): error TS2339: Property 'kuriPlotTitle' does not exist on type 'Indicator'.
+src/components/market-chart/CandlestickChart.tsx(9591,33): error TS2322: Type '{ isOpen: true; onToggle: () => void; activeTab: string; setActiveTab: Dispatch<SetStateAction<string>>; currentTime: Date; symbol: string; height: number; ... 13 more ...; onClearConsole: () => void; }' is not assignable to type 'IntrinsicAttributes & BottomPanelProps'.
+  Property 'consoleLogs' does not exist on type 'IntrinsicAttributes & BottomPanelProps'.
+src/engine/strategyEngine.ts(232,53): error TS2339: Property 'error' does not exist on type 'StrategyResult'.
+  Property 'error' does not exist on type '{ ok: true; signals: StrategyEvaluationResult[]; }'.
+src/engine/test.ts(119,51): error TS2339: Property 'error' does not exist on type 'StrategyResult'.
+  Property 'error' does not exist on type '{ ok: true; signals: StrategyEvaluationResult[]; }'.
+src/engine/test.ts(143,51): error TS2339: Property 'error' does not exist on type 'StrategyResult'.
+  Property 'error' does not exist on type '{ ok: true; signals: StrategyEvaluationResult[]; }'.
+src/pages/StrategyStudio.tsx(448,27): error TS2339: Property 'scriptSource' does not exist on type 'Strategy'.
+src/pages/StrategyStudio.tsx(730,21): error TS2322: Type '{ strategyName: string; setStrategyName: Dispatch<SetStateAction<string>>; activeScript: string; isDirty: boolean; isSaving: boolean; isChecking: boolean; ... 11 more ...; onToggleAI: () => void; }' is not assignable to type 'IntrinsicAttributes & TopToolbarProps'.
+  Property 'isChecking' does not exist on type 'IntrinsicAttributes & TopToolbarProps'.
+src/services/aiChatService.ts(1,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.

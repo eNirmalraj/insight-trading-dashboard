@@ -1,8 +1,7 @@
 // src/services/signalEngineService.ts
 // Service layer for Signal Engine management and configuration
 
-import { supabase } from './supabaseClient';
-import type { EngineStatus } from '../engine/signalEngine';
+import { db } from './supabaseClient';
 
 export interface StrategySignalConfig {
     id: string;
@@ -17,8 +16,10 @@ export interface StrategySignalConfig {
 /**
  * Get signal configuration for a specific strategy
  */
-export const getStrategySignalConfig = async (strategyId: string): Promise<StrategySignalConfig | null> => {
-    const { data, error } = await supabase
+export const getStrategySignalConfig = async (
+    strategyId: string
+): Promise<StrategySignalConfig | null> => {
+    const { data, error } = await db()
         .from('strategy_signal_config')
         .select('*')
         .eq('strategy_id', strategyId)
@@ -39,7 +40,7 @@ export const getStrategySignalConfig = async (strategyId: string): Promise<Strat
         targetSymbols: data.target_symbols || [],
         targetTimeframes: data.target_timeframes || [],
         createdAt: data.created_at,
-        updatedAt: data.updated_at
+        updatedAt: data.updated_at,
     };
 };
 
@@ -47,21 +48,21 @@ export const getStrategySignalConfig = async (strategyId: string): Promise<Strat
  * Get all strategy signal configurations
  */
 export const getAllStrategySignalConfigs = async (): Promise<StrategySignalConfig[]> => {
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('strategy_signal_config')
         .select('*')
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
 
-    return data.map(d => ({
+    return data.map((d) => ({
         id: d.id,
         strategyId: d.strategy_id,
         isSignalEnabled: d.is_signal_enabled,
         targetSymbols: d.target_symbols || [],
         targetTimeframes: d.target_timeframes || [],
         createdAt: d.created_at,
-        updatedAt: d.updated_at
+        updatedAt: d.updated_at,
     }));
 };
 
@@ -71,14 +72,14 @@ export const getAllStrategySignalConfigs = async (): Promise<StrategySignalConfi
 export const upsertStrategySignalConfig = async (
     config: Omit<StrategySignalConfig, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<StrategySignalConfig> => {
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('strategy_signal_config')
         .upsert({
             strategy_id: config.strategyId,
             is_signal_enabled: config.isSignalEnabled,
             target_symbols: config.targetSymbols,
             target_timeframes: config.targetTimeframes,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -92,7 +93,7 @@ export const upsertStrategySignalConfig = async (
         targetSymbols: data.target_symbols || [],
         targetTimeframes: data.target_timeframes || [],
         createdAt: data.created_at,
-        updatedAt: data.updated_at
+        updatedAt: data.updated_at,
     };
 };
 
@@ -105,7 +106,7 @@ export const enableStrategySignals = async (strategyId: string): Promise<void> =
     if (existing) {
         await upsertStrategySignalConfig({
             ...existing,
-            isSignalEnabled: true
+            isSignalEnabled: true,
         });
     } else {
         // Create new config with default values
@@ -113,7 +114,7 @@ export const enableStrategySignals = async (strategyId: string): Promise<void> =
             strategyId,
             isSignalEnabled: true,
             targetSymbols: [], // Empty means all symbols
-            targetTimeframes: [] // Empty means all timeframes
+            targetTimeframes: [], // Empty means all timeframes
         });
     }
 };
@@ -127,7 +128,7 @@ export const disableStrategySignals = async (strategyId: string): Promise<void> 
     if (existing) {
         await upsertStrategySignalConfig({
             ...existing,
-            isSignalEnabled: false
+            isSignalEnabled: false,
         });
     }
 };
@@ -136,7 +137,7 @@ export const disableStrategySignals = async (strategyId: string): Promise<void> 
  * Delete signal configuration for a strategy
  */
 export const deleteStrategySignalConfig = async (strategyId: string): Promise<void> => {
-    const { error } = await supabase
+    const { error } = await db()
         .from('strategy_signal_config')
         .delete()
         .eq('strategy_id', strategyId);

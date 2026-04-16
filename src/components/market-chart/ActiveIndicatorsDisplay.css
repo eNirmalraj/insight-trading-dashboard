@@ -1,0 +1,14 @@
+.indicator-label {
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: var(--font-xs);
+    cursor: pointer;
+    color: var(--indicator-color, #ffffff);
+    transition:
+        color 150ms ease,
+        opacity 150ms ease;
+}
+
+.indicator-label:hover {
+    opacity: 0.8;
+}

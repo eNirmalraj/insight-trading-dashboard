@@ -1,0 +1,7 @@
+-- 042_enhance_scripts_table.sql
+ALTER TABLE public.scripts
+ADD COLUMN IF NOT EXISTS script_type VARCHAR(50) DEFAULT 'STRATEGY' CHECK (script_type IN ('INDICATOR', 'STRATEGY', 'KURI')),
+ADD COLUMN IF NOT EXISTS configuration JSONB DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS description TEXT,
+ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;

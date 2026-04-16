@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { CloseIcon } from './IconComponents';
 import { AVAILABLE_STRATEGIES } from '../constants';
 import { AccountType } from '../types';
@@ -13,22 +13,27 @@ interface PaperAccount {
 }
 
 interface CreateScriptInlineProps {
-    onCreate: (name: string, type: AccountType, strategy: string, tradingMode: 'paper' | 'live') => void;
+    onCreate: (
+        name: string,
+        type: AccountType,
+        strategy: string,
+        tradingMode: 'paper' | 'live'
+    ) => void;
     onCancel: () => void;
 }
 
 export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptInlineProps) {
-    const [step, setStep] = useState("choose"); // choose | form
+    const [step, setStep] = useState('choose'); // choose | form
     const [paperAccounts, setPaperAccounts] = useState<PaperAccount[]>([]);
     const [customStrategies, setCustomStrategies] = useState<string[]>([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
 
     const [form, setForm] = useState({
-        name: "",
-        mode: "Paper",
-        account: "Demo",
-        market: "Crypto",
-        strategy: "Trend",
+        name: '',
+        mode: 'Paper',
+        account: 'Demo',
+        market: 'Crypto',
+        strategy: 'Trend',
     });
 
     // Load paper trading accounts and strategies when component mounts
@@ -41,7 +46,7 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
             setIsLoadingAccounts(true);
             const [accounts, strategies] = await Promise.all([
                 api.getPaperTradingAccounts(),
-                api.getStrategies()
+                api.getStrategies(),
             ]);
 
             setPaperAccounts(accounts);
@@ -56,10 +61,10 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
             setCustomStrategies(customNames);
 
             // Set first account as default if available
-            if (accounts.length > 0 && form.mode === "Paper") {
-                const filteredAccounts = accounts.filter(acc => acc.broker === form.market);
+            if (accounts.length > 0 && form.mode === 'Paper') {
+                const filteredAccounts = accounts.filter((acc) => acc.broker === form.market);
                 if (filteredAccounts.length > 0) {
-                    handleChange("account", filteredAccounts[0].name);
+                    handleChange('account', filteredAccounts[0].name);
                 }
             }
         } catch (err) {
@@ -69,20 +74,19 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
         }
     };
 
-
     // ---------- FUNCTIONS ----------
 
     const handleChange = (field: string, value: string) => {
-        setForm(prev => {
+        setForm((prev) => {
             const updated = { ...prev, [field]: value };
 
             // If market changes in paper mode, auto-select first matching account
-            if (field === "market" && updated.mode === "Paper") {
-                const filteredAccounts = paperAccounts.filter(acc => acc.broker === value);
+            if (field === 'market' && updated.mode === 'Paper') {
+                const filteredAccounts = paperAccounts.filter((acc) => acc.broker === value);
                 if (filteredAccounts.length > 0) {
                     updated.account = filteredAccounts[0].name;
                 } else {
-                    updated.account = ""; // No accounts for this market
+                    updated.account = ''; // No accounts for this market
                 }
             }
 
@@ -91,45 +95,45 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
     };
 
     const chooseMode = (mode: string) => {
-        handleChange("mode", mode);
+        handleChange('mode', mode);
 
         // When switching to paper mode, set first account if available
-        if (mode === "Paper" && paperAccounts.length > 0) {
-            const filteredAccounts = paperAccounts.filter(acc => acc.broker === form.market);
+        if (mode === 'Paper' && paperAccounts.length > 0) {
+            const filteredAccounts = paperAccounts.filter((acc) => acc.broker === form.market);
             if (filteredAccounts.length > 0) {
-                setForm(prev => ({ ...prev, account: filteredAccounts[0].name }));
+                setForm((prev) => ({ ...prev, account: filteredAccounts[0].name }));
             }
-        } else if (mode === "Live") {
+        } else if (mode === 'Live') {
             // Reset to default live account
-            setForm(prev => ({ ...prev, account: "Demo" }));
+            setForm((prev) => ({ ...prev, account: 'Demo' }));
         }
 
-        setStep("form");
+        setStep('form');
     };
 
     const submit = () => {
         if (!form.name) {
-            alert("Enter script name");
+            alert('Enter script name');
             return;
         }
 
-        console.log("SCRIPT CREATED:", form);
+        console.log('SCRIPT CREATED:', form);
 
         // Convert form data to expected format
         const accountType = form.market as AccountType;
-        const tradingMode = form.mode === "Paper" ? "paper" : "live";
+        const tradingMode = form.mode === 'Paper' ? 'paper' : 'live';
 
         onCreate(form.name, accountType, form.strategy, tradingMode as 'paper' | 'live');
 
         // Reset form
         setForm({
-            name: "",
-            mode: "Paper",
-            account: "Demo",
-            market: "Crypto",
-            strategy: "Trend",
+            name: '',
+            mode: 'Paper',
+            account: 'Demo',
+            market: 'Crypto',
+            strategy: 'Trend',
         });
-        setStep("choose");
+        setStep('choose');
     };
 
     // ---------- UI ----------
@@ -142,18 +146,18 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
             </div>
 
             {/* STEP 1 — Choose Mode */}
-            {step === "choose" && (
+            {step === 'choose' && (
                 <div className="p-6">
                     <h4 className="text-white font-medium mb-4">Select Mode</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={() => chooseMode("Paper")}
+                            onClick={() => chooseMode('Paper')}
                             className="p-8 bg-zinc-800 hover:bg-zinc-700 border-2 border-zinc-700 hover:border-zinc-600 rounded-xl transition text-white text-lg font-medium"
                         >
                             Paper Trading
                         </button>
                         <button
-                            onClick={() => chooseMode("Live")}
+                            onClick={() => chooseMode('Live')}
                             className="p-8 bg-zinc-800 hover:bg-zinc-700 border-2 border-zinc-700 hover:border-zinc-600 rounded-xl transition text-white text-lg font-medium"
                         >
                             Live Trading
@@ -163,7 +167,7 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
             )}
 
             {/* STEP 2 — Form */}
-            {step === "form" && (
+            {step === 'form' && (
                 <div className="p-6">
                     <div className="mb-4 text-sm text-gray-400">
                         Mode: <span className="text-white font-semibold">{form.mode}</span>
@@ -172,22 +176,30 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         {/* Script Name */}
                         <div>
-                            <label className="block text-white font-medium mb-2 text-sm">Script Name</label>
+                            <label className="block text-white font-medium mb-2 text-sm">
+                                Script Name
+                            </label>
                             <input
                                 className="w-full px-4 py-2.5 bg-zinc-800 border-2 border-yellow-500 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
                                 value={form.name}
-                                onChange={e => handleChange("name", e.target.value)}
+                                onChange={(e) => handleChange('name', e.target.value)}
                                 placeholder="Enter script name"
                             />
                         </div>
 
                         {/* Market */}
                         <div>
-                            <label className="block text-white font-medium mb-2 text-sm">Market</label>
+                            <label
+                                htmlFor="script-market"
+                                className="block text-white font-medium mb-2 text-sm"
+                            >
+                                Market
+                            </label>
                             <select
+                                id="script-market"
                                 className="w-full px-4 py-2.5 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
                                 value={form.market}
-                                onChange={e => handleChange("market", e.target.value)}
+                                onChange={(e) => handleChange('market', e.target.value)}
                             >
                                 <option>Crypto</option>
                                 <option>Forex</option>
@@ -197,27 +209,35 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
 
                         {/* Account */}
                         <div>
-                            <label className="block text-white font-medium mb-2 text-sm">Account</label>
+                            <label
+                                htmlFor="script-account"
+                                className="block text-white font-medium mb-2 text-sm"
+                            >
+                                Account
+                            </label>
                             <select
+                                id="script-account"
                                 className="w-full px-4 py-2.5 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
                                 value={form.account}
-                                onChange={e => handleChange("account", e.target.value)}
+                                onChange={(e) => handleChange('account', e.target.value)}
                                 disabled={isLoadingAccounts}
                             >
-                                {form.mode === "Paper" ? (
+                                {form.mode === 'Paper' ? (
                                     // Show paper trading accounts filtered by market
-                                    paperAccounts
-                                        .filter(acc => acc.broker === form.market)
+                                    paperAccounts.filter((acc) => acc.broker === form.market)
                                         .length > 0 ? (
                                         paperAccounts
-                                            .filter(acc => acc.broker === form.market)
-                                            .map(acc => (
+                                            .filter((acc) => acc.broker === form.market)
+                                            .map((acc) => (
                                                 <option key={acc.id} value={acc.name}>
-                                                    {acc.name} ({acc.currency} {acc.balance.toLocaleString()})
+                                                    {acc.name} ({acc.currency}{' '}
+                                                    {acc.balance.toLocaleString()})
                                                 </option>
                                             ))
                                     ) : (
-                                        <option value="">No {form.market} accounts - Create one in Settings</option>
+                                        <option value="">
+                                            No {form.market} accounts - Create one in Settings
+                                        </option>
                                     )
                                 ) : (
                                     // Show live accounts
@@ -232,22 +252,32 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
 
                         {/* Strategy */}
                         <div>
-                            <label className="block text-white font-medium mb-2 text-sm">Strategy</label>
+                            <label
+                                htmlFor="script-strategy"
+                                className="block text-white font-medium mb-2 text-sm"
+                            >
+                                Strategy
+                            </label>
                             <select
+                                id="script-strategy"
                                 className="w-full px-4 py-2.5 bg-zinc-800 border-2 border-zinc-700 rounded-lg text-white focus:outline-none focus:border-zinc-600"
                                 value={form.strategy}
-                                onChange={e => handleChange("strategy", e.target.value)}
+                                onChange={(e) => handleChange('strategy', e.target.value)}
                             >
                                 <optgroup label="Built-in Strategies">
-                                    {AVAILABLE_STRATEGIES.map(strat => (
-                                        <option key={`builtin-${strat}`} value={strat}>{strat}</option>
+                                    {AVAILABLE_STRATEGIES.map((strat) => (
+                                        <option key={`builtin-${strat}`} value={strat}>
+                                            {strat}
+                                        </option>
                                     ))}
                                 </optgroup>
 
                                 {customStrategies.length > 0 && (
                                     <optgroup label="My Strategies">
-                                        {customStrategies.map(strat => (
-                                            <option key={`custom-${strat}`} value={strat}>{strat}</option>
+                                        {customStrategies.map((strat) => (
+                                            <option key={`custom-${strat}`} value={strat}>
+                                                {strat}
+                                            </option>
                                         ))}
                                     </optgroup>
                                 )}
@@ -258,7 +288,7 @@ export default function CreateScriptInline({ onCreate, onCancel }: CreateScriptI
                     {/* Buttons */}
                     <div className="flex gap-3 pt-4 border-t border-zinc-700">
                         <button
-                            onClick={() => setStep("choose")}
+                            onClick={() => setStep('choose')}
                             className="px-5 py-2.5 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-white font-medium transition"
                         >
                             Back

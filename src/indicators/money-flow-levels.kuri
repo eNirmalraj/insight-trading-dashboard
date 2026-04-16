@@ -1,0 +1,474 @@
+---
+version: kuri 1.0
+type: indicator
+name: "Money Flow Levels"
+pane: overlay
+max_labels_count: 500
+max_lines_count: 500
+---
+
+// ─────────────────────────────────────────────
+// Inputs
+// ─────────────────────────────────────────────
+
+periodLabel = param.string("Auto", title="Period",
+     options = ["Auto","D/LTM","D/ETM","Weekly","Monthly","Quarterly","Yearly"],
+     tooltip = "Auto rules: 5m→D/LTM; 15m→D/ETM; 1H→Weekly; 4H→Monthly; 1D→Quarterly; 1W→Yearly.\nWindow & ATR map: D/LTM→1H ATR20, D/ETM→4H ATR20, Weekly→Daily ATR20, Monthly→Weekly ATR20, Quarterly→Monthly ATR20, Yearly→Quarterly ATR20.")
+
+atrLen  = param.int(20, title="sensitivity", options=[10,20])
+openType = param.string("Auto", title="Open Type", options=["Auto","Gap","Flat"])
+lineW   = param.int(2, title="Line Width", minval=1, maxval=5)
+
+col_BA  = param.color(color.new(color.green,  0), title="BA Color")
+col_SB  = param.color(color.new(color.red,    0), title="SB Color")
+col_RS  = param.color(color.new(color.orange, 0), title="RS Color")
+col_RSL = param.color(color.new(color.yellow, 0), title="RSL Color")
+col_RB  = param.color(color.new(color.orange, 0), title="RB Color")
+col_RBL = param.color(color.new(color.yellow, 0), title="RBL Color")
+
+showAllHistory = param.bool(true, title="Show All History Levels")
+histOpacity    = param.int(60, title="History Line Opacity (0–100)", minval=0, maxval=100)
+
+showLabels = param.bool(true, title="Show Price Labels")
+
+// ─────────────────────────────────────────────
+// Auto detect period from chart timeframe
+// ─────────────────────────────────────────────
+autoLabel = timeframe.isintraday
+     ? (timeframe.multiplier <= 5   ? "D/LTM"
+     :  timeframe.multiplier <  60  ? "D/ETM"
+     :  timeframe.multiplier <  240 ? "Weekly"
+     :  "Monthly")
+     : (timeframe.isdaily  ? "Quarterly"
+     :  timeframe.isweekly ? "Yearly"
+     :  "Yearly")
+
+effPeriod = periodLabel == "Auto" ? autoLabel : periodLabel
+
+// ─────────────────────────────────────────────
+// Map window TF and ATR TF
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Map to HTF window and ATR timeframe
+// Uses ternary chains instead of switch because the engine's
+// precompute pass resolves switch-derived variables before
+// time()/request.security() can use the correct value.
+// ─────────────────────────────────────────────
+win_tf = effPeriod == "Weekly" ? "W" : effPeriod == "Monthly" ? "M" : effPeriod == "Quarterly" ? "3M" : effPeriod == "Yearly" ? "12M" : "D"
+
+atr_tf = effPeriod == "D/ETM" ? "240" : effPeriod == "Weekly" ? "D" : effPeriod == "Monthly" ? "W" : effPeriod == "Quarterly" ? "M" : effPeriod == "Yearly" ? "3M" : "60"
+
+// ─────────────────────────────────────────────
+// HTF window detection
+// time() must use string literals (engine precomputes time(var) wrong).
+// Ternary selection also gets precomputed wrong, so use if/else with var.
+// ─────────────────────────────────────────────
+tf_time_D  = time("D")
+tf_time_W  = time("W")
+tf_time_M  = time("M")
+tf_time_3M = time("3M")
+tf_time_12M = time("12M")
+
+var tf_time = tf_time_D
+var period_ms = timeframe.in_seconds("D") * 1000
+if effPeriod == "D/LTM" or effPeriod == "D/ETM"
+    tf_time   := tf_time_D
+    period_ms := timeframe.in_seconds("D") * 1000
+if effPeriod == "Weekly"
+    tf_time   := tf_time_W
+    period_ms := timeframe.in_seconds("W") * 1000
+if effPeriod == "Monthly"
+    tf_time   := tf_time_M
+    period_ms := timeframe.in_seconds("M") * 1000
+if effPeriod == "Quarterly"
+    tf_time   := tf_time_3M
+    period_ms := timeframe.in_seconds("3M") * 1000
+if effPeriod == "Yearly"
+    tf_time   := tf_time_12M
+    period_ms := timeframe.in_seconds("12M") * 1000
+
+// Manual change detection — kuri.change() gets precomputed with stale values
+var prevTFTime = na
+isNewHTF = na(prevTFTime) or tf_time != prevTFTime
+prevTFTime := tf_time
+
+tOpen     = tf_time
+tClose    = tOpen + period_ms
+
+// ─────────────────────────────────────────────
+// Track current + previous window OHLC
+// ─────────────────────────────────────────────
+var float curO = na
+var float curH = na
+var float curL = na
+var float curC = na
+
+var float prevO = na
+var float prevH = na
+var float prevL = na
+var float prevC = na
+
+if barstate.isfirst
+    curO := open
+    curH := high
+    curL := low
+    curC := close
+
+if isNewHTF
+    prevO := curO
+    prevH := curH
+    prevL := curL
+    prevC := curC
+    curO := open
+    curH := high
+    curL := low
+    curC := close
+else
+    curH := na(curH) ? high : math.max(curH, high)
+    curL := na(curL) ? low  : math.min(curL, low)
+    curC := close
+
+// ─────────────────────────────────────────────
+// ATR from mapped timeframe (prev completed bar to avoid repaint)
+// Single request.security() using pre-resolved atr_tf literal string
+// ─────────────────────────────────────────────
+atrMapped = request.security(syminfo.tickerid, atr_tf, kuri.atr(atrLen))[1]
+
+// ─────────────────────────────────────────────
+// Base price (Auto / Gap / Flat)
+// ─────────────────────────────────────────────
+isGap = not na(curO) and not na(prevC) and math.abs(curO - prevC) >= syminfo.mintick
+
+float C = switch openType
+    "Gap"  => curO
+    "Flat" => prevC
+    => na(prevC) ? curO : (isGap ? curO : prevC)
+
+haveLevels = not na(C) and not na(atrMapped)
+
+// ─────────────────────────────────────────────
+// Level math — uses if/else to avoid ternary precomputation bug
+// where chained ternaries with var-dependent values get stale results
+// ─────────────────────────────────────────────
+var float BA  = na
+var float SB  = na
+var float RS  = na
+var float RSL = na
+var float RB  = na
+var float RBL = na
+
+if haveLevels
+    X  = atrMapped
+    X1 = (X * 0.625) * 0.5
+    X2 = (X * 0.625) * 2.5
+    X3 = (X * 0.625) * 3.0
+    BA  := C + X1
+    SB  := C - X1
+    RS  := C + X2
+    RSL := C + X3
+    RB  := C - X2
+    RBL := C - X3
+else
+    BA  := na
+    SB  := na
+    RS  := na
+    RSL := na
+    RB  := na
+    RBL := na
+
+// ─────────────────────────────────────────────
+// Current window lines (with delete/redraw)
+// ─────────────────────────────────────────────
+var line ln_BA  = na
+var line ln_SB  = na
+var line ln_RS  = na
+var line ln_RSL = na
+var line ln_RB  = na
+var line ln_RBL = na
+
+// ─────────────────────────────────────────────
+// History: track active window for rollover paint
+// ─────────────────────────────────────────────
+var float activeC     = na
+var float activeATR   = na
+var int   activeOpen  = na
+var int   activeClose = na
+
+// On rollover: freeze/draw history for the completed window
+// Use current tOpen as the previous window's end (exact calendar boundary)
+if isNewHTF and showAllHistory and not na(activeC) and not na(activeATR) and not na(activeOpen)
+    histEnd = tOpen
+    hX  = activeATR
+    hX1 = (hX * 0.625) * 0.5
+    hX2 = (hX * 0.625) * 2.5
+    hX3 = (hX * 0.625) * 3.0
+    hBA  = activeC + hX1
+    hSB  = activeC - hX1
+    hRS  = activeC + hX2
+    hRSL = activeC + hX3
+    hRB  = activeC - hX2
+    hRBL = activeC - hX3
+    line.new(x1=activeOpen, y1=hBA,  x2=histEnd, y2=hBA,  xloc=xloc.bar_time, color=color.new(color.green, 60),  width=lineW)
+    line.new(x1=activeOpen, y1=hSB,  x2=histEnd, y2=hSB,  xloc=xloc.bar_time, color=color.new(color.red, 60),    width=lineW)
+    line.new(x1=activeOpen, y1=hRS,  x2=histEnd, y2=hRS,  xloc=xloc.bar_time, color=color.new(color.orange, 60), width=lineW)
+    line.new(x1=activeOpen, y1=hRSL, x2=histEnd, y2=hRSL, xloc=xloc.bar_time, color=color.new(color.yellow, 60), width=lineW)
+    line.new(x1=activeOpen, y1=hRB,  x2=histEnd, y2=hRB,  xloc=xloc.bar_time, color=color.new(color.orange, 60), width=lineW)
+    line.new(x1=activeOpen, y1=hRBL, x2=histEnd, y2=hRBL, xloc=xloc.bar_time, color=color.new(color.yellow, 60), width=lineW)
+
+// (Re)draw current window lines
+shouldDraw = (barstate.isfirst or isNewHTF or na(ln_BA)) and haveLevels
+
+if shouldDraw
+    if not na(ln_BA)
+        line.delete(ln_BA)
+    if not na(ln_SB)
+        line.delete(ln_SB)
+    if not na(ln_RS)
+        line.delete(ln_RS)
+    if not na(ln_RSL)
+        line.delete(ln_RSL)
+    if not na(ln_RB)
+        line.delete(ln_RB)
+    if not na(ln_RBL)
+        line.delete(ln_RBL)
+
+    ln_BA  := line.new(x1=tOpen, y1=BA,  x2=tClose, y2=BA,  xloc=xloc.bar_time, color=col_BA,  width=lineW)
+    ln_SB  := line.new(x1=tOpen, y1=SB,  x2=tClose, y2=SB,  xloc=xloc.bar_time, color=col_SB,  width=lineW)
+    ln_RS  := line.new(x1=tOpen, y1=RS,  x2=tClose, y2=RS,  xloc=xloc.bar_time, color=col_RS,  width=lineW)
+    ln_RSL := line.new(x1=tOpen, y1=RSL, x2=tClose, y2=RSL, xloc=xloc.bar_time, color=col_RSL, width=lineW)
+    ln_RB  := line.new(x1=tOpen, y1=RB,  x2=tClose, y2=RB,  xloc=xloc.bar_time, color=col_RB,  width=lineW)
+    ln_RBL := line.new(x1=tOpen, y1=RBL, x2=tClose, y2=RBL, xloc=xloc.bar_time, color=col_RBL, width=lineW)
+
+    activeC     := C
+    activeATR   := atrMapped
+    activeOpen  := tOpen
+    activeClose := tClose
+
+// ─────────────────────────────────────────────
+// Labels
+// ─────────────────────────────────────────────
+var label lb_BA  = na
+var label lb_SB  = na
+var label lb_RS  = na
+var label lb_RSL = na
+var label lb_RB  = na
+var label lb_RBL = na
+
+f_del_label(lb) =>
+    if not na(lb)
+        label.delete(lb)
+
+lblSizeConst  = size.normal
+lblBgColor    = color.new(color.black, 100)
+fixedNudgePct = 0.0
+
+nudge_ms   = math.round(period_ms * (fixedNudgePct / 100.0))
+xLabelTime = int(tClose + nudge_ms)
+
+f_make_label(_y, _txt, _col) =>
+    label.new(x=xLabelTime, y=_y, text=_txt, xloc=xloc.bar_time, yloc=yloc.price,
+     style=label.style_label_left, textcolor=_col, color=lblBgColor, size=lblSizeConst)
+
+yBA  = na(ln_BA)  ? na : line.get_y2(ln_BA)
+ySB  = na(ln_SB)  ? na : line.get_y2(ln_SB)
+yRS  = na(ln_RS)  ? na : line.get_y2(ln_RS)
+yRSL = na(ln_RSL) ? na : line.get_y2(ln_RSL)
+yRB  = na(ln_RB)  ? na : line.get_y2(ln_RB)
+yRBL = na(ln_RBL) ? na : line.get_y2(ln_RBL)
+
+if (barstate.isfirst or isNewHTF)
+    f_del_label(lb_BA)
+    f_del_label(lb_SB)
+    f_del_label(lb_RS)
+    f_del_label(lb_RSL)
+    f_del_label(lb_RB)
+    f_del_label(lb_RBL)
+
+    if showLabels and haveLevels
+        if not na(yBA)
+            lb_BA  := f_make_label(yBA,   str.tostring(yBA,  format.mintick), col_BA)
+        if not na(ySB)
+            lb_SB  := f_make_label(ySB,   str.tostring(ySB,  format.mintick), col_SB)
+        if not na(yRS)
+            lb_RS  := f_make_label(yRS,   str.tostring(yRS,  format.mintick), col_RS)
+        if not na(yRSL)
+            lb_RSL := f_make_label(yRSL,  str.tostring(yRSL, format.mintick), col_RSL)
+        if not na(yRB)
+            lb_RB  := f_make_label(yRB,   str.tostring(yRB,  format.mintick), col_RB)
+        if not na(yRBL)
+            lb_RBL := f_make_label(yRBL,  str.tostring(yRBL, format.mintick), col_RBL)
+
+// Only update label x-position within a window (levels don't change mid-window)
+if showLabels and haveLevels and not isNewHTF and barstate.islast
+    if not na(lb_BA)
+        label.set_x(lb_BA,  xLabelTime)
+    if not na(lb_SB)
+        label.set_x(lb_SB,  xLabelTime)
+    if not na(lb_RS)
+        label.set_x(lb_RS,  xLabelTime)
+    if not na(lb_RSL)
+        label.set_x(lb_RSL, xLabelTime)
+    if not na(lb_RB)
+        label.set_x(lb_RB,  xLabelTime)
+    if not na(lb_RBL)
+        label.set_x(lb_RBL, xLabelTime)
+
+if not showLabels
+    f_del_label(lb_BA)
+    lb_BA  := na
+    f_del_label(lb_SB)
+    lb_SB  := na
+    f_del_label(lb_RS)
+    lb_RS  := na
+    f_del_label(lb_RSL)
+    lb_RSL := na
+    f_del_label(lb_RB)
+    lb_RB  := na
+    f_del_label(lb_RBL)
+    lb_RBL := na
+
+// ─────────────────────────────────────────────
+// ALERTS (multi-candle patterns)
+// ─────────────────────────────────────────────
+
+useBA  = param.bool(true,  title="Apply patterns to BA")
+useRS  = param.bool(true,  title="Apply patterns to RS")
+useRSL = param.bool(true,  title="Apply patterns to RSL")
+useSB  = param.bool(true,  title="Apply patterns to SB")
+useRB  = param.bool(true,  title="Apply patterns to RB")
+useRBL = param.bool(true,  title="Apply patterns to RBL")
+
+showPatternMarks = param.bool(true, title="Show pattern markers")
+
+// FALSE REJECTION
+f_falseRejBuy(level) =>
+    first = (high[1] >= level) and (open[1] < level and low[1] < level and close[1] < level)
+    next  = (open < level and low < level and high > level and close > level and close > high[1])
+    first and next
+
+f_falseRejSell(level) =>
+    first = (low[1] <= level) and (open[1] > level and high[1] > level and close[1] > level)
+    next  = (open > level and high > level and low < level and close < level and close < low[1])
+    first and next
+
+// FALSE BREAKOUT
+f_falseBrkBuy(level) =>
+    first = (high[1] > level and open[1] > level) and (low[1] < level and close[1] < level)
+    next  = (open < level and low < level and high > level and close > level)
+    first and next
+
+f_falseBrkSell(level) =>
+    first = (low[1] < level and open[1] < level) and (high[1] > level and close[1] > level)
+    next  = (open > level and high > level and low < level and close < level)
+    first and next
+
+// TWO WICK REJECTION
+f_twoWickBuy(level) =>
+    first = (low[1] < level) and (open[1] > level and high[1] > level and close[1] > level)
+    next  = (low < level) and (close > high[1])
+    first and next
+
+f_twoWickSell(level) =>
+    first = (high[1] > level) and (open[1] < level and low[1] < level and close[1] < level)
+    next  = (high > level) and (close < low[1])
+    first and next
+
+// BREAKOUT & FOLLOW-THROUGH
+f_bofBuy(level) =>
+    first = (open[1] < level and low[1] < level) and (close[1] > level and high[1] > level)
+    next  = (open > level and high > level) and (close > level) and (close > high[1])
+    first and next
+
+f_bofSell(level) =>
+    first = (open[1] > level and high[1] > level) and (close[1] < level and low[1] < level)
+    next  = (open < level and low < level) and (close < level) and (close < low[1])
+    first and next
+
+// SINGLE REJECTION
+f_singleRejBuy(level) =>
+    first = (low[1] < level) and (open[1] > level and high[1] > level and close[1] > level)
+    next  = (open > level and low > level and high > level) and (close > level) and (close > high[1])
+    first and next
+
+f_singleRejSell(level) =>
+    first = (high[1] > level) and (open[1] < level and low[1] < level and close[1] < level)
+    next  = (open < level and high < level and low < level) and (close < level) and (close < low[1])
+    first and next
+
+// Evaluate all BUY/SELL patterns against enabled levels
+FR_buy  = haveLevels and (
+     (useBA  and f_falseRejBuy(BA))  or (useRS  and f_falseRejBuy(RS))  or (useRSL and f_falseRejBuy(RSL)) or
+     (useSB  and f_falseRejBuy(SB))  or (useRB  and f_falseRejBuy(RB))  or (useRBL and f_falseRejBuy(RBL)))
+
+FR_sell = haveLevels and (
+     (useBA  and f_falseRejSell(BA)) or (useRS  and f_falseRejSell(RS)) or (useRSL and f_falseRejSell(RSL)) or
+     (useSB  and f_falseRejSell(SB)) or (useRB  and f_falseRejSell(RB)) or (useRBL and f_falseRejSell(RBL)))
+
+FB_buy  = haveLevels and (
+     (useBA  and f_falseBrkBuy(BA))  or (useRS  and f_falseBrkBuy(RS))  or (useRSL and f_falseBrkBuy(RSL)) or
+     (useSB  and f_falseBrkBuy(SB))  or (useRB  and f_falseBrkBuy(RB))  or (useRBL and f_falseBrkBuy(RBL)))
+
+FB_sell = haveLevels and (
+     (useBA  and f_falseBrkSell(BA)) or (useRS  and f_falseBrkSell(RS)) or (useRSL and f_falseBrkSell(RSL)) or
+     (useSB  and f_falseBrkSell(SB)) or (useRB  and f_falseBrkSell(RB)) or (useRBL and f_falseBrkSell(RBL)))
+
+TW_buy  = haveLevels and (
+     (useBA  and f_twoWickBuy(BA))   or (useRS  and f_twoWickBuy(RS))   or (useRSL and f_twoWickBuy(RSL)) or
+     (useSB  and f_twoWickBuy(SB))   or (useRB  and f_twoWickBuy(RB))   or (useRBL and f_twoWickBuy(RBL)))
+
+TW_sell = haveLevels and (
+     (useBA  and f_twoWickSell(BA))  or (useRS  and f_twoWickSell(RS))  or (useRSL and f_twoWickSell(RSL)) or
+     (useSB  and f_twoWickSell(SB))  or (useRB  and f_twoWickSell(RB))  or (useRBL and f_twoWickSell(RBL)))
+
+BF_buy  = haveLevels and (
+     (useBA  and f_bofBuy(BA))       or (useRS  and f_bofBuy(RS))       or (useRSL and f_bofBuy(RSL)) or
+     (useSB  and f_bofBuy(SB))       or (useRB  and f_bofBuy(RB))       or (useRBL and f_bofBuy(RBL)))
+
+BF_sell = haveLevels and (
+     (useBA  and f_bofSell(BA))      or (useRS  and f_bofSell(RS))      or (useRSL and f_bofSell(RSL)) or
+     (useSB  and f_bofSell(SB))      or (useRB  and f_bofSell(RB))      or (useRBL and f_bofSell(RBL)))
+
+SR_buy  = haveLevels and (
+     (useBA  and f_singleRejBuy(BA)) or (useRS  and f_singleRejBuy(RS)) or (useRSL and f_singleRejBuy(RSL)) or
+     (useSB  and f_singleRejBuy(SB)) or (useRB  and f_singleRejBuy(RB)) or (useRBL and f_singleRejBuy(RBL)))
+
+SR_sell = haveLevels and (
+     (useBA  and f_singleRejSell(BA)) or (useRS  and f_singleRejSell(RS)) or (useRSL and f_singleRejSell(RSL)) or
+     (useSB  and f_singleRejSell(SB)) or (useRB  and f_singleRejSell(RB)) or (useRBL and f_singleRejSell(RBL)))
+
+anyBuy  = FR_buy or FB_buy or TW_buy or BF_buy or SR_buy
+anySell = FR_sell or FB_sell or TW_sell or BF_sell or SR_sell
+anyPat  = anyBuy or anySell
+
+// Alerts
+var fmt = " @ {{ticker}} | TF={{interval}} | C={{close}} | H={{high}} | L={{low}} "
+
+kuri.alert(FR_buy,  "False Rejection — BUY",  "False Rejection BUY"  + fmt)
+kuri.alert(FR_sell, "False Rejection — SELL", "False Rejection SELL" + fmt)
+kuri.alert(FB_buy,  "False Breakout — BUY",   "False Breakout BUY"   + fmt)
+kuri.alert(FB_sell, "False Breakout — SELL",  "False Breakout SELL"  + fmt)
+kuri.alert(TW_buy,  "Two Wick Rejection — BUY",  "Two Wick Rejection BUY"  + fmt)
+kuri.alert(TW_sell, "Two Wick Rejection — SELL", "Two Wick Rejection SELL" + fmt)
+kuri.alert(BF_buy,  "Breakout + Follow-through — BUY",  "Breakout + Follow-through BUY"  + fmt)
+kuri.alert(BF_sell, "Breakout + Follow-through — SELL", "Breakout + Follow-through SELL" + fmt)
+kuri.alert(SR_buy,  "Single Rejection — BUY",  "Single Rejection BUY"  + fmt)
+kuri.alert(SR_sell, "Single Rejection — SELL", "Single Rejection SELL" + fmt)
+kuri.alert(anyBuy,  "Any Pattern — BUY",  "Any BUY pattern triggered"  + fmt)
+kuri.alert(anySell, "Any Pattern — SELL", "Any SELL pattern triggered" + fmt)
+kuri.alert(anyPat,  "Any Pattern — Buy or Sell", "Any BUY/SELL pattern triggered" + fmt)
+
+// Pattern markers
+plotshape(showPatternMarks and FR_buy,  title="FR Buy",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="FR↑", color=color.new(color.teal, 0))
+plotshape(showPatternMarks and FR_sell, title="FR Sell", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="FR↓", color=color.new(color.maroon, 0))
+
+plotshape(showPatternMarks and FB_buy,  title="FB Buy",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="FB↑", color=color.new(color.green, 0))
+plotshape(showPatternMarks and FB_sell, title="FB Sell", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="FB↓", color=color.new(color.red, 0))
+
+plotshape(showPatternMarks and TW_buy,  title="TW Buy",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="TW↑", color=color.new(color.blue, 0))
+plotshape(showPatternMarks and TW_sell, title="TW Sell", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="TW↓", color=color.new(color.orange, 0))
+
+plotshape(showPatternMarks and BF_buy,  title="BF Buy",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="BF↑", color=color.new(color.purple, 0))
+plotshape(showPatternMarks and BF_sell, title="BF Sell", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="BF↓", color=color.new(color.fuchsia, 0))
+
+plotshape(showPatternMarks and SR_buy,  title="SR Buy",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="SR↑", color=color.new(color.navy, 0))
+plotshape(showPatternMarks and SR_sell, title="SR Sell", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="SR↓", color=color.new(color.silver, 0))

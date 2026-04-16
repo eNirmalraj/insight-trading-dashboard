@@ -1,0 +1,115 @@
+<h2>Row View Layout</h2>
+<p class="subtitle">When you flip from card grid to row list, what should each row look like? Click to select.</p>
+
+<style>
+  .sigrow {
+    display: grid;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #14141a;
+    border: 1px solid #2a2a35;
+    border-left: 3px solid #22c55e;
+    border-radius: 6px;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 12px;
+    color: #e5e7eb;
+    margin-bottom: 6px;
+  }
+  .sigrow.sell { border-left-color: #ef4444; }
+  .sigrow .pair { font-weight: 700; color: #fff; font-size: 13px; }
+  .sigrow .tf { font-size: 9px; color: #94a3b8; background: #1f1f2a; padding: 1px 6px; border-radius: 3px; }
+  .sigrow .strat { color: #94a3b8; font-size: 11px; }
+  .sigrow .dir-buy { color: #22c55e; font-weight: 700; }
+  .sigrow .dir-sell { color: #ef4444; font-weight: 700; }
+  .sigrow .mono { font-family: ui-monospace, monospace; }
+  .sigrow .status { font-size: 9px; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; font-weight: 700; }
+  .sigrow .st-active { background: #1f2937; color: #cbd5e1; }
+  .sigrow .btn { background: #1f1f2a; border: 1px solid #2a2a35; color: #cbd5e1; padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .sigrow .pnl-up { color: #22c55e; font-weight: 700; }
+  .sigrow .pnl-dn { color: #ef4444; font-weight: 700; }
+  .sigrow .muted { color: #64748b; }
+</style>
+
+<div class="cards">
+  <div class="card" data-choice="dense" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:14px">
+      <div class="sigrow" style="grid-template-columns: 90px 50px 130px 50px 1fr 70px 70px 70px 80px 80px">
+        <span class="pair">BTCUSDT</span>
+        <span class="tf">1H</span>
+        <span class="strat">SMA Trend</span>
+        <span class="dir-buy">BUY</span>
+        <span class="muted mono">67,421 → 68,900</span>
+        <span class="mono">67,421</span>
+        <span class="mono" style="color:#ef4444">66,100</span>
+        <span class="mono" style="color:#22c55e">68,900</span>
+        <span class="pnl-up">+1.2%</span>
+        <span class="status st-active">ACTIVE</span>
+      </div>
+      <div class="sigrow sell" style="grid-template-columns: 90px 50px 130px 50px 1fr 70px 70px 70px 80px 80px">
+        <span class="pair">ETHUSDT</span>
+        <span class="tf">15m</span>
+        <span class="strat">RSI Reversal</span>
+        <span class="dir-sell">SELL</span>
+        <span class="muted mono">3,420 → 3,280</span>
+        <span class="mono">3,420</span>
+        <span class="mono" style="color:#ef4444">3,500</span>
+        <span class="mono" style="color:#22c55e">3,280</span>
+        <span class="pnl-dn">-0.3%</span>
+        <span class="status st-active">ACTIVE</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Dense table row</h3>
+      <p>Spreadsheet feel. Every field in its own column: pair, TF, strategy, direction, range, entry, SL, TP, P&L, status. Fits ~15 rows per screen.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="compact" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:14px">
+      <div class="sigrow" style="grid-template-columns: 24px 1fr auto auto">
+        <span class="dir-buy" style="font-size:16px">▲</span>
+        <div>
+          <div><span class="pair">BTCUSDT</span> <span class="tf">1H</span> <span class="muted" style="margin-left:6px">SMA Trend</span></div>
+          <div class="muted mono" style="font-size:10px;margin-top:2px">E 67,421 · SL 66,100 · TP 68,900</div>
+        </div>
+        <span class="pnl-up" style="font-size:13px">+1.2%</span>
+        <span class="status st-active">ACTIVE</span>
+      </div>
+      <div class="sigrow sell" style="grid-template-columns: 24px 1fr auto auto">
+        <span class="dir-sell" style="font-size:16px">▼</span>
+        <div>
+          <div><span class="pair">ETHUSDT</span> <span class="tf">15m</span> <span class="muted" style="margin-left:6px">RSI Reversal</span></div>
+          <div class="muted mono" style="font-size:10px;margin-top:2px">E 3,420 · SL 3,500 · TP 3,280</div>
+        </div>
+        <span class="pnl-dn" style="font-size:13px">-0.3%</span>
+        <span class="status st-active">ACTIVE</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Two-line compact row</h3>
+      <p>Primary info (pair / strategy / P&L / status) on top, price levels on a dim second line. Balances scanning and detail.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="minimal" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f13;padding:14px">
+      <div class="sigrow" style="grid-template-columns: 1fr auto auto auto">
+        <span><span class="pair">BTCUSDT</span> <span class="tf">1H</span> <span class="dir-buy" style="margin-left:8px">BUY</span> <span class="muted" style="margin-left:8px">SMA Trend</span></span>
+        <span class="pnl-up">+1.2%</span>
+        <span class="status st-active">ACTIVE</span>
+        <button class="btn">Chart</button>
+      </div>
+      <div class="sigrow sell" style="grid-template-columns: 1fr auto auto auto">
+        <span><span class="pair">ETHUSDT</span> <span class="tf">15m</span> <span class="dir-sell" style="margin-left:8px">SELL</span> <span class="muted" style="margin-left:8px">RSI Reversal</span></span>
+        <span class="pnl-dn">-0.3%</span>
+        <span class="status st-active">ACTIVE</span>
+        <button class="btn">Chart</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Minimal single-line</h3>
+      <p>One line per signal. No price levels visible — click row to expand or open chart. Fits ~25 rows per screen. Maximum scan density.</p>
+    </div>
+  </div>
+</div>

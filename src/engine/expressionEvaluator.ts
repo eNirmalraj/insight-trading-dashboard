@@ -32,7 +32,10 @@ export const evaluateExpression = (expression: string, context: EvaluationContex
         if (context.parameters) {
             for (const [key, value] of Object.entries(context.parameters)) {
                 const placeholder = `{${key}}`;
-                processedExpr = processedExpr.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                processedExpr = processedExpr.replace(
+                    new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'),
+                    String(value)
+                );
             }
         }
 
@@ -64,7 +67,9 @@ const handleCrossover = (
     direction: 'up' | 'down' | 'any'
 ): boolean => {
     // Extract function arguments
-    const match = expression.match(/(crossover|crossunder|crosses)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)/);
+    const match = expression.match(
+        /(crossover|crossunder|crosses)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)/
+    );
     if (!match) return false;
 
     const [, , var1, var2] = match;

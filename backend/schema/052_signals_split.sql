@@ -74,7 +74,7 @@ INSERT INTO signal_executions
 SELECT
     gen_random_uuid(),
     s.id,
-    s.user_id,
+    w.user_id,
     s.symbol,
     'futures',
     s.direction,
@@ -90,6 +90,7 @@ SELECT
     COALESCE(s.activated_at, s.created_at),
     'paper'
 FROM signals s
+LEFT JOIN watchlists w ON s.watchlist_id = w.id
 WHERE NOT EXISTS (
     SELECT 1 FROM signal_executions se WHERE se.signal_id = s.id
 );

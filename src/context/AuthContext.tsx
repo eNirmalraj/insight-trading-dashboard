@@ -104,11 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut: handleSignOut,
     };
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // Hook to use auth context

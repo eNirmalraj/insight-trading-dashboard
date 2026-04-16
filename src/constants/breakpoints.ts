@@ -3,10 +3,10 @@
 
 export const BREAKPOINTS = {
     mobile: 0,
-    tablet: 768,  // md
+    tablet: 768, // md
     desktop: 1024, // lg
-    xl: 1280,     // xl
-    '2xl': 1536,  // 2xl
+    xl: 1280, // xl
+    '2xl': 1536, // 2xl
 } as const;
 
 export type BreakpointKey = keyof typeof BREAKPOINTS;

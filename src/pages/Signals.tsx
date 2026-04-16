@@ -3,15 +3,17 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 // Fix: Use namespace import for react-router-dom to resolve module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
 import SignalCard from '../components/SignalCard';
+import SignalTable from '../components/SignalTable';
+import ViewModeToggle from '../components/ViewModeToggle';
+import { useSignalViewMode } from '../hooks/useSignalViewMode';
 import { Signal, SignalStatus, Watchlist, Position, Timeframe, TradeDirection } from '../types';
-import { Candle } from '../components/market-chart/types';
 import { SignalIcon, CloseIcon, SearchIcon } from '../components/IconComponents';
-import MiniChart from '../components/MiniChart';
+import SignalChartModal from '../components/SignalChartModal';
 import ExecuteTradeModal from '../components/ExecuteTradeModal';
 import AssignStrategiesModal from '../components/AssignStrategiesModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { createPaperTrade } from '../services/paperTradingService';
-import { supabase } from '../services/supabaseClient';
+import { db } from '../services/supabaseClient';
 import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
 import Loader from '../components/Loader';
@@ -106,7 +108,7 @@ const Signals: React.FC = () => {
     });
 
     const [strategyFilter, setStrategyFilter] = useState<string>('All');
-    const [statusFilter, setStatusFilter] = useState<string>('All');
+    const [statusFilter, setStatusFilter] = useState<string>(SignalStatus.ACTIVE);
     const [directionFilter, setDirectionFilter] = useState<string>('All');
     const [marketTypeFilter, setMarketTypeFilter] = useState<string>('Crypto'); // Default to Crypto
     const [availableStrategies, setAvailableStrategies] = useState<string[]>([]); // Will be loaded from database
@@ -122,6 +124,7 @@ const Signals: React.FC = () => {
         | 'profit_pct_desc'
         | 'profit_pct_asc';
     const [sortMode, setSortMode] = useState<SortMode>('newest');
+    const [viewMode, setViewMode] = useSignalViewMode();
     type DateRange = 'all' | 'today' | '7d' | '30d' | 'custom';
     const [dateRange, setDateRange] = useState<DateRange>('all');
     const [customDateStart, setCustomDateStart] = useState<string>(''); // yyyy-mm-dd
@@ -130,14 +133,7 @@ const Signals: React.FC = () => {
     const [showTimeframeDropdown, setShowTimeframeDropdown] = useState<boolean>(false);
 
     const [executingSignal, setExecutingSignal] = useState<Signal | null>(null);
-    const [chartModalData, setChartModalData] = useState<{
-        chartData: Candle[];
-        pair: string;
-        entry: number;
-        stopLoss: number;
-        takeProfit: number;
-        indicatorData?: any;
-    } | null>(null);
+    const [openChartSignal, setOpenChartSignal] = useState<Signal | null>(null);
     const [addToWatchlistPair, setAddToWatchlistPair] = useState<string | null>(null);
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [positions, setPositions] = useState<Position[]>([]);
@@ -210,55 +206,24 @@ const Signals: React.FC = () => {
     // The backend now generates signals, frontend just listens
     // Supabase Realtime subscription for instant signal updates
     useEffect(() => {
-        if (!supabase) return;
-
         console.log('[Signals] 🔌 Setting up Supabase Realtime subscription...');
 
-        const channel = supabase
-            .channel('signals-realtime')
+        const channel = db()
+            .channel('signal-executions-realtime')
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'signals',
+                    table: 'signal_executions',
                 },
                 (payload) => {
-                    console.log('[Signals] ⚡ Signal update received:', payload);
+                    console.log('[Signals] ⚡ Execution update received:', payload);
 
                     if (payload.eventType === 'INSERT') {
-                        const newRow = payload.new;
-                        setSignals((prev) => {
-                            // 1. Duplicate Check: Ensure ID doesn't already exist
-                            if (prev.some((s) => s.id === newRow.id)) {
-                                console.warn('[Signals] Duplicate signal ignored:', newRow.id);
-                                return prev;
-                            }
-
-                            // 2. Map Payload to Signal Type
-                            const newSignal: Signal = {
-                                id: newRow.id,
-                                pair: newRow.symbol,
-                                strategy: newRow.strategy,
-                                strategyCategory: newRow.strategy_category,
-                                strategyId: newRow.strategy_id,
-                                direction: newRow.direction,
-                                entry: newRow.entry_price,
-                                entryType: newRow.entry_type,
-                                stopLoss: newRow.stop_loss,
-                                takeProfit: newRow.take_profit,
-                                status: newRow.status,
-                                timestamp: newRow.created_at,
-                                timeframe: newRow.timeframe,
-                                isPinned: newRow.is_pinned || false,
-                                watchlistId: newRow.watchlist_id,
-                                activatedAt: newRow.activated_at,
-                                closedAt: newRow.closed_at,
-                            };
-
-                            // 3. Prepend to list (maintaining sort mostly, but new is usually top)
-                            return [newSignal, ...prev];
-                        });
+                        // New execution row — refetch through getSignals() which
+                        // joins the signals event + scripts name in one pass.
+                        fetchData(true);
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedRow = payload.new;
                         setSignals((prev) =>
@@ -267,21 +232,19 @@ const Signals: React.FC = () => {
                                     ? {
                                           ...s,
                                           status: updatedRow.status,
-                                          // Only update fields that might change live
                                           isPinned:
                                               updatedRow.is_pinned !== undefined
                                                   ? updatedRow.is_pinned
                                                   : s.isPinned,
                                           profitLoss: updatedRow.profit_loss,
+                                          closePrice: updatedRow.close_price,
                                           closeReason: updatedRow.close_reason,
-                                          activatedAt: updatedRow.activated_at,
                                           closedAt: updatedRow.closed_at,
                                       }
                                     : s
                             )
                         );
                     }
-                    // Refresh stats instantly on any change
                     refreshSignalStats();
                 }
             )
@@ -293,7 +256,7 @@ const Signals: React.FC = () => {
 
         return () => {
             console.log('[Signals] Cleaning up realtime subscription');
-            supabase.removeChannel(channel);
+            db().removeChannel(channel);
             setIsConnected(false);
         };
     }, []);
@@ -407,7 +370,7 @@ const Signals: React.FC = () => {
         };
 
         return signals
-            .filter((s) => statusFilter === 'All' || s.status === statusFilter)
+            .filter((s) => s.status === statusFilter)
             .filter((s) => strategyFilter === 'All' || s.strategy === strategyFilter)
             .filter((s) => directionFilter === 'All' || s.direction === directionFilter)
             .filter((s) => {
@@ -488,15 +451,7 @@ const Signals: React.FC = () => {
     }, [watchlists]);
 
     const handleShowChart = (signal: Signal) => {
-        if (!signal.chartData) return;
-
-        setChartModalData({
-            chartData: signal.chartData,
-            pair: signal.pair,
-            entry: signal.entry,
-            stopLoss: signal.stopLoss,
-            takeProfit: signal.takeProfit,
-        });
+        setOpenChartSignal(signal);
     };
 
     const handleExecuteTrade = async (newPosition: Position) => {
@@ -574,6 +529,17 @@ const Signals: React.FC = () => {
                         criteria.
                     </p>
                 </div>
+            );
+        }
+
+        if (viewMode === 'list') {
+            return (
+                <SignalTable
+                    signals={filteredSignals}
+                    currentPrices={currentPrices}
+                    onShowChart={handleShowChart}
+                    onExecute={setExecutingSignal}
+                />
             );
         }
 
@@ -682,7 +648,7 @@ const Signals: React.FC = () => {
                     <div>
                         <label className="block text-xs text-gray-400 mb-2">Status</label>
                         <div className="flex flex-wrap gap-2">
-                            {['All', ...Object.values(SignalStatus)].map((status) => (
+                            {Object.values(SignalStatus).map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setStatusFilter(status)}
@@ -986,39 +952,23 @@ const Signals: React.FC = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* View mode toggle — right aligned */}
+                    <div className="flex-shrink-0 ml-auto">
+                        <label className="block text-xs text-gray-400 mb-1">View</label>
+                        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+                    </div>
                 </div>
             </div>
 
             {renderContent()}
 
-            {/* Chart Modal */}
-            {chartModalData && (
-                <div className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-xl w-full max-w-4xl h-[600px] flex flex-col p-4 border border-gray-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-white">
-                                {chartModalData.pair} Signal Chart
-                            </h3>
-                            <button
-                                onClick={() => setChartModalData(null)}
-                                title="Close"
-                                aria-label="Close"
-                                className="p-1 rounded-full hover:bg-gray-700"
-                            >
-                                <CloseIcon className="w-6 h-6 text-gray-400" />
-                            </button>
-                        </div>
-                        <div className="flex-1 min-h-0">
-                            <MiniChart
-                                data={chartModalData.chartData}
-                                entry={chartModalData.entry}
-                                stopLoss={chartModalData.stopLoss}
-                                takeProfit={chartModalData.takeProfit}
-                                indicatorData={chartModalData.indicatorData}
-                            />
-                        </div>
-                    </div>
-                </div>
+            {/* Full Chart Modal */}
+            {openChartSignal && (
+                <SignalChartModal
+                    signal={openChartSignal}
+                    onClose={() => setOpenChartSignal(null)}
+                />
             )}
 
             {/* Execute Trade Modal */}

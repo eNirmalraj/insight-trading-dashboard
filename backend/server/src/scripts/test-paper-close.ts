@@ -1,4 +1,3 @@
-
 import { supabaseAdmin } from '../services/supabaseAdmin';
 
 async function runVerification() {
@@ -6,7 +5,10 @@ async function runVerification() {
 
     // 1. Setup Data
     console.log('1. Setting up test trade...');
-    const { data: strategies } = await supabaseAdmin.from('strategies').select('id, user_id').limit(1);
+    const { data: strategies } = await supabaseAdmin
+        .from('strategies')
+        .select('id, user_id')
+        .limit(1);
     const strategy = strategies?.[0];
 
     if (!strategy) {
@@ -15,18 +17,25 @@ async function runVerification() {
     }
 
     // Ensure Balance
-    const { data: acc } = await supabaseAdmin.from('paper_trading_accounts').select('*').eq('user_id', strategy.user_id).single();
+    const { data: acc } = await supabaseAdmin
+        .from('paper_trading_accounts')
+        .select('*')
+        .eq('user_id', strategy.user_id)
+        .single();
     let initialBalance = 10000;
     if (!acc) {
         await supabaseAdmin.from('paper_trading_accounts').insert({
             user_id: strategy.user_id,
             name: 'Test Account',
             broker: 'Crypto',
-            balance: initialBalance
+            balance: initialBalance,
         });
     } else {
         initialBalance = 10000;
-        await supabaseAdmin.from('paper_trading_accounts').update({ balance: initialBalance }).eq('id', acc.id);
+        await supabaseAdmin
+            .from('paper_trading_accounts')
+            .update({ balance: initialBalance })
+            .eq('id', acc.id);
     }
 
     // Create Signal
@@ -39,7 +48,7 @@ async function runVerification() {
         entry_type: 'Market',
         status: 'Active',
         strategy: 'Test Strategy',
-        entry_price: 100
+        entry_price: 100,
     });
 
     // Open Trade (Using RPC)
@@ -50,14 +59,16 @@ async function runVerification() {
         p_symbol: 'SOLUSDT.P',
         p_direction: 'BUY',
         p_entry_price: 100,
-        p_initial_balance: 10000
+        p_initial_balance: 10000,
     });
 
     if (!openResult.success) {
         console.error('❌ Setup failed (Open Trade):', openResult);
         return;
     }
-    console.log(`✅ Trade Opened. Balance: ${openResult.new_balance} (Should be 9000 if cost is 1000)`);
+    console.log(
+        `✅ Trade Opened. Balance: ${openResult.new_balance} (Should be 9000 if cost is 1000)`
+    );
 
     // 2. Test Atomic Close RPC
     console.log('2. Testing close_paper_trade RPC (+10% PnL)...');
@@ -67,7 +78,7 @@ async function runVerification() {
     const { data: closeResult, error: closeError } = await supabaseAdmin.rpc('close_paper_trade', {
         p_signal_id: signalId,
         p_pnl_percent: 10,
-        p_close_reason: 'TP'
+        p_close_reason: 'TP',
     });
 
     if (closeError || !closeResult.success) {
@@ -86,7 +97,7 @@ async function runVerification() {
     const { data: closeResult2 } = await supabaseAdmin.rpc('close_paper_trade', {
         p_signal_id: signalId,
         p_pnl_percent: 10,
-        p_close_reason: 'TP'
+        p_close_reason: 'TP',
     });
 
     if (!closeResult2.success && closeResult2.error === 'Trade already closed') {

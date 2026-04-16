@@ -1,7 +1,7 @@
 // Indicator Service
 // Handles CRUD operations for technical indicators with Supabase persistence
 
-import { supabase } from './supabaseClient';
+import { db } from './supabaseClient';
 import { Indicator, IndicatorType, IndicatorSettings } from '../components/market-chart/types';
 
 export interface UserIndicator {
@@ -25,7 +25,7 @@ export const fetchUserIndicators = async (
     timeframe: string
 ): Promise<Indicator[]> => {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db()
             .from('user_indicators')
             .select('*')
             .eq('symbol', symbol)
@@ -35,12 +35,17 @@ export const fetchUserIndicators = async (
         if (error) throw error;
 
         // Convert DB format to Indicator format
-        return (data || []).map(dbIndicator => ({
+        return (data || []).map((dbIndicator) => ({
             id: dbIndicator.id,
             type: dbIndicator.indicator_type as IndicatorType,
             settings: dbIndicator.settings,
             data: {}, // Data will be calculated client-side
-            isVisible: dbIndicator.is_visible
+            isVisible: dbIndicator.is_visible,
+            kuriSource: dbIndicator.kuri_script || undefined,
+            kuriTitle: dbIndicator.kuri_plot_title || undefined,
+            kuriInputDefs: dbIndicator.kuri_input_defs || undefined,
+            kuriPlots: dbIndicator.kuri_plots || undefined,
+            kuriHlines: dbIndicator.kuri_hlines || undefined,
         }));
     } catch (error) {
         console.error('Error fetching indicators:', error);
@@ -57,11 +62,13 @@ export const saveIndicator = async (
     indicator: Omit<Indicator, 'data'>
 ): Promise<Indicator | null> => {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+            data: { user },
+        } = await db().auth.getUser();
         if (!user) throw new Error('User not authenticated');
 
         // Get current max display_order
-        const { data: existingIndicators } = await supabase
+        const { data: existingIndicators } = await db()
             .from('user_indicators')
             .select('display_order')
             .eq('symbol', symbol)
@@ -71,17 +78,24 @@ export const saveIndicator = async (
 
         const maxOrder = existingIndicators?.[0]?.display_order ?? -1;
 
-        const { data, error } = await supabase
+        const insertRow: any = {
+            user_id: user.id,
+            symbol,
+            timeframe,
+            indicator_type: indicator.type,
+            settings: indicator.settings,
+            is_visible: indicator.isVisible,
+            display_order: maxOrder + 1,
+        };
+        if (indicator.kuriSource) insertRow.kuri_script = indicator.kuriSource;
+        if (indicator.kuriTitle) insertRow.kuri_plot_title = indicator.kuriTitle;
+        if (indicator.kuriInputDefs) insertRow.kuri_input_defs = indicator.kuriInputDefs;
+        if (indicator.kuriPlots) insertRow.kuri_plots = indicator.kuriPlots;
+        if (indicator.kuriHlines) insertRow.kuri_hlines = indicator.kuriHlines;
+
+        const { data, error } = await db()
             .from('user_indicators')
-            .insert({
-                user_id: user.id,
-                symbol,
-                timeframe,
-                indicator_type: indicator.type,
-                settings: indicator.settings,
-                is_visible: indicator.isVisible,
-                display_order: maxOrder + 1
-            })
+            .insert(insertRow)
             .select()
             .single();
 
@@ -92,7 +106,12 @@ export const saveIndicator = async (
             type: data.indicator_type as IndicatorType,
             settings: data.settings,
             data: {},
-            isVisible: data.is_visible
+            isVisible: data.is_visible,
+            kuriSource: data.kuri_script || undefined,
+            kuriTitle: data.kuri_plot_title || undefined,
+            kuriInputDefs: data.kuri_input_defs || undefined,
+            kuriPlots: data.kuri_plots || undefined,
+            kuriHlines: data.kuri_hlines || undefined,
         };
     } catch (error) {
         console.error('Error saving indicator:', error);
@@ -105,17 +124,30 @@ export const saveIndicator = async (
  */
 export const updateIndicator = async (
     id: string,
-    updates: Partial<Pick<Indicator, 'settings' | 'isVisible'>>
+    updates: Partial<
+        Pick<
+            Indicator,
+            | 'settings'
+            | 'isVisible'
+            | 'kuriSource'
+            | 'kuriTitle'
+            | 'kuriInputDefs'
+            | 'kuriPlots'
+            | 'kuriHlines'
+        >
+    >
 ): Promise<boolean> => {
     try {
         const updateData: any = {};
         if (updates.settings !== undefined) updateData.settings = updates.settings;
         if (updates.isVisible !== undefined) updateData.is_visible = updates.isVisible;
+        if (updates.kuriSource !== undefined) updateData.kuri_script = updates.kuriSource;
+        if (updates.kuriTitle !== undefined) updateData.kuri_plot_title = updates.kuriTitle;
+        if (updates.kuriInputDefs !== undefined) updateData.kuri_input_defs = updates.kuriInputDefs;
+        if (updates.kuriPlots !== undefined) updateData.kuri_plots = updates.kuriPlots;
+        if (updates.kuriHlines !== undefined) updateData.kuri_hlines = updates.kuriHlines;
 
-        const { error } = await supabase
-            .from('user_indicators')
-            .update(updateData)
-            .eq('id', id);
+        const { error } = await db().from('user_indicators').update(updateData).eq('id', id);
 
         if (error) throw error;
         return true;
@@ -130,10 +162,7 @@ export const updateIndicator = async (
  */
 export const deleteIndicator = async (id: string): Promise<boolean> => {
     try {
-        const { error } = await supabase
-            .from('user_indicators')
-            .delete()
-            .eq('id', id);
+        const { error } = await db().from('user_indicators').delete().eq('id', id);
 
         if (error) throw error;
         return true;
@@ -152,16 +181,13 @@ export const updateIndicatorOrder = async (
     try {
         // Update each indicator's display order
         const updates = indicators.map(({ id, display_order }) =>
-            supabase
-                .from('user_indicators')
-                .update({ display_order })
-                .eq('id', id)
+            db().from('user_indicators').update({ display_order }).eq('id', id)
         );
 
         const results = await Promise.all(updates);
 
         // Check if any failed
-        const hasError = results.some(result => result.error);
+        const hasError = results.some((result) => result.error);
         if (hasError) {
             console.error('Some indicators failed to update order');
             return false;
@@ -187,15 +213,14 @@ export const toggleIndicatorVisibility = async (
 /**
  * Delete all indicators for a symbol/timeframe combination
  */
-export const clearAllIndicators = async (
-    symbol: string,
-    timeframe: string
-): Promise<boolean> => {
+export const clearAllIndicators = async (symbol: string, timeframe: string): Promise<boolean> => {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+            data: { user },
+        } = await db().auth.getUser();
         if (!user) throw new Error('User not authenticated');
 
-        const { error } = await supabase
+        const { error } = await db()
             .from('user_indicators')
             .delete()
             .eq('user_id', user.id)
@@ -217,5 +242,5 @@ export default {
     deleteIndicator,
     updateIndicatorOrder,
     toggleIndicatorVisibility,
-    clearAllIndicators
+    clearAllIndicators,
 };

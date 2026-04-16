@@ -1,0 +1,28 @@
+.drawing-settings-modal-width-preview {
+    width: 1rem;
+    border-radius: 9999px;
+}
+
+.drawing-settings-modal-width-preview-1 {
+    height: 1px;
+}
+
+.drawing-settings-modal-width-preview-2 {
+    height: 2px;
+}
+
+.drawing-settings-modal-width-preview-3 {
+    height: 3px;
+}
+
+.drawing-settings-modal-width-preview-4 {
+    height: 4px;
+}
+
+.drawing-settings-modal-width-preview-active {
+    background-color: #ffffff;
+}
+
+.drawing-settings-modal-width-preview-inactive {
+    background-color: #e0e0e0;
+}

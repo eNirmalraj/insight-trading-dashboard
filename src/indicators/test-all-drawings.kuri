@@ -1,0 +1,237 @@
+---
+version: kuri 1.0
+type: indicator
+name: "All Drawings Test"
+pane: overlay
+max_labels_count: 500
+max_lines_count: 500
+max_boxes_count: 200
+---
+
+// ═════════════════════════════════════════════════════════
+// COMPREHENSIVE DRAWING API TEST
+// Tests: line.new, line.delete, line styles,
+//        label.new, label.delete, label.set_*,
+//        mark.shape, kuri.alert, var, na, barstate,
+//        timeframe, switch, user functions, tuples,
+//        math.*, str.tostring, color.new
+// ═════════════════════════════════════════════════════════
+
+// ─── Inputs ───
+lineW    = param.int(2, title="Line Width", minval=1, maxval=5)
+showHist = param.bool(true, title="Show History")
+col_up   = param.color(color.new(color.green, 0), title="Up Color")
+col_dn   = param.color(color.new(color.red, 0),   title="Down Color")
+
+// ═══════════════════════════════════════════════════════
+// A: timeframe + switch — detect HTF windows
+// ═══════════════════════════════════════════════════════
+
+win_tf = timeframe.isintraday
+    ? (timeframe.multiplier <= 5   ? "D"
+    :  timeframe.multiplier <= 60  ? "D"
+    :  "W")
+    : (timeframe.isdaily ? "W" : "M")
+
+tf_time  = time(win_tf)
+isNewHTF = kuri.change(tf_time) != 0
+period_ms = timeframe.in_seconds(win_tf) * 1000
+tOpen    = tf_time
+tClose   = tOpen + period_ms
+
+// ═══════════════════════════════════════════════════════
+// B: var + OHLC tracking — manual ATR-like range calc
+// ═══════════════════════════════════════════════════════
+
+var float winO = na
+var float winH = na
+var float winL = na
+var float winC = na
+var float prevH = na
+var float prevL = na
+var float prevC = na
+
+if barstate.isfirst
+    winO := open
+    winH := high
+    winL := low
+    winC := close
+
+if isNewHTF
+    prevH := winH
+    prevL := winL
+    prevC := winC
+    winO  := open
+    winH  := high
+    winL  := low
+    winC  := close
+else
+    winH := na(winH) ? high : math.max(winH, high)
+    winL := na(winL) ? low  : math.min(winL, low)
+    winC := close
+
+// ═══════════════════════════════════════════════════════
+// C: User function + tuple — compute levels from range
+// ═══════════════════════════════════════════════════════
+
+f_levels(base, range) =>
+    mid   = base
+    upper = base + range * 0.5
+    lower = base - range * 0.5
+    ext_u = base + range * 0.75
+    ext_l = base - range * 0.75
+    [mid, upper, lower, ext_u, ext_l]
+
+prevRange = na(prevH) or na(prevL) ? na : (prevH - prevL)
+basePrice = na(prevC) ? winO : prevC
+hasRange  = not na(prevRange) and prevRange > 0
+
+[midLvl, upLvl, dnLvl, extUp, extDn] = hasRange ? f_levels(basePrice, prevRange) : [na, na, na, na, na]
+haveLevels = not na(midLvl)
+
+// ═══════════════════════════════════════════════════════
+// D: line.new + line.delete — current window bounded lines
+// ═══════════════════════════════════════════════════════
+
+var line ln_mid  = na
+var line ln_up   = na
+var line ln_dn   = na
+var line ln_extU = na
+var line ln_extD = na
+
+f_del(l) =>
+    if not na(l)
+        line.delete(l)
+
+shouldDraw = (barstate.isfirst or isNewHTF or na(ln_mid)) and haveLevels
+
+if shouldDraw
+    f_del(ln_mid)
+    f_del(ln_up)
+    f_del(ln_dn)
+    f_del(ln_extU)
+    f_del(ln_extD)
+
+    ln_mid  := line.new(tOpen, midLvl, tClose, midLvl, xloc=xloc.bar_time, color=color.white, width=lineW)
+    ln_up   := line.new(tOpen, upLvl,  tClose, upLvl,  xloc=xloc.bar_time, color=col_up, width=lineW, style=line.style_dashed)
+    ln_dn   := line.new(tOpen, dnLvl,  tClose, dnLvl,  xloc=xloc.bar_time, color=col_dn, width=lineW, style=line.style_dashed)
+    ln_extU := line.new(tOpen, extUp,  tClose, extUp,  xloc=xloc.bar_time, color=col_up, width=1, style=line.style_dotted)
+    ln_extD := line.new(tOpen, extDn,  tClose, extDn,  xloc=xloc.bar_time, color=col_dn, width=1, style=line.style_dotted)
+
+// ═══════════════════════════════════════════════════════
+// E: line.get_y2 — read back prices
+// ═══════════════════════════════════════════════════════
+
+yMid = na(ln_mid) ? na : line.get_y2(ln_mid)
+yUp  = na(ln_up)  ? na : line.get_y2(ln_up)
+yDn  = na(ln_dn)  ? na : line.get_y2(ln_dn)
+
+// ═══════════════════════════════════════════════════════
+// F: label.new + label.delete + label.set_*
+// ═══════════════════════════════════════════════════════
+
+var label lb_mid = na
+var label lb_up  = na
+var label lb_dn  = na
+
+f_delLb(lb) =>
+    if not na(lb)
+        label.delete(lb)
+
+lblBg = color.new(color.black, 100)
+
+if barstate.isfirst or isNewHTF
+    f_delLb(lb_mid)
+    f_delLb(lb_up)
+    f_delLb(lb_dn)
+
+    if haveLevels
+        if not na(yMid)
+            lb_mid := label.new(int(tClose), yMid, "Mid " + str.tostring(yMid, format.mintick), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_left, textcolor=color.white, color=lblBg, size=size.small)
+        if not na(yUp)
+            lb_up  := label.new(int(tClose), yUp, "+R " + str.tostring(yUp, format.mintick), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_left, textcolor=col_up, color=lblBg, size=size.small)
+        if not na(yDn)
+            lb_dn  := label.new(int(tClose), yDn, "-R " + str.tostring(yDn, format.mintick), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_left, textcolor=col_dn, color=lblBg, size=size.small)
+
+// label.set_* live updates
+if haveLevels and not isNewHTF
+    if not na(lb_mid) and not na(yMid)
+        label.set_x(lb_mid, int(tClose))
+        label.set_y(lb_mid, yMid)
+        label.set_text(lb_mid, "Mid " + str.tostring(yMid, format.mintick))
+    if not na(lb_up) and not na(yUp)
+        label.set_x(lb_up, int(tClose))
+        label.set_y(lb_up, yUp)
+        label.set_text(lb_up, "+R " + str.tostring(yUp, format.mintick))
+    if not na(lb_dn) and not na(yDn)
+        label.set_x(lb_dn, int(tClose))
+        label.set_y(lb_dn, yDn)
+        label.set_text(lb_dn, "-R " + str.tostring(yDn, format.mintick))
+
+// ═══════════════════════════════════════════════════════
+// G: History lines on HTF rollover
+// ═══════════════════════════════════════════════════════
+
+var float actBase  = na
+var float actRange = na
+var int   actOpen  = na
+var int   actEnd   = na
+
+f_drawHist(_oT, _cT, _b, _r) =>
+    if showHist and not na(_b) and not na(_r) and not na(_oT) and not na(_cT)
+        [hM, hU, hL, hEU, hEL] = f_levels(_b, _r)
+        opU = color.new(col_up, 70)
+        opD = color.new(col_dn, 70)
+        opW = color.new(color.white, 70)
+        line.new(_oT, hM,  _cT, hM,  xloc=xloc.bar_time, color=opW, width=1)
+        line.new(_oT, hU,  _cT, hU,  xloc=xloc.bar_time, color=opU, width=1, style=line.style_dashed)
+        line.new(_oT, hL,  _cT, hL,  xloc=xloc.bar_time, color=opD, width=1, style=line.style_dashed)
+
+if isNewHTF
+    f_drawHist(actOpen, actEnd, actBase, actRange)
+
+if shouldDraw
+    actBase  := basePrice
+    actRange := prevRange
+    actOpen  := tOpen
+    actEnd   := tClose
+
+// ═══════════════════════════════════════════════════════
+// H: mark.shape — pattern markers
+// ═══════════════════════════════════════════════════════
+
+bullBar = close > open
+bearBar = close < open
+bodySize = math.abs(close - open)
+rangeSize = high - low
+bigBody = rangeSize > 0 and bodySize / rangeSize > 0.7
+
+mark.shape(bigBody and bullBar, title="Strong Bull", style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="▲", color=color.new(color.green, 0))
+mark.shape(bigBody and bearBar, title="Strong Bear", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="▼", color=color.new(color.red, 0))
+
+// Touch markers
+touchUp = haveLevels and high >= upLvl and high[1] < upLvl
+touchDn = haveLevels and low <= dnLvl and low[1] > dnLvl
+
+mark.shape(touchUp, title="Touch Up",  style=shape.circle, location=location.abovebar, size=size.tiny, text="●", color=color.new(color.lime, 0))
+mark.shape(touchDn, title="Touch Dn",  style=shape.circle, location=location.belowbar, size=size.tiny, text="●", color=color.new(color.orange, 0))
+
+// ═══════════════════════════════════════════════════════
+// I: kuri.alert
+// ═══════════════════════════════════════════════════════
+
+kuri.alert(bigBody and bullBar, "Strong Bull Bar", "Strong bullish candle > 70% body ratio")
+kuri.alert(bigBody and bearBar, "Strong Bear Bar", "Strong bearish candle > 70% body ratio")
+kuri.alert(touchUp, "Upper Level Touch", "Price touched upper range level")
+kuri.alert(touchDn, "Lower Level Touch", "Price touched lower range level")
+
+// ═══════════════════════════════════════════════════════
+// J: Info label — str.tostring + format + syminfo
+// ═══════════════════════════════════════════════════════
+
+var label lb_info = na
+if barstate.islast and hasRange
+    if not na(lb_info)
+        label.delete(lb_info)
+    info = "Range: " + str.tostring(math.round(prevRange * 100) / 100, format.mintick) + " | TF: " + win_tf + " | Tick: " + str.tostring(syminfo.mintick, format.mintick)
+    lb_info := label.new(bar_index, high + prevRange * 0.1, info, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, textcolor=color.white, color=color.new(color.blue, 20), size=size.normal)

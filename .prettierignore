@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+build
+.turbo
+*.tsbuildinfo
+
+# Coverage
+coverage
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package manager
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated files
+**/*.min.js
+**/*.min.css
+
+# Documentation markdown (to preserve formatting)
+*.md

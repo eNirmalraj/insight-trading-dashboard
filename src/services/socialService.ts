@@ -1,18 +1,22 @@
-import { supabase } from './supabaseClient';
+import { db } from './supabaseClient';
 import { SharedStrategy, UserProfilePublic } from '../types/social';
 
 // --- Shared Strategies (Feed) ---
 
 export const getSharedStrategies = async (): Promise<SharedStrategy[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await db().auth.getUser();
 
     // 1. Get strategies
-    const { data: strategies, error } = await supabase
+    const { data: strategies, error } = await db()
         .from('shared_strategies')
-        .select(`
+        .select(
+            `
             *,
             profiles:user_id (full_name, avatar_url)
-        `)
+        `
+        )
         .eq('is_public', true)
         .order('created_at', { ascending: false });
 
@@ -22,7 +26,7 @@ export const getSharedStrategies = async (): Promise<SharedStrategy[]> => {
     // Note: For a real app, use a proper join or separate query. For MVP, we'll map.
     let likedIds = new Set<string>();
     if (user) {
-        const { data: likes } = await supabase
+        const { data: likes } = await db()
             .from('social_likes')
             .select('target_id')
             .eq('user_id', user.id)
@@ -37,19 +41,21 @@ export const getSharedStrategies = async (): Promise<SharedStrategy[]> => {
         ...s,
         author_name: s.profiles?.full_name || 'Anonymous',
         author_avatar: s.profiles?.avatar_url,
-        is_liked_by_me: likedIds.has(s.id)
+        is_liked_by_me: likedIds.has(s.id),
     }));
 };
 
 export const likeStrategy = async (strategyId: string): Promise<void> => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await db().auth.getUser();
     if (!user) throw new Error('Must be logged in');
 
     // Optimistic UI updates should handle the count, but we need to track it in DB
     // Transaction ideally. Here: Simple insert + RPC increment (or manual Update)
 
     // 1. Insert Like
-    const { error } = await supabase
+    const { error } = await db()
         .from('social_likes')
         .insert({ user_id: user.id, target_id: strategyId, target_type: 'strategy' });
 
@@ -57,18 +63,13 @@ export const likeStrategy = async (strategyId: string): Promise<void> => {
     if (error) throw new Error(error.message);
 
     // 2. Increment Counter
-    await supabase.rpc('increment_likes', { row_id: strategyId }); // We need to define this RPC or just use raw update
+    await db().rpc('increment_likes', { row_id: strategyId }); // We need to define this RPC or just use raw update
 };
-
 
 // --- User Profiles ---
 
 export const getUserProfile = async (userId: string): Promise<UserProfilePublic> => {
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+    const { data, error } = await db().from('profiles').select('*').eq('id', userId).single();
 
     if (error) throw new Error(error.message);
 
@@ -79,6 +80,6 @@ export const getUserProfile = async (userId: string): Promise<UserProfilePublic>
         avatar_url: data.avatar_url,
         followers_count: 0,
         following_count: 0,
-        bio: data.bio || ""
+        bio: data.bio || '',
     };
 };

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alert Modal v2 — Modern, Compact & Clean</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #08080a;
+    color: #e0e0e0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+
+  .label-tag {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+
+  /* ══════════════════════════════════════════════
+     MODAL SHELL
+     ══════════════════════════════════════════════ */
+  .modal {
+    width: 380px;
+    background: #111113;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.03),
+      0 24px 80px -12px rgba(0,0,0,0.9);
+  }
+
+  /* ── Header ── */
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.015);
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-icon {
+    width: 18px; height: 18px;
+    color: #c4b5f0;
+    opacity: 0.8;
+  }
+  .modal-header h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8e8e8;
+  }
+  .header-badge {
+    font-size: 10px;
+    font-weight: 500;
+    color: #888;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
+  .close-btn {
+    width: 24px; height: 24px;
+    border: none; background: transparent;
+    color: #555; font-size: 15px;
+    cursor: pointer; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .close-btn:hover { background: rgba(255,255,255,0.06); color: #aaa; }
+
+  /* ── Body ── */
+  .modal-body {
+    padding: 14px 16px 10px;
+  }
+
+  /* ── Section ── */
+  .section { margin-bottom: 14px; }
+  .section:last-child { margin-bottom: 6px; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #4a4a52;
+    margin-bottom: 6px;
+  }
+
+  /* ══════════════════════════════════════════════
+     CONDITION — Inline bar
+     ══════════════════════════════════════════════ */
+  .condition-bar {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .condition-bar > * {
+    border: none;
+    background: transparent;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #ccc;
+    font-family: 'Inter', sans-serif;
+    border-right: 1px solid rgba(255,255,255,0.04);
+  }
+  .condition-bar > *:last-child { border-right: none; }
+  .condition-bar > *:focus { outline: none; background: rgba(196,181,240,0.05); }
+
+  .sym {
+    font-weight: 600;
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    padding: 8px 10px;
+    letter-spacing: 0.3px;
+  }
+  .cond-select {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23666' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 22px;
+    color: #c4b5f0;
+    font-weight: 500;
+  }
+  .cond-select option { background: #1a1a1e; color: #ccc; }
+  .price-val {
+    width: 100px;
+    text-align: right;
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: #fff;
+    letter-spacing: -0.2px;
+  }
+
+  /* ══════════════════════════════════════════════
+     TRIGGER — Segmented control
+     ══════════════════════════════════════════════ */
+  .trigger-seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+  .seg-btn {
+    flex: 1;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 5px;
+    font-size: 10.5px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.12s;
+    white-space: nowrap;
+    letter-spacing: 0.1px;
+  }
+  .seg-btn.off {
+    background: transparent;
+    color: #555;
+  }
+  .seg-btn.off:hover { color: #999; background: rgba(255,255,255,0.02); }
+  .seg-btn.on {
+    background: rgba(196, 181, 240, 0.1);
+    color: #c4b5f0;
+    font-weight: 600;
+  }
+
+  /* ══════════════════════════════════════════════
+     ACTIONS — Inline row
+     ══════════════════════════════════════════════ */
+  .actions-row {
+    display: flex;
+    gap: 6px;
+  }
+  .action-chip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .action-chip.off {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #555;
+  }
+  .action-chip.off:hover { border-color: rgba(255,255,255,0.1); color: #888; }
+  .action-chip.on {
+    background: rgba(196, 181, 240, 0.07);
+    border: 1px solid rgba(196, 181, 240, 0.18);
+    color: #c4b5f0;
+  }
+  .action-chip svg {
+    width: 14px; height: 14px;
+    flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════════════════════
+     MESSAGE — Minimal textarea
+     ══════════════════════════════════════════════ */
+  .msg-input {
+    width: 100%;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 11.5px;
+    color: #888;
+    resize: none;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.4;
+    transition: all 0.12s;
+  }
+  .msg-input:focus {
+    border-color: rgba(196,181,240,0.25);
+    color: #ccc;
+    outline: none;
+  }
+
+  /* ══════════════════════════════════════════════
+     FOOTER
+     ══════════════════════════════════════════════ */
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 10px 16px 14px;
+  }
+  .btn {
+    padding: 7px 16px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.12s;
+    font-family: 'Inter', sans-serif;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: #555;
+  }
+  .btn-ghost:hover { color: #aaa; }
+  .btn-primary {
+    background: #c4b5f0;
+    color: #111;
+  }
+  .btn-primary:hover { background: #d6c9f7; }
+
+  /* ══════════════════════════════════════════════
+     INDICATOR MODE — Tabs + Builder
+     ══════════════════════════════════════════════ */
+  .mode-switch {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+  }
+  .mode-switch button {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: 'Inter', sans-serif;
+  }
+  .mode-switch button:first-child { border-radius: 6px 0 0 6px; }
+  .mode-switch button:last-child { border-radius: 0 6px 6px 0; }
+  .mode-switch .m-off {
+    background: rgba(255,255,255,0.03);
+    color: #555;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .mode-switch .m-off:hover { color: #999; }
+  .mode-switch .m-on {
+    background: rgba(196,181,240,0.08);
+    color: #c4b5f0;
+    border: 1px solid rgba(196,181,240,0.15);
+  }
+
+  .cond-block {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .cond-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .cond-row:last-child { margin-bottom: 0; }
+
+  .mini-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    padding: 5px 22px 5px 8px;
+    font-size: 11.5px;
+    color: #ccc;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23555' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    transition: border-color 0.12s;
+  }
+  .mini-select:focus { border-color: rgba(196,181,240,0.3); outline: none; }
+  .mini-select option { background: #1a1a1e; }
+
+  .mini-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 11.5px;
+    color: #fff;
+    font-family: 'SF Mono', monospace;
+    width: 60px;
+    text-align: center;
+    transition: border-color 0.12s;
+  }
+  .mini-input:focus { border-color: rgba(196,181,240,0.3); outline: none; }
+
+  .cond-hint {
+    font-size: 10px;
+    color: #444;
+    margin-top: 6px;
+    padding-left: 2px;
+    line-height: 1.4;
+  }
+
+  .param-label {
+    font-size: 10.5px;
+    color: #555;
+    font-weight: 500;
+    min-width: 36px;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.04);
+    margin: 0 -16px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════
+     1. DRAWING ALERT
+     ════════════════════════════════════════════════════ -->
+<div>
+  <div class="label-tag">Drawing Alert</div>
+  <div class="modal">
+    <div class="modal-header">
+      <div class="header-left">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <h2>DOGEUSDT</h2>
+        <span class="header-badge">Trend Line</span>
+      </div>
+      <button class="close-btn">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="section">
+        <div class="section-label">Condition</div>
+        <div class="condition-bar">
+          <span class="sym">DOGEUSDT</span>
+          <select class="cond-select">
+            <option selected>Crossing</option>
+            <option>Crossing Up</option>
+            <option>Crossing Down</option>
+            <option>Greater Than</option>
+            <option>Less Than</option>
+          </select>
+          <input class="price-val" type="text" value="0.16842" />
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Trigger</div>
+        <div class="trigger-seg">
+          <button class="seg-btn on">Once</button>
+          <button class="seg-btn off">Per Bar</button>
+          <button class="seg-btn off">Bar Close</button>
+          <button class="seg-btn off">Per Min</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Actions</div>
+        <div class="actions-row">
+          <div class="action-chip on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="action-chip off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Message</div>
+        <textarea class="msg-input" rows="1">DOGEUSDT Price Crossing 0.16842</textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     2. INDICATOR — Predefined
+     ════════════════════════════════════════════════════ -->
+<div>
+  <div class="label-tag">Indicator — Predefined</div>
+  <div class="modal">
+    <div class="modal-header">
+      <div class="header-left">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <h2>BTCUSDT</h2>
+        <span class="header-badge">RSI</span>
+      </div>
+      <button class="close-btn">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="section">
+        <div class="section-label">Condition</div>
+        <div class="mode-switch">
+          <button class="m-on">Predefined</button>
+          <button class="m-off">Advanced</button>
+        </div>
+        <div class="cond-block">
+          <div class="cond-row">
+            <select class="mini-select" style="flex:1">
+              <option selected>RSI crosses above level</option>
+              <option>RSI crosses below level</option>
+              <option>RSI enters overbought</option>
+              <option>RSI enters oversold</option>
+            </select>
+          </div>
+          <div class="cond-row">
+            <span class="param-label">Level</span>
+            <input class="mini-input" type="number" value="70" />
+          </div>
+          <div class="cond-hint">Triggers when RSI line crosses above 70</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Trigger</div>
+        <div class="trigger-seg">
+          <button class="seg-btn on">Once</button>
+          <button class="seg-btn off">Per Bar</button>
+          <button class="seg-btn off">Bar Close</button>
+          <button class="seg-btn off">Per Min</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Actions</div>
+        <div class="actions-row">
+          <div class="action-chip on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="action-chip on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Message</div>
+        <textarea class="msg-input" rows="1">BTCUSDT RSI crosses above 70</textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     3. INDICATOR — Advanced
+     ════════════════════════════════════════════════════ -->
+<div>
+  <div class="label-tag">Indicator — Advanced</div>
+  <div class="modal">
+    <div class="modal-header">
+      <div class="header-left">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <h2>ETHUSDT</h2>
+        <span class="header-badge">MACD</span>
+      </div>
+      <button class="close-btn">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="section">
+        <div class="section-label">Condition</div>
+        <div class="mode-switch">
+          <button class="m-off">Predefined</button>
+          <button class="m-on">Advanced</button>
+        </div>
+        <div class="cond-block">
+          <div class="cond-row">
+            <select class="mini-select" style="flex:1">
+              <option selected>MACD Line</option>
+              <option>Signal Line</option>
+              <option>Histogram</option>
+            </select>
+            <select class="mini-select">
+              <option>Crossing</option>
+              <option selected>Crosses Up</option>
+              <option>Crosses Down</option>
+              <option>&gt; Greater</option>
+              <option>&lt; Less</option>
+            </select>
+            <input class="mini-input" type="text" value="0" />
+          </div>
+          <div class="cond-hint">MACD Line crosses up above 0</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Trigger</div>
+        <div class="trigger-seg">
+          <button class="seg-btn off">Once</button>
+          <button class="seg-btn off">Per Bar</button>
+          <button class="seg-btn on">Bar Close</button>
+          <button class="seg-btn off">Per Min</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Actions</div>
+        <div class="actions-row">
+          <div class="action-chip on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notify
+          </div>
+          <div class="action-chip off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            Sound
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Message</div>
+        <textarea class="msg-input" rows="1">ETHUSDT MACD Line Crosses Up 0</textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary">Create</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

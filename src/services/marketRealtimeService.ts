@@ -8,7 +8,12 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 
 // --- Types ---
 type TickCallback = (candle: Candle) => void;
-type TickerCallback = (data: { price: number; changePercent: number; volume: number; change: number }) => void;
+type TickerCallback = (data: {
+    price: number;
+    changePercent: number;
+    volume: number;
+    change: number;
+}) => void;
 
 class MarketRealtimeService {
     // Top-level Chart Socket State
@@ -57,7 +62,11 @@ class MarketRealtimeService {
             const subscription = `${streamSymbol}@kline_${cleanTf}`;
 
             // If already connected to this EXACT subscription, just update the callback
-            if (this.chartSocket && this.chartSocket.readyState === WebSocket.OPEN && this.activeSubscription === subscription) {
+            if (
+                this.chartSocket &&
+                this.chartSocket.readyState === WebSocket.OPEN &&
+                this.activeSubscription === subscription
+            ) {
                 this.activeCallback = onTick;
                 return;
             }
@@ -139,7 +148,7 @@ class MarketRealtimeService {
                             high: parseFloat(k.h),
                             low: parseFloat(k.l),
                             close: parseFloat(k.c),
-                            volume: parseFloat(k.v)
+                            volume: parseFloat(k.v),
                         });
                     }
                 } catch (err) {
@@ -159,7 +168,6 @@ class MarketRealtimeService {
                     console.log('[Chart] Disconnected cleanly');
                 }
             };
-
         } catch (err) {
             console.error('[Chart] Init failed:', err);
             // Retry safety
@@ -213,17 +221,25 @@ class MarketRealtimeService {
         if (!this.tickerSocketSpot || this.tickerSocketSpot.readyState !== WebSocket.OPEN) {
             // Combined stream format: stream name is !miniTicker@arr
             const url = `wss://stream.binance.com:9443/stream?streams=!miniTicker@arr`;
-            this._createTickerSocket(url, 'SPOT', (socket) => this.tickerSocketSpot = socket);
+            this._createTickerSocket(url, 'SPOT', (socket) => (this.tickerSocketSpot = socket));
         }
 
         // 2. Ensure Futures Global Socket is open
         if (!this.tickerSocketFutures || this.tickerSocketFutures.readyState !== WebSocket.OPEN) {
             const url = `wss://fstream.binance.com/stream?streams=!miniTicker@arr`;
-            this._createTickerSocket(url, 'FUTURES', (socket) => this.tickerSocketFutures = socket);
+            this._createTickerSocket(
+                url,
+                'FUTURES',
+                (socket) => (this.tickerSocketFutures = socket)
+            );
         }
     }
 
-    private _createTickerSocket(url: string, type: 'SPOT' | 'FUTURES', setSocket: (s: WebSocket) => void) {
+    private _createTickerSocket(
+        url: string,
+        type: 'SPOT' | 'FUTURES',
+        setSocket: (s: WebSocket) => void
+    ) {
         try {
             console.log(`[Ticker ${type}] Connecting global stream...`);
             const ws = new WebSocket(url);
@@ -254,7 +270,6 @@ class MarketRealtimeService {
             };
 
             ws.onerror = (e) => console.error(`[Ticker ${type}] Error`, e);
-
         } catch (e) {
             console.error(`[Ticker ${type}] Connection Failed`, e);
         }
@@ -263,10 +278,12 @@ class MarketRealtimeService {
     private _processTickerData(data: any, type: 'SPOT' | 'FUTURES') {
         let symbol = data.s.toLowerCase();
         if (type === 'FUTURES') {
-            symbol += '.p'; // Check if futures symbols need .p? 
+            symbol += '.p'; // Check if futures symbols need .p?
             // Debug Log (Once)
             if (!window.hasLoggedFuturesData) {
-                console.log(`[Realtime] 🟢 First FUTURES packet received: ${symbol} Price: ${data.c}`);
+                console.log(
+                    `[Realtime] 🟢 First FUTURES packet received: ${symbol} Price: ${data.c}`
+                );
                 window.hasLoggedFuturesData = true;
             }
         }
@@ -282,7 +299,7 @@ class MarketRealtimeService {
             const change = price - open;
             const changePercent = open !== 0 ? (change / open) * 100 : 0;
 
-            callbacks.forEach(cb => cb({ price, changePercent, volume: baseVolume, change }));
+            callbacks.forEach((cb) => cb({ price, changePercent, volume: baseVolume, change }));
         }
     }
 
@@ -295,7 +312,10 @@ export const marketRealtimeService = new MarketRealtimeService();
 
 // Legacy adapter exports for existing code (if any other files needed them)
 // But ideally we replace usages.
-export const subscribeToSymbol = (s: string, tf: string, cb: TickCallback) => marketRealtimeService.connect(s, tf, cb);
+export const subscribeToSymbol = (s: string, tf: string, cb: TickCallback) =>
+    marketRealtimeService.connect(s, tf, cb);
 export const unsubscribe = () => marketRealtimeService.disconnect();
-export const subscribeToTicker = (s: string, cb: TickerCallback) => marketRealtimeService.subscribeToTicker(s, cb);
-export const unsubscribeFromTicker = (s: string, cb: TickerCallback) => marketRealtimeService.unsubscribeFromTicker(s, cb);
+export const subscribeToTicker = (s: string, cb: TickerCallback) =>
+    marketRealtimeService.subscribeToTicker(s, cb);
+export const unsubscribeFromTicker = (s: string, cb: TickerCallback) =>
+    marketRealtimeService.unsubscribeFromTicker(s, cb);

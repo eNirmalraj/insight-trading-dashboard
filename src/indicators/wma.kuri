@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Weighted Moving Average
+short: WMA
+pane: overlay
+---
+
+len = param.int(9, title="Length", min=1)
+src = param.source(close, title="Source")
+out = kuri.wma(src, len)
+mark(out, title="WMA", color=color.blue, linewidth=2)

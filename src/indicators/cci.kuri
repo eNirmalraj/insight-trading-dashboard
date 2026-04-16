@@ -1,0 +1,19 @@
+---
+version: kuri 1.0
+type: indicator
+name: Commodity Channel Index
+short: CCI
+pane: separate
+---
+
+length = param.int(20, title="Length", min=1)
+src = param.source(hlc3, title="Source")
+cci = kuri.cci(src, length)
+
+mark(cci, title="CCI", color=#2962FF)
+mark.level(100, title="Upper Band", color=#787B86)
+mark.level(0, title="Middle", color=#787B86)
+mark.level(-100, title="Lower Band", color=#787B86)
+
+kuri.alert(kuri.crossover(cci, 100), title="CCI Above 100", message="CCI crossed above 100")
+kuri.alert(kuri.crossunder(cci, -100), title="CCI Below -100", message="CCI crossed below -100")

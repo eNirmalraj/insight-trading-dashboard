@@ -42,14 +42,14 @@ const AccountMetrics: React.FC = () => {
                 const [metrics, detailed, history] = await Promise.all([
                     api.getAccountMetrics(activeAccount),
                     api.getDetailedMetrics(activeAccount),
-                    api.getBalanceHistory(activeAccount)
+                    api.getBalanceHistory(activeAccount),
                 ]);
                 setAccountData({ metrics, detailedMetrics: detailed, balanceHistory: history });
 
                 if (!performanceData) {
                     const [tradeHistory, strategyPerf] = await Promise.all([
                         api.getTradeHistory(),
-                        api.getStrategyPerformanceData()
+                        api.getStrategyPerformanceData(),
                     ]);
                     setPerformanceData({ tradeHistory, strategyPerformance: strategyPerf });
                 }
@@ -71,7 +71,10 @@ const AccountMetrics: React.FC = () => {
         return { chartColor: '#F59E0B', gradientId: 'binanceBalanceGradient' };
     }, [activeAccount]);
 
-    const accountTabs: { name: AccountType, label: string }[] = [{ name: 'Forex', label: 'Forex Account (MT5)' }, { name: 'Binance', label: 'Binance Account' }];
+    const accountTabs: { name: AccountType; label: string }[] = [
+        { name: 'Forex', label: 'Forex Account (MT5)' },
+        { name: 'Binance', label: 'Binance Account' },
+    ];
 
     return (
         <div className="space-y-6 p-6">
@@ -89,31 +92,55 @@ const AccountMetrics: React.FC = () => {
                         ))}
                     </nav>
                 </div>
-                {isLoading ? <div className="h-64"><Loader /></div> : error ? <div className="p-6 text-center text-red-400">{error}</div> : accountData && (
-                    <>
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {accountData.metrics.map((metric, index) => (<MetricCard key={index} {...metric} />))}
+                {isLoading ? (
+                    <div className="h-64">
+                        <Loader />
+                    </div>
+                ) : error ? (
+                    <div className="p-6 text-center text-red-400">{error}</div>
+                ) : (
+                    accountData && (
+                        <>
+                            <div className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {accountData.metrics.map((metric, index) => (
+                                        <MetricCard key={index} {...metric} />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-6 border-t border-gray-700 space-y-6">
-                            <h2 className="text-lg md:text-xl font-semibold text-white">Performance Statistics</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {Object.entries(accountData.detailedMetrics).map(([key, value]) => (
-                                    <DetailedMetricItem key={key} label={key} value={value} />
-                                ))}
+                            <div className="p-6 border-t border-gray-700 space-y-6">
+                                <h2 className="text-lg md:text-xl font-semibold text-white">
+                                    Performance Statistics
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {Object.entries(accountData.detailedMetrics).map(
+                                        ([key, value]) => (
+                                            <DetailedMetricItem
+                                                key={key}
+                                                label={key}
+                                                value={value}
+                                            />
+                                        )
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </>
+                        </>
+                    )
                 )}
             </div>
 
-            {isLoading ? <div className="h-96 rounded-xl bg-card-bg"><Loader /></div> : accountData && (
-                <AccountPerformanceChart
-                    data={accountData.balanceHistory}
-                    lineColor={chartColor}
-                    gradientId={gradientId}
-                />
+            {isLoading ? (
+                <div className="h-96 rounded-xl bg-card-bg">
+                    <Loader />
+                </div>
+            ) : (
+                accountData && (
+                    <AccountPerformanceChart
+                        data={accountData.balanceHistory}
+                        lineColor={chartColor}
+                        gradientId={gradientId}
+                    />
+                )
             )}
 
             {performanceData ? (
@@ -121,8 +148,11 @@ const AccountMetrics: React.FC = () => {
                     <StrategyPerformance data={performanceData.strategyPerformance} />
                     <DailySummary tradeHistory={performanceData.tradeHistory} />
                 </>
-            ) : isLoading ? <div className="h-96 rounded-xl bg-card-bg"><Loader /></div> : null}
-
+            ) : isLoading ? (
+                <div className="h-96 rounded-xl bg-card-bg">
+                    <Loader />
+                </div>
+            ) : null}
         </div>
     );
 };

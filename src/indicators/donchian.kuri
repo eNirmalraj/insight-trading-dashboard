@@ -1,0 +1,16 @@
+---
+version: kuri 1.0
+type: indicator
+name: Donchian Channels
+short: DC
+pane: overlay
+---
+
+length = param.int(20, title="Length", min=1)
+lower = kuri.lowest(low, length)
+upper = kuri.highest(high, length)
+basis = (upper + lower) / 2
+
+mark(basis, title="Basis", color=#FF6D00)
+mark(upper, title="Upper", color=#2962FF)
+mark(lower, title="Lower", color=#2962FF)

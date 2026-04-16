@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Average Daily Range
+short: ADR
+pane: separate
+---
+
+lengthInput = param.int(14, title="Length", min=1)
+range = high - low
+adr = kuri.sma(range, lengthInput)
+mark(adr, title="ADR", color=color.blue)

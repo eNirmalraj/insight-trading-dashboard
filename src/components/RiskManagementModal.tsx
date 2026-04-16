@@ -5,7 +5,7 @@ import {
     calculateForexLotSize,
     calculateForexRiskPercent,
     calculateCryptoPositionSize,
-    calculateCryptoRiskPercent
+    calculateCryptoRiskPercent,
 } from '../utils/riskCalculator';
 
 interface RiskManagementModalProps {
@@ -21,7 +21,7 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
     onClose,
     item,
     accountType,
-    onSave
+    onSave,
 }) => {
     const [lotSize, setLotSize] = useState(item.lot_size || 0.01);
     const [riskPercent, setRiskPercent] = useState(item.risk_percent || 1.0);
@@ -44,8 +44,13 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
             const calculatedRisk = calculateForexRiskPercent(ACCOUNT_BALANCE, val, slDistance);
             setRiskPercent(calculatedRisk);
         } else if (isCrypto && item.price > 0 && slDistance > 0) {
-            const slPrice = item.price - (slDistance * (item.isPositive ? 1 : -1)); // Simple approximation
-            const calculatedRisk = calculateCryptoRiskPercent(ACCOUNT_BALANCE, val, item.price, slPrice);
+            const slPrice = item.price - slDistance * (item.isPositive ? 1 : -1); // Simple approximation
+            const calculatedRisk = calculateCryptoRiskPercent(
+                ACCOUNT_BALANCE,
+                val,
+                item.price,
+                slPrice
+            );
             setRiskPercent(calculatedRisk);
         }
     };
@@ -56,8 +61,14 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
             const calculatedLot = calculateForexLotSize(ACCOUNT_BALANCE, val, slDistance);
             setLotSize(calculatedLot);
         } else if (isCrypto && item.price > 0 && slDistance > 0) {
-            const slPrice = item.price - (slDistance * (item.isPositive ? 1 : -1));
-            const calculatedQty = calculateCryptoPositionSize(ACCOUNT_BALANCE, val, leverage, item.price, slPrice);
+            const slPrice = item.price - slDistance * (item.isPositive ? 1 : -1);
+            const calculatedQty = calculateCryptoPositionSize(
+                ACCOUNT_BALANCE,
+                val,
+                leverage,
+                item.price,
+                slPrice
+            );
             setLotSize(calculatedQty);
         }
     };
@@ -69,8 +80,14 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
             const calculatedLot = calculateForexLotSize(ACCOUNT_BALANCE, riskPercent, val);
             setLotSize(calculatedLot);
         } else if (isCrypto && item.price > 0) {
-            const slPrice = item.price - (val * (item.isPositive ? 1 : -1));
-            const calculatedQty = calculateCryptoPositionSize(ACCOUNT_BALANCE, riskPercent, leverage, item.price, slPrice);
+            const slPrice = item.price - val * (item.isPositive ? 1 : -1);
+            const calculatedQty = calculateCryptoPositionSize(
+                ACCOUNT_BALANCE,
+                riskPercent,
+                leverage,
+                item.price,
+                slPrice
+            );
             setLotSize(calculatedQty);
         }
     };
@@ -84,7 +101,7 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                 take_profit_distance: tpDistance,
                 stop_loss_distance: slDistance,
                 trailing_stop_loss_distance: tslDistance,
-                leverage: leverage
+                leverage: leverage,
             });
             onClose();
         } catch (error) {
@@ -107,10 +124,15 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                         </div>
                         <div>
                             <h3 className="font-semibold text-gray-100">Risk Management</h3>
-                            <p className="text-xs text-gray-400">{item.symbol} • {accountType}</p>
+                            <p className="text-xs text-gray-400">
+                                {item.symbol} • {accountType}
+                            </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded-lg transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+                    >
                         <CloseIcon className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
@@ -128,27 +150,35 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                                 value={lotSize}
                                 onChange={(e) => handleLotSizeChange(parseFloat(e.target.value))}
                                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                                step={isForex ? "0.01" : "0.0001"}
+                                step={isForex ? '0.01' : '0.0001'}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Risk %</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Risk %
+                            </label>
                             <div className="relative">
                                 <input
                                     type="number"
                                     value={riskPercent}
-                                    onChange={(e) => handleRiskPercentChange(parseFloat(e.target.value))}
+                                    onChange={(e) =>
+                                        handleRiskPercentChange(parseFloat(e.target.value))
+                                    }
                                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-right pr-8"
                                     step="0.1"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                                    %
+                                </span>
                             </div>
                         </div>
                     </div>
 
                     {isCrypto && (
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Leverage</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Leverage
+                            </label>
                             <div className="flex items-center gap-4">
                                 <input
                                     type="range"
@@ -158,7 +188,9 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                                     onChange={(e) => setLeverage(parseInt(e.target.value))}
                                     className="flex-1 accent-blue-500 h-1.5 bg-gray-700 rounded-lg cursor-pointer"
                                 />
-                                <span className="text-sm font-mono text-blue-400 w-12 text-right">{leverage}x</span>
+                                <span className="text-sm font-mono text-blue-400 w-12 text-right">
+                                    {leverage}x
+                                </span>
                             </div>
                         </div>
                     )}
@@ -189,7 +221,9 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Trailing SL (Distance)</label>
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            Trailing SL (Distance)
+                        </label>
                         <input
                             type="number"
                             value={tslDistance}
@@ -202,11 +236,15 @@ export const RiskManagementModal: React.FC<RiskManagementModalProps> = ({
                     <div className="p-3 bg-blue-500/5 rounded-lg border border-blue-500/10">
                         <div className="flex justify-between text-xs text-gray-400 mb-1">
                             <span>Account Equity</span>
-                            <span className="text-gray-200">${ACCOUNT_BALANCE.toLocaleString()}</span>
+                            <span className="text-gray-200">
+                                ${ACCOUNT_BALANCE.toLocaleString()}
+                            </span>
                         </div>
                         <div className="flex justify-between text-xs text-gray-400">
                             <span>Estimated Risk</span>
-                            <span className="text-red-400">-${(ACCOUNT_BALANCE * (riskPercent / 100)).toFixed(2)}</span>
+                            <span className="text-red-400">
+                                -${(ACCOUNT_BALANCE * (riskPercent / 100)).toFixed(2)}
+                            </span>
                         </div>
                     </div>
                 </div>

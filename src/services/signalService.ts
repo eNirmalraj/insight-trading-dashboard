@@ -1,10 +1,10 @@
 // src/services/signalService.ts
-import { supabase } from './supabaseClient';
+import { db } from './supabaseClient';
 import { Signal, Timeframe } from '../types';
 import { PaperExecutionEngine } from '../engine/paperExecutionEngine';
 
 export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> => {
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('signals')
         .insert({
             symbol: signal.pair,
@@ -64,10 +64,9 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
  * so this function queries signal_executions + joins signals for metadata.
  */
 export const getSignals = async (): Promise<Signal[]> => {
-    if (!supabase) return [];
 
     // Step 1: fetch executions (what the UI calls "signal cards")
-    const { data: execs, error: execErr } = await supabase
+    const { data: execs, error: execErr } = await db()
         .from('signal_executions')
         .select(
             `
@@ -110,7 +109,7 @@ export const getSignals = async (): Promise<Signal[]> => {
     const eventsById = new Map<string, any>();
 
     if (signalIds.length > 0) {
-        const { data: events } = await supabase
+        const { data: events } = await db()
             .from('signals')
             .select('id, params_snapshot, template_version, strategy_id')
             .in('id', signalIds);
@@ -123,7 +122,7 @@ export const getSignals = async (): Promise<Signal[]> => {
     );
     const stratNamesById = new Map<string, string>();
     if (stratIds.length > 0) {
-        const { data: scripts } = await supabase
+        const { data: scripts } = await db()
             .from('scripts')
             .select('id, name')
             .in('id', stratIds);
@@ -148,6 +147,7 @@ export const getSignals = async (): Promise<Signal[]> => {
             timeframe: d.timeframe,
             closeReason: d.close_reason || undefined,
             profitLoss: d.profit_loss ?? undefined,
+            closePrice: d.close_price ?? undefined,
             isPinned: !!d.is_pinned,
             closedAt: d.closed_at || undefined,
             lotSize: d.lot_size ?? undefined,
@@ -165,8 +165,7 @@ export const getSignals = async (): Promise<Signal[]> => {
  * Users can only toggle pins on their own executions (RLS enforced).
  */
 export const toggleSignalPinned = async (id: string, pinned: boolean): Promise<void> => {
-    if (!supabase) return;
-    const { error } = await supabase
+    const { error } = await db()
         .from('signal_executions')
         .update({ is_pinned: pinned })
         .eq('id', id);
@@ -177,7 +176,6 @@ export const toggleSignalPinned = async (id: string, pinned: boolean): Promise<v
 };
 
 export const updateSignalStatus = async (id: string, status: string): Promise<void> => {
-    if (!supabase) return;
 
     const updateData: any = { status };
 
@@ -188,7 +186,7 @@ export const updateSignalStatus = async (id: string, status: string): Promise<vo
         updateData.closed_at = new Date().toISOString();
     }
 
-    const { data: updatedSignal, error } = await supabase
+    const { data: updatedSignal, error } = await db()
         .from('signals')
         .update(updateData)
         .eq('id', id)
@@ -226,7 +224,6 @@ export const updateSignalRiskLevels = async (
     id: string,
     riskLevels: { stopLoss: number; takeProfit?: number }
 ): Promise<void> => {
-    if (!supabase) return;
 
     const updateData: any = {
         stop_loss: riskLevels.stopLoss,
@@ -236,7 +233,7 @@ export const updateSignalRiskLevels = async (
         updateData.take_profit = riskLevels.takeProfit;
     }
 
-    const { error } = await supabase.from('signals').update(updateData).eq('id', id);
+    const { error } = await db().from('signals').update(updateData).eq('id', id);
 
     if (error) throw new Error(error.message);
 };
@@ -252,9 +249,8 @@ export const toggleSignalPin = toggleSignalPinned;
  * Activate a signal (move from PENDING to ACTIVE)
  */
 export const activateSignal = async (id: string): Promise<void> => {
-    if (!supabase) return;
 
-    const { data: updatedSignal, error } = await supabase
+    const { data: updatedSignal, error } = await db()
         .from('signals')
         .update({
             status: 'Active',
@@ -298,7 +294,6 @@ export const closeSignal = async (
     closeReason: 'TP' | 'SL' | 'MANUAL' | 'TIMEOUT',
     profitLoss?: number
 ): Promise<void> => {
-    if (!supabase) return;
 
     const updateData: any = {
         status: 'Closed',
@@ -310,7 +305,7 @@ export const closeSignal = async (
         updateData.profit_loss = profitLoss;
     }
 
-    const { error } = await supabase.from('signals').update(updateData).eq('id', id);
+    const { error } = await db().from('signals').update(updateData).eq('id', id);
 
     if (error) throw new Error(error.message);
 
@@ -348,19 +343,7 @@ export const getSignalStatistics = async (): Promise<{
     avgProfitLoss: number;
     winRate: number;
 }> => {
-    if (!supabase) {
-        return {
-            total: 0,
-            active: 0,
-            closed: 0,
-            pending: 0,
-            totalProfitLoss: 0,
-            avgProfitLoss: 0,
-            winRate: 0,
-        };
-    }
-
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('signals')
         .select('status, profit_loss, close_reason');
 
@@ -417,7 +400,7 @@ export const isDuplicateSignal = async (
 ): Promise<boolean> => {
     const lookbackTime = new Date(currentTime * 1000 - lookbackSeconds * 1000).toISOString();
 
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('signals')
         .select('id')
         .eq('strategy_id', strategyId)
@@ -436,10 +419,9 @@ export const isDuplicateSignal = async (
 
 // Get signal executions filtered by strategy ID
 export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]> => {
-    if (!supabase) return [];
 
     // Step 1: find the signal events for this strategy
-    const { data: events, error: evErr } = await supabase
+    const { data: events, error: evErr } = await db()
         .from('signals')
         .select('id, params_snapshot, template_version, strategy_id')
         .eq('strategy_id', strategyId)
@@ -455,7 +437,7 @@ export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]
     events.forEach((e: any) => eventsById.set(e.id, e));
 
     // Step 2: fetch executions referencing those events
-    const { data: execs, error: execErr } = await supabase
+    const { data: execs, error: execErr } = await db()
         .from('signal_executions')
         .select('*')
         .in('signal_id', Array.from(eventsById.keys()))
@@ -467,7 +449,7 @@ export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]
     }
 
     // Step 3: fetch strategy name
-    const { data: scripts } = await supabase
+    const { data: scripts } = await db()
         .from('scripts')
         .select('id, name')
         .eq('id', strategyId);
@@ -503,7 +485,6 @@ export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]
  * Delete closed signals older than 7 days
  */
 export const cleanupOldSignals = async (): Promise<void> => {
-    if (!supabase) return;
 
     // Calculate cutoff date (7 days ago)
     const cutoffDate = new Date();
@@ -512,7 +493,7 @@ export const cleanupOldSignals = async (): Promise<void> => {
 
     console.log(`[SignalCleanup] Cleaning up closed signals older than ${cutoffISO}...`);
 
-    const { error, count } = await supabase
+    const { error, count } = await db()
         .from('signals')
         .delete({ count: 'exact' })
         .eq('status', 'Closed')

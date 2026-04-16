@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Volume Weighted Moving Average
+short: VWMA
+pane: overlay
+---
+
+len = param.int(20, title="Length", min=1)
+src = param.source(close, title="Source")
+ma = kuri.vwma(src, volume, len)
+mark(ma, title="VWMA", color=#2962FF, linewidth=2)

@@ -1,4 +1,3 @@
-
 import React, { useLayoutEffect, useState, useRef } from 'react';
 import { useOutsideAlerter } from './hooks';
 import { ClockIcon, LockIcon, SettingsIcon, ChevronRightIcon, CameraIcon } from '../IconComponents';
@@ -47,15 +46,25 @@ const MenuItem: React.FC<{
     </button>
 );
 
-const MenuSeparator: React.FC = () => (
-    <div className="my-1 border-t border-gray-700" />
-);
+const MenuSeparator: React.FC = () => <div className="my-1 border-t border-gray-700" />;
 
 const ContextMenu: React.FC<ContextMenuProps> = (props) => {
     const {
-        x, y, price, time, symbol, lockedTime, onClose, onAddAlert, onOpenSettings,
-        onLockVerticalLine, onCopyChart, onRemoveDrawings, onRemoveIndicators, onOpenObjectTree,
-        onOpenTemplateManager
+        x,
+        y,
+        price,
+        time,
+        symbol,
+        lockedTime,
+        onClose,
+        onAddAlert,
+        onOpenSettings,
+        onLockVerticalLine,
+        onCopyChart,
+        onRemoveDrawings,
+        onRemoveIndicators,
+        onOpenObjectTree,
+        onOpenTemplateManager,
     } = props;
 
     const menuRef = useRef<HTMLDivElement>(null);
@@ -105,25 +114,51 @@ const ContextMenu: React.FC<ContextMenuProps> = (props) => {
             style={{ top: coords.y, left: coords.x }}
             data-context-menu
         >
-            <MenuItem label="Copy chart" icon={<CameraIcon />} onClick={() => handleAction(onCopyChart)} />
+            <MenuItem
+                label="Copy chart"
+                icon={<CameraIcon />}
+                onClick={() => handleAction(onCopyChart)}
+            />
             <MenuItem label="Paste" shortcut="Ctrl + V" disabled />
             <MenuSeparator />
-            <MenuItem label={`Add alert on ${symbol} at ${formatPrice(price)}`} icon={<ClockIcon />} onClick={() => handleAction(() => onAddAlert(price))} />
+            <MenuItem
+                label={`Add alert on ${symbol} at ${formatPrice(price)}`}
+                icon={<ClockIcon />}
+                onClick={() => handleAction(() => onAddAlert(price))}
+            />
             {props.drawing && props.onAddDrawingAlert && (
                 <MenuItem
                     label={`Add alert on ${props.drawing.type}`}
                     icon={<ClockIcon />}
-                    onClick={() => handleAction(() => props.onAddDrawingAlert && props.onAddDrawingAlert(props.drawing))}
+                    onClick={() =>
+                        handleAction(
+                            () => props.onAddDrawingAlert && props.onAddDrawingAlert(props.drawing)
+                        )
+                    }
                 />
             )}
-            <MenuItem label={isLocked ? "Unlock vertical cursor line" : "Lock vertical cursor line by time"} icon={<LockIcon />} onClick={() => handleAction(() => onLockVerticalLine(time))} />
+            <MenuItem
+                label={
+                    isLocked ? 'Unlock vertical cursor line' : 'Lock vertical cursor line by time'
+                }
+                icon={<LockIcon />}
+                onClick={() => handleAction(() => onLockVerticalLine(time))}
+            />
             <MenuSeparator />
             <MenuItem label="Object Tree..." onClick={() => handleAction(onOpenObjectTree)} />
-            <MenuItem label="Chart template" hasSubmenu onClick={() => handleAction(onOpenTemplateManager)} />
+            <MenuItem
+                label="Chart template"
+                hasSubmenu
+                onClick={() => handleAction(onOpenTemplateManager)}
+            />
             <MenuItem label="Remove drawings" onClick={() => handleAction(onRemoveDrawings)} />
             <MenuItem label="Remove indicators" onClick={() => handleAction(onRemoveIndicators)} />
             <MenuSeparator />
-            <MenuItem label="Settings..." icon={<SettingsIcon />} onClick={() => handleAction(onOpenSettings)} />
+            <MenuItem
+                label="Settings..."
+                icon={<SettingsIcon />}
+                onClick={() => handleAction(onOpenSettings)}
+            />
         </div>
     );
 };

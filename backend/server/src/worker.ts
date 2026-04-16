@@ -14,6 +14,7 @@ import {
     stopExecutionEngine,
     getExecutionEngineStatus,
 } from './engine/executionEngine';
+import { startPriceAlertMonitor, stopPriceAlertMonitor } from './services/priceAlertMonitor';
 
 const HEARTBEAT_INTERVAL = 300_000; // 5 minutes
 
@@ -50,6 +51,9 @@ async function startWorker() {
     //    event bus and executions never get created.
     await startExecutionEngine();
 
+    // 4b. Start Price Alert Monitor
+    startPriceAlertMonitor();
+
     // 5. Start Signal Engine (scanner): loads assignments, fills buffers, runs
     //    cold-start scan (which may emit dozens of SIGNAL_CREATED events), then
     //    subscribes to Binance kline streams for ongoing candles.
@@ -69,6 +73,7 @@ async function startWorker() {
     // Graceful shutdown
     const shutdown = () => {
         console.log('[Worker] Received shutdown signal. Stopping engines...');
+        stopPriceAlertMonitor();
         stopExecutionEngine();
         stopSignalEngine();
         console.log('[Worker] Goodbye.');

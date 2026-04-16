@@ -1,0 +1,218 @@
+---
+version: kuri 1.0
+type: indicator
+name: "Drawing API Test"
+pane: overlay
+max_labels_count: 500
+max_lines_count: 500
+max_boxes_count: 200
+---
+
+// ═════════════════════════════════════════════════════════
+// COMPREHENSIVE KURI DRAWING API TEST
+// Tests: line.new, line.delete, line.set_*, line.get_*
+//        label.new, label.delete, label.set_*
+//        box.new, box.delete
+//        mark.shape (plotshape)
+//        request.security, kuri.atr, kuri.change
+//        var declarations, na, barstate, timeframe, switch
+//        user-defined functions, tuple destructuring
+// ═════════════════════════════════════════════════════════
+
+// ─── Inputs ───
+lineW    = param.int(2, title="Line Width", minval=1, maxval=5)
+showHist = param.bool(true, title="Show History Lines")
+col_up   = param.color(color.new(color.green, 0), title="Up Color")
+col_dn   = param.color(color.new(color.red, 0),   title="Down Color")
+col_mid  = param.color(color.new(color.yellow, 0), title="Mid Color")
+
+// ─── Test 1: timeframe detection + switch ───
+autoTF = timeframe.isintraday
+    ? (timeframe.multiplier <= 15 ? "D" : "W")
+    : (timeframe.isdaily ? "W" : "M")
+
+win_tf = switch autoTF
+    "D" => "D"
+    "W" => "W"
+    "M" => "M"
+
+// ─── Test 2: time() + kuri.change() for HTF window detection ───
+tf_time   = time(win_tf)
+isNewHTF  = kuri.change(tf_time) != 0
+period_ms = timeframe.in_seconds(win_tf) * 1000
+tOpen     = tf_time
+tClose    = tOpen + period_ms
+
+// ─── Test 3: var declarations + OHLC tracking ───
+var float winOpen  = na
+var float winHigh  = na
+var float winLow   = na
+var float winClose = na
+
+var float prevOpen  = na
+var float prevClose = na
+
+if barstate.isfirst
+    winOpen  := open
+    winHigh  := high
+    winLow   := low
+    winClose := close
+
+if isNewHTF
+    prevOpen  := winOpen
+    prevClose := winClose
+    winOpen   := open
+    winHigh   := high
+    winLow    := low
+    winClose  := close
+else
+    winHigh  := na(winHigh) ? high : math.max(winHigh, high)
+    winLow   := na(winLow)  ? low  : math.min(winLow, low)
+    winClose := close
+
+// ─── Test 4: request.security + kuri.atr (HTF data) ───
+atrDaily = request.security(syminfo.tickerid, "D", kuri.atr(14))[1]
+hasATR   = not na(atrDaily)
+
+// ─── Test 5: User-defined function + tuple return ───
+f_levels(basePrice, atr) =>
+    mid   = basePrice
+    upper = basePrice + atr
+    lower = basePrice - atr
+    [mid, upper, lower]
+
+// ─── Test 6: Tuple destructuring ───
+float baseC = na(prevClose) ? winOpen : prevClose
+[midLevel, upperLevel, lowerLevel] = hasATR ? f_levels(baseC, atrDaily) : [na, na, na]
+
+haveLevels = not na(midLevel) and not na(upperLevel) and not na(lowerLevel)
+
+// ─── Test 7: line.new + line.delete (current window lines) ───
+var line ln_open  = na
+var line ln_upper = na
+var line ln_lower = na
+var line ln_mid   = na
+
+f_del_line(l) =>
+    if not na(l)
+        line.delete(l)
+
+shouldDraw = (barstate.isfirst or isNewHTF or na(ln_open)) and haveLevels
+
+if shouldDraw
+    // Delete old lines
+    f_del_line(ln_open)
+    f_del_line(ln_upper)
+    f_del_line(ln_lower)
+    f_del_line(ln_mid)
+
+    // Draw new lines for current window
+    ln_open  := line.new(tOpen, winOpen,    tClose, winOpen,    xloc=xloc.bar_time, color=col_mid,  width=lineW)
+    ln_upper := line.new(tOpen, upperLevel,  tClose, upperLevel, xloc=xloc.bar_time, color=col_up,   width=lineW, style=line.style_dashed)
+    ln_lower := line.new(tOpen, lowerLevel,  tClose, lowerLevel, xloc=xloc.bar_time, color=col_dn,   width=lineW, style=line.style_dashed)
+    ln_mid   := line.new(tOpen, midLevel,    tClose, midLevel,   xloc=xloc.bar_time, color=col_mid,  width=1,     style=line.style_dotted)
+
+// ─── Test 8: line.get_y2 (read back line price) ───
+yOpen  = na(ln_open)  ? na : line.get_y2(ln_open)
+yUpper = na(ln_upper) ? na : line.get_y2(ln_upper)
+yLower = na(ln_lower) ? na : line.get_y2(ln_lower)
+
+// ─── Test 9: label.new + label.delete ───
+var label lb_open  = na
+var label lb_upper = na
+var label lb_lower = na
+
+f_del_label(lb) =>
+    if not na(lb)
+        label.delete(lb)
+
+lblBg = color.new(color.black, 100)
+
+f_make_label(_y, _txt, _col) =>
+    label.new(int(tClose), _y, _txt, xloc=xloc.bar_time, yloc=yloc.price,
+        style=label.style_label_left, textcolor=_col, color=lblBg, size=size.small)
+
+if barstate.isfirst or isNewHTF
+    f_del_label(lb_open)
+    f_del_label(lb_upper)
+    f_del_label(lb_lower)
+
+    if haveLevels
+        if not na(yOpen)
+            lb_open  := f_make_label(yOpen,  "Open "  + str.tostring(yOpen,  format.mintick), col_mid)
+        if not na(yUpper)
+            lb_upper := f_make_label(yUpper, "Upper " + str.tostring(yUpper, format.mintick), col_up)
+        if not na(yLower)
+            lb_lower := f_make_label(yLower, "Lower " + str.tostring(yLower, format.mintick), col_dn)
+
+// ─── Test 10: label.set_x / label.set_y / label.set_text (live updates) ───
+if haveLevels and not isNewHTF
+    if not na(lb_open) and not na(yOpen)
+        label.set_x(lb_open, int(tClose))
+        label.set_y(lb_open, yOpen)
+        label.set_text(lb_open, "Open " + str.tostring(yOpen, format.mintick))
+        label.set_textcolor(lb_open, col_mid)
+    if not na(lb_upper) and not na(yUpper)
+        label.set_x(lb_upper, int(tClose))
+        label.set_y(lb_upper, yUpper)
+        label.set_text(lb_upper, "Upper " + str.tostring(yUpper, format.mintick))
+    if not na(lb_lower) and not na(yLower)
+        label.set_x(lb_lower, int(tClose))
+        label.set_y(lb_lower, yLower)
+        label.set_text(lb_lower, "Lower " + str.tostring(yLower, format.mintick))
+
+// ─── Test 11: History lines (draw on HTF rollover) ───
+var float activeC    = na
+var float activeATR  = na
+var int   activeOpen = na
+var int   activeEnd  = na
+
+f_draw_history(_oTime, _cTime, _c, _atr) =>
+    if showHist and not na(_c) and not na(_atr) and not na(_oTime) and not na(_cTime)
+        [hMid, hUp, hLo] = f_levels(_c, _atr)
+        opUp  = color.new(col_up,  60)
+        opDn  = color.new(col_dn,  60)
+        opMid = color.new(col_mid, 60)
+        line.new(_oTime, hUp,  _cTime, hUp,  xloc=xloc.bar_time, color=opUp,  width=1, style=line.style_dashed)
+        line.new(_oTime, hLo,  _cTime, hLo,  xloc=xloc.bar_time, color=opDn,  width=1, style=line.style_dashed)
+        line.new(_oTime, hMid, _cTime, hMid, xloc=xloc.bar_time, color=opMid, width=1, style=line.style_dotted)
+
+if isNewHTF
+    f_draw_history(activeOpen, activeEnd, activeC, activeATR)
+
+if shouldDraw
+    activeC    := baseC
+    activeATR  := atrDaily
+    activeOpen := tOpen
+    activeEnd  := tClose
+
+// ─── Test 12: mark.shape (plotshape markers) ───
+bullBar = close > open
+bearBar = close < open
+bigMove = hasATR and math.abs(close - open) > atrDaily * 0.5
+
+mark.shape(bigMove and bullBar, title="Big Bull", style=shape.triangleup,   location=location.belowbar, size=size.tiny, text="▲", color=color.new(color.green, 0))
+mark.shape(bigMove and bearBar, title="Big Bear", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="▼", color=color.new(color.red, 0))
+
+// ─── Test 13: math functions ───
+atrRound  = hasATR ? math.round(atrDaily * 100) / 100 : na
+bodySize  = math.abs(close - open)
+rangeSize = high - low
+bodyRatio = rangeSize > 0 ? bodySize / rangeSize : na
+
+// ─── Test 14: kuri.alert ───
+kuri.alert(bigMove and bullBar, "Big Bullish Move", "Big bullish candle detected")
+kuri.alert(bigMove and bearBar, "Big Bearish Move", "Big bearish candle detected")
+
+// ─── Test 15: str.tostring with format ───
+var label lb_info = na
+if barstate.islast and hasATR
+    if not na(lb_info)
+        label.delete(lb_info)
+    infoText = "ATR: " + str.tostring(atrRound, format.mintick) + " | TF: " + win_tf
+    lb_info := label.new(bar_index, high, infoText, xloc=xloc.bar_index, yloc=yloc.price,
+        style=label.style_label_down, textcolor=color.white, color=color.new(color.blue, 20), size=size.normal)
+
+// ─── Test 16: syminfo constants ───
+// Verify syminfo.tickerid and syminfo.mintick are accessible
+hasMintick = syminfo.mintick > 0

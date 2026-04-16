@@ -14,7 +14,7 @@ export interface BacktestResult {
 }
 
 export const runBacktest = async (strategy: Strategy, data: Candle[]): Promise<BacktestResult> => {
-    console.log("Starting backtest for:", strategy.name);
+    console.log('Starting backtest for:', strategy.name);
 
     // Placeholder Data
     return {
@@ -23,8 +23,8 @@ export const runBacktest = async (strategy: Strategy, data: Candle[]): Promise<B
             totalTrades: 0,
             winRate: 0,
             pnl: 0,
-            maxDrawdown: 0
+            maxDrawdown: 0,
         },
-        equityCurve: []
+        equityCurve: [],
     };
 };

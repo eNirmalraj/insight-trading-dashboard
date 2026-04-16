@@ -1,7 +1,7 @@
 // api.ts
 // Thin interface layer - routes to mock or real backend based on environment
 
-import { supabase, isSupabaseConfigured } from './services/supabaseClient';
+import { db, isSupabaseConfigured } from './services/supabaseClient';
 import * as watchlistService from './services/watchlistService';
 import * as positionService from './services/positionService';
 import * as signalService from './services/signalService';
@@ -165,7 +165,7 @@ export const updateUserSettings = (settings: any) => authService.updateUserSetti
 export const getPaperTrades = async () => {
     if (!isSupabaseConfigured()) return [];
 
-    const { data, error } = await supabase
+    const { data, error } = await db()
         .from('paper_trades')
         .select('*')
         .order('filled_at', { ascending: false });

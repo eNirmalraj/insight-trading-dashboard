@@ -1,0 +1,20 @@
+---
+version: kuri 1.0
+type: indicator
+name: Bollinger Bands
+short: BB
+pane: overlay
+---
+
+length = param.int(20, title="Length", min=1)
+src = param.source(close, title="Source")
+mult = param.float(2.0, title="StdDev", min=0.001, max=50)
+
+basis = kuri.sma(src, length)
+dev = mult * kuri.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+mark(basis, title="Basis", color=#2962FF)
+mark(upper, title="Upper", color=#F23645)
+mark(lower, title="Lower", color=#089981)

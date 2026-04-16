@@ -28,17 +28,15 @@ import { getCandles, getCandlesWithCache } from '../services/marketDataService';
 import { preloadCommonSymbols } from '../services/marketCacheService';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import { alertEngine } from '../engine/alertEngine';
-import { setSignalErrorCallback } from '../engine/signalEngine';
 import {
     loadMarketState,
     saveMarketState,
     loadChartSettings,
     saveChartSettings,
-    loadStrategyVisibility,
-    saveStrategyVisibility,
 } from '../services/marketStateService';
 import { loadDrawings, saveDrawings } from '../services/chartDrawingService';
 import { Candle, ChartSettings, Drawing } from '../components/market-chart/types';
+// Registry removed
 import Loader from '../components/Loader';
 import { Strategy } from '../types';
 
@@ -249,7 +247,6 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [customIndicators, setCustomIndicators] = useState<Strategy[]>([]);
     const [initialChartSettings, setInitialChartSettings] = useState<ChartSettings | null>(null);
-    const [strategyVisibility, setStrategyVisibility] = useState<Record<string, boolean>>({});
     const [initialDrawings, setInitialDrawings] = useState<Drawing[]>([]);
     const saveDrawingsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [autoAddScriptId, setAutoAddScriptId] = useState<string | null>(null);
@@ -272,16 +269,6 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
             setChartErrors([]);
         }
     }, []);
-
-    // Wire signal engine errors to the error banner
-    useEffect(() => {
-        setSignalErrorCallback((errors) => {
-            errors.forEach((msg) => {
-                addChartError(toChartErrorFromString(msg, 'Signal Engine', 'warning'));
-            });
-        });
-        return () => setSignalErrorCallback(null);
-    }, [addChartError]);
 
     // Detect ?addScript=<id> from URL (sent by Strategy Studio "Add to chart")
     useEffect(() => {
@@ -318,9 +305,6 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                 const settings = await loadChartSettings();
                 setInitialChartSettings(settings);
 
-                const visibility = await loadStrategyVisibility();
-                setStrategyVisibility(visibility);
-
                 // Load drawings for initial symbol/timeframe
                 // Note: savedState might be empty, so use defaults if needed, but we used them above
                 if (state) {
@@ -329,7 +313,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                     alertEngine.setDrawings(drawings);
                 } else {
                     // Default fallback load
-                    const drawings = await loadDrawings('EURUSD', '1H');
+                    const drawings = await loadDrawings('BTCUSDT.P', '1H');
                     setInitialDrawings(drawings);
                     alertEngine.setDrawings(drawings);
                 }
@@ -339,7 +323,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                     toChartErrorFromString('Failed to load market state', 'Market State')
                 );
                 // Fallback defaults
-                setSymbol('EURUSD');
+                setSymbol('BTCUSDT.P');
                 setActiveTimeframe('1H');
             }
         };
@@ -366,14 +350,6 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
         // Using a ref for debounce would be better?
         // Let's implement simple save for now.
         saveChartSettings(settings);
-    };
-
-    const handleToggleStrategyVisibility = (id: string, visible: boolean) => {
-        setStrategyVisibility((prev) => ({
-            ...prev,
-            [id]: visible,
-        }));
-        saveStrategyVisibility(id, visible);
     };
 
     const handleDrawingsChange = (drawings: Drawing[]) => {
@@ -520,7 +496,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                 const result = await getCandlesWithCache(
                     currentSymbol,
                     currentTimeframe,
-                    5000,
+                    10000,
                     (freshData) => {
                         // Background update callback
                         if (
@@ -637,8 +613,6 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                         onAutoAddComplete={() => setAutoAddScriptId(null)}
                         initialSettings={initialChartSettings}
                         onSettingsChange={handleSettingsChange}
-                        strategyVisibility={strategyVisibility}
-                        onToggleStrategyVisibility={handleToggleStrategyVisibility}
                         initialDrawings={initialDrawings}
                         onDrawingsChange={handleDrawingsChange}
                         onChartError={addChartError}

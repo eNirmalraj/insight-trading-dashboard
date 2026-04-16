@@ -1,0 +1,12 @@
+---
+version: kuri 1.0
+type: indicator
+name: Average True Range
+short: ATR
+pane: separate
+---
+
+length = param.int(14, title="Length", min=1)
+trueRange = kuri.tr(high, low, close)
+
+mark(kuri.rma(trueRange, length), title="ATR", color=#B71C1C)

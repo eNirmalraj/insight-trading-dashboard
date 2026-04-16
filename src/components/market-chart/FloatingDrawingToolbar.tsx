@@ -1,13 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PencilIcon, SignalIcon, TrashIcon, SettingsIcon, CloneIcon } from '../IconComponents';
 import { useOutsideAlerter } from './hooks';
-import { parseRgba } from './helpers';
-import { Drawing, DrawingStyle, LineStyle, Point, CalloutDrawing, LongPositionDrawing, ShortPositionDrawing, FibonacciRetracementDrawing } from './types';
+import { parseRgba } from './chartUtils';
+import {
+    Drawing,
+    DrawingStyle,
+    LineStyle,
+    Point,
+    CalloutDrawing,
+    LongPositionDrawing,
+    ShortPositionDrawing,
+    FibonacciRetracementDrawing,
+} from './types';
 import { ColorPicker } from './ColorPicker';
 import { DrawingSettingsModal } from './DrawingSettingsModal';
 
 const GripIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg width="6" height="16" viewBox="0 0 6 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <svg
+        width="6"
+        height="16"
+        viewBox="0 0 6 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+    >
         <title>Drag Handle</title>
         <circle cx="3" cy="3" r="1.5" fill="currentColor" />
         <circle cx="3" cy="8" r="1.5" fill="currentColor" />
@@ -21,7 +37,11 @@ const StyleButton: React.FC<{
     children: React.ReactNode;
     title?: string;
 }> = ({ onClick, isActive, children, title }) => (
-    <button title={title} onClick={onClick} className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-blue-500/30' : 'hover:bg-gray-700/50'}`}>
+    <button
+        title={title}
+        onClick={onClick}
+        className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${isActive ? 'bg-blue-500/30' : 'hover:bg-gray-700/50'}`}
+    >
         {children}
     </button>
 );
@@ -43,8 +63,17 @@ function rgbToHex(r: number, g: number, b: number): string {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-
-const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing, position, setPosition, onUpdateStyle, onDelete, onAlert, onClone, onUpdateDrawing, onDragEnd }) => {
+const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({
+    drawing,
+    position,
+    setPosition,
+    onUpdateStyle,
+    onDelete,
+    onAlert,
+    onClone,
+    onUpdateDrawing,
+    onDragEnd,
+}) => {
     const toolbarRef = useRef<HTMLDivElement>(null);
     const [isStylePopoverOpen, setIsStylePopoverOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -154,7 +183,9 @@ const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing
     const { style } = drawing;
     const widths = [1, 2, 4];
     const lineStyles: LineStyle[] = ['solid', 'dashed', 'dotted'];
-    const fillRgba = style.fillColor ? parseRgba(style.fillColor) : { r: 59, g: 130, b: 246, a: 0.2 };
+    const fillRgba = style.fillColor
+        ? parseRgba(style.fillColor)
+        : { r: 59, g: 130, b: 246, a: 0.2 };
     const fillHex = rgbToHex(fillRgba.r, fillRgba.g, fillRgba.b);
 
     const handleStyleChange = <K extends keyof DrawingStyle>(key: K, value: DrawingStyle[K]) => {
@@ -170,7 +201,7 @@ const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing
         const { r, g, b } = parseRgba(color);
         const newFillColor = `rgba(${r}, ${g}, ${b}, ${fillRgba.a})`;
         handleStyleChange('fillColor', newFillColor);
-    }
+    };
 
     const canHaveAlert = drawing.type !== 'Text Note';
     const canHaveFill = ['Rectangle', 'Parallel Channel', 'Gann Box'].includes(drawing.type);
@@ -185,31 +216,98 @@ const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing
                     top: position.y,
                     transform: `translate(-50%, 0)`,
                 }}
-                onPointerDown={e => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
             >
-                <div className="relative bg-[#1E222D] border border-[#2A2E39] rounded-lg shadow-xl flex items-center p-1" >
+                <div className="relative bg-[#1E222D] border border-[#2A2E39] rounded-lg shadow-xl flex items-center p-1">
                     <div className="flex items-center gap-1">
                         <div ref={stylePopoverRef} className="relative">
-                            <StyleButton onClick={() => { setIsStylePopoverOpen(p => !p); }} isActive={isStylePopoverOpen} title="Quick Style">
+                            <StyleButton
+                                onClick={() => {
+                                    setIsStylePopoverOpen((p) => !p);
+                                }}
+                                isActive={isStylePopoverOpen}
+                                title="Quick Style"
+                            >
                                 <PencilIcon className="w-5 h-5 text-[#B2B5BE] hover:text-[#D1D4DC]" />
                             </StyleButton>
                             {isStylePopoverOpen && (
                                 <div className="absolute top-full mt-2 bg-[#1E222D] border border-[#2A2E39] rounded-md p-2 shadow-lg z-10 min-w-[220px]">
                                     <div className="flex border-b border-gray-700 mb-2">
-                                        <button onClick={() => setActiveTab('line')} className={`px-3 py-1 text-xs font-semibold ${activeTab === 'line' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}>Line</button>
-                                        {canHaveFill && <button onClick={() => setActiveTab('fill')} className={`px-3 py-1 text-xs font-semibold ${activeTab === 'fill' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}>Fill</button>}
+                                        <button
+                                            onClick={() => setActiveTab('line')}
+                                            className={`px-3 py-1 text-xs font-semibold ${activeTab === 'line' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}
+                                        >
+                                            Line
+                                        </button>
+                                        {canHaveFill && (
+                                            <button
+                                                onClick={() => setActiveTab('fill')}
+                                                className={`px-3 py-1 text-xs font-semibold ${activeTab === 'fill' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}
+                                            >
+                                                Fill
+                                            </button>
+                                        )}
                                     </div>
                                     {activeTab === 'line' && (
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-gray-400">Color</span>
-                                                <ColorPicker color={style.color} onChange={color => handleStyleChange('color', color)} />
+                                                <ColorPicker
+                                                    color={style.color}
+                                                    onChange={(color) =>
+                                                        handleStyleChange('color', color)
+                                                    }
+                                                />
                                             </div>
                                             <div className="flex justify-around items-center bg-gray-800/50 p-1 rounded-md">
-                                                {widths.map(w => <button key={w} onClick={() => handleStyleChange('width', w)} className={`w-full p-2 rounded-md hover:bg-gray-700/50 flex items-center justify-center ${style.width === w ? 'bg-gray-700' : ''}`}><div style={{ height: w, backgroundColor: style.color }} className="w-full" /></button>)}
+                                                {widths.map((w) => (
+                                                    <button
+                                                        key={w}
+                                                        onClick={() =>
+                                                            handleStyleChange('width', w)
+                                                        }
+                                                        className={`w-full p-2 rounded-md hover:bg-gray-700/50 flex items-center justify-center ${style.width === w ? 'bg-gray-700' : ''}`}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                height: w,
+                                                                backgroundColor: style.color,
+                                                            }}
+                                                            className="w-full"
+                                                        />
+                                                    </button>
+                                                ))}
                                             </div>
                                             <div className="flex justify-around items-center bg-gray-800/50 p-1 rounded-md">
-                                                {lineStyles.map(ls => <button key={ls} onClick={() => handleStyleChange('lineStyle', ls)} className={`w-full p-2 rounded-md hover:bg-gray-700/50 ${style.lineStyle === ls ? 'bg-gray-700' : ''}`}><svg className="w-full h-4" stroke={style.color} strokeWidth={2} strokeDasharray={ls === 'dashed' ? '4 4' : ls === 'dotted' ? '1 4' : undefined}><line x1="0" y1="50%" x2="100%" y2="50%" /></svg></button>)}
+                                                {lineStyles.map((ls) => (
+                                                    <button
+                                                        key={ls}
+                                                        onClick={() =>
+                                                            handleStyleChange('lineStyle', ls)
+                                                        }
+                                                        className={`w-full p-2 rounded-md hover:bg-gray-700/50 ${style.lineStyle === ls ? 'bg-gray-700' : ''}`}
+                                                    >
+                                                        <svg
+                                                            className="w-full h-4"
+                                                            stroke={style.color}
+                                                            strokeWidth={2}
+                                                            strokeDasharray={
+                                                                ls === 'dashed'
+                                                                    ? '4 4'
+                                                                    : ls === 'dotted'
+                                                                      ? '1 4'
+                                                                      : undefined
+                                                            }
+                                                        >
+                                                            <line
+                                                                x1="0"
+                                                                y1="50%"
+                                                                x2="100%"
+                                                                y2="50%"
+                                                            />
+                                                        </svg>
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                     )}
@@ -217,11 +315,28 @@ const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-gray-400">Color</span>
-                                                <ColorPicker color={fillHex} onChange={handleFillColorChange} />
+                                                <ColorPicker
+                                                    color={fillHex}
+                                                    onChange={handleFillColorChange}
+                                                />
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-400">Opacity</label>
-                                                <input type="range" min="0" max="1" step="0.05" value={fillRgba.a} onChange={e => handleFillOpacityChange(parseFloat(e.target.value))} className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm accent-blue-500 mt-1" />
+                                                <label className="text-xs text-gray-400">
+                                                    Opacity
+                                                </label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="1"
+                                                    step="0.05"
+                                                    value={fillRgba.a}
+                                                    onChange={(e) =>
+                                                        handleFillOpacityChange(
+                                                            parseFloat(e.target.value)
+                                                        )
+                                                    }
+                                                    className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm accent-blue-500 mt-1"
+                                                />
                                             </div>
                                         </div>
                                     )}
@@ -233,25 +348,50 @@ const FloatingDrawingToolbar: React.FC<FloatingDrawingToolbarProps> = ({ drawing
                     <div className="w-px h-6 bg-gray-700/80 mx-1"></div>
 
                     <div className="flex items-center gap-0.5">
-                        <StyleButton onClick={() => onClone(drawing.id)} isActive={false} title="Clone"><CloneIcon className="w-5 h-5 text-gray-300" /></StyleButton>
-                        <StyleButton onClick={() => { setIsSettingsModalOpen(true); setIsStylePopoverOpen(false); }} isActive={isSettingsModalOpen} title="Settings"><SettingsIcon className="w-5 h-5 text-gray-300" /></StyleButton>
-                        {canHaveAlert && <StyleButton onClick={onAlert} isActive={false} title="Create Alert"><SignalIcon className="w-5 h-5 text-gray-300" /></StyleButton>}
-                        <StyleButton onClick={onDelete} isActive={false} title="Delete"><TrashIcon className="w-5 h-5 text-red-400" /></StyleButton>
+                        <StyleButton
+                            onClick={() => onClone(drawing.id)}
+                            isActive={false}
+                            title="Clone"
+                        >
+                            <CloneIcon className="w-5 h-5 text-gray-300" />
+                        </StyleButton>
+                        <StyleButton
+                            onClick={() => {
+                                setIsSettingsModalOpen(true);
+                                setIsStylePopoverOpen(false);
+                            }}
+                            isActive={isSettingsModalOpen}
+                            title="Settings"
+                        >
+                            <SettingsIcon className="w-5 h-5 text-gray-300" />
+                        </StyleButton>
+                        {canHaveAlert && (
+                            <StyleButton onClick={onAlert} isActive={false} title="Create Alert">
+                                <SignalIcon className="w-5 h-5 text-gray-300" />
+                            </StyleButton>
+                        )}
+                        <StyleButton onClick={onDelete} isActive={false} title="Delete">
+                            <TrashIcon className="w-5 h-5 text-red-400" />
+                        </StyleButton>
                     </div>
                     <div className="w-px h-6 bg-gray-700/80 mx-1"></div>
-                    <div className="p-1.5 cursor-move text-gray-500" onPointerDown={handleDragPointerDown}>
+                    <div
+                        className="p-1.5 cursor-move text-gray-500"
+                        onPointerDown={handleDragPointerDown}
+                    >
                         <GripIcon />
                     </div>
                 </div>
             </div>
             {/* Render Modal outside of toolbar div to avoid position locking/z-index issues if any (but portal or fixed is best) */}
-            <DrawingSettingsModal drawing={drawing} isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} onUpdate={onUpdateDrawing} />
+            <DrawingSettingsModal
+                drawing={drawing}
+                isOpen={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
+                onUpdate={onUpdateDrawing}
+            />
         </>
     );
 };
 
 export default FloatingDrawingToolbar;
-
-
-
-

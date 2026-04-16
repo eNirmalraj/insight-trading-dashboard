@@ -2,14 +2,14 @@
  * Settings Service
  * Handles user settings sync between localStorage and Supabase
  */
-import { supabase } from './supabaseClient';
+import { db } from './supabaseClient';
 
 /**
  * Get favorite timeframes for a user from Supabase
  */
 export const getFavoriteTimeframesFromDB = async (userId: string): Promise<string[]> => {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db()
             .from('profiles')
             .select('settings')
             .eq('id', userId)
@@ -28,10 +28,13 @@ export const getFavoriteTimeframesFromDB = async (userId: string): Promise<strin
 /**
  * Save favorite timeframes for a user to Supabase
  */
-export const saveFavoriteTimeframesToDB = async (userId: string, timeframes: string[]): Promise<boolean> => {
+export const saveFavoriteTimeframesToDB = async (
+    userId: string,
+    timeframes: string[]
+): Promise<boolean> => {
     try {
         // First get existing settings
-        const { data: existing } = await supabase
+        const { data: existing } = await db()
             .from('profiles')
             .select('settings')
             .eq('id', userId)
@@ -42,10 +45,10 @@ export const saveFavoriteTimeframesToDB = async (userId: string, timeframes: str
         // Merge with new favorite timeframes
         const updatedSettings = {
             ...currentSettings,
-            favoriteTimeframes: timeframes
+            favoriteTimeframes: timeframes,
         };
 
-        const { error } = await supabase
+        const { error } = await db()
             .from('profiles')
             .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
             .eq('id', userId);

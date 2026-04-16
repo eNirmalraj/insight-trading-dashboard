@@ -86,7 +86,7 @@ export const getCachedCandles = async (
                 resolve({
                     data: result.candles,
                     isStale,
-                    cachedAt: result.metadata.cachedAt
+                    cachedAt: result.metadata.cachedAt,
                 });
             };
 
@@ -119,8 +119,8 @@ export const saveCandles = async (
                 symbol: symbol.toUpperCase(),
                 timeframe,
                 cachedAt: Date.now(),
-                candleCount: candles.length
-            }
+                candleCount: candles.length,
+            },
         };
 
         return new Promise((resolve, reject) => {
@@ -153,7 +153,7 @@ export const persistToSupabase = async (
         const normalizedSymbol = symbol.replace('/', '').toUpperCase();
 
         // Use upsert with ON CONFLICT
-        const rows = recentCandles.map(c => ({
+        const rows = recentCandles.map((c) => ({
             symbol: normalizedSymbol,
             timeframe: timeframe.toLowerCase(),
             candle_time: c.time,
@@ -162,7 +162,7 @@ export const persistToSupabase = async (
             low: c.low,
             close: c.close,
             volume: c.volume,
-            cached_at: new Date().toISOString()
+            cached_at: new Date().toISOString(),
         }));
 
         // Batch insert in chunks of 100
@@ -170,12 +170,10 @@ export const persistToSupabase = async (
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
             const batch = rows.slice(i, i + BATCH_SIZE);
 
-            const { error } = await supabase
-                .from('market_data_cache')
-                .upsert(batch, {
-                    onConflict: 'symbol,timeframe,candle_time',
-                    ignoreDuplicates: false
-                });
+            const { error } = await supabase.from('market_data_cache').upsert(batch, {
+                onConflict: 'symbol,timeframe,candle_time',
+                ignoreDuplicates: false,
+            });
 
             if (error) {
                 console.warn('Supabase cache write error:', error.message);
@@ -213,13 +211,13 @@ export const loadFromSupabase = async (
             return [];
         }
 
-        return (data || []).map(row => ({
+        return (data || []).map((row) => ({
             time: row.candle_time,
             open: parseFloat(row.open),
             high: parseFloat(row.high),
             low: parseFloat(row.low),
             close: parseFloat(row.close),
-            volume: parseFloat(row.volume)
+            volume: parseFloat(row.volume),
         }));
     } catch (error) {
         console.warn('Failed to load from Supabase:', error);
@@ -241,7 +239,7 @@ export const preloadCommonSymbols = async (
             const cached = await getCachedCandles(symbol, timeframe);
 
             // Only preload if cache is empty or very stale (> 1 hour)
-            const veryStale = cached.cachedAt && (Date.now() - cached.cachedAt > 60 * 60 * 1000);
+            const veryStale = cached.cachedAt && Date.now() - cached.cachedAt > 60 * 60 * 1000;
 
             if (!cached.data || veryStale) {
                 try {

@@ -88,14 +88,14 @@ export const onAuthStateChange = (
     callback: (event: string, session: Session | null) => void
 ): (() => void) => {
     if (!supabase) {
-        return () => { };
+        return () => {};
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (event: AuthChangeEvent, session: Session | null) => {
-            callback(event, session);
-        }
-    );
+    const {
+        data: { subscription },
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+        callback(event, session);
+    });
 
     return () => {
         subscription.unsubscribe();
@@ -108,7 +108,9 @@ export const onAuthStateChange = (
 export const getUserSettings = async (): Promise<any> => {
     if (!supabase) return {};
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return {};
 
     const { data, error } = await supabase
@@ -132,16 +134,18 @@ export const getUserSettings = async (): Promise<any> => {
 export const updateUserSettings = async (newSettings: any): Promise<boolean> => {
     if (!supabase) return false;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return false;
 
     // First get existing settings to merge (though Postgres jsonb_set or || would be better, simple merge here works for now)
-    // Actually, let's just do a smart update if possible? 
-    // Supabase update with jsonb will replace the top-level keys. 
-    // To do a deep merge is harder in one shot. 
-    // Let's assume the caller passes the slice they want to update, and we might need to fetch-merge-save 
-    // or use a Postgres function. 
-    // For simplicity and to avoid race conditions on *different* keys, we can use the `||` operator in SQL if we had an RPC, 
+    // Actually, let's just do a smart update if possible?
+    // Supabase update with jsonb will replace the top-level keys.
+    // To do a deep merge is harder in one shot.
+    // Let's assume the caller passes the slice they want to update, and we might need to fetch-merge-save
+    // or use a Postgres function.
+    // For simplicity and to avoid race conditions on *different* keys, we can use the `||` operator in SQL if we had an RPC,
     // but standard update replaces the value.
     // Let's fetch current first to be safe, or just rely on the frontend passing what it knows + optimistic.
     // Actually, for just tool position, a simple fetch-merge-update is fine for low frequency.

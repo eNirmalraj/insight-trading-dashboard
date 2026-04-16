@@ -16,15 +16,4 @@ export interface PlatformAssignment {
     params: Record<string, any>;
 }
 
-export const PLATFORM_ASSIGNMENTS: PlatformAssignment[] = [
-    {
-        strategyId: 'builtin-sma-trend',
-        symbols: [
-            'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT',
-            'ADAUSDT', 'DOGEUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT',
-        ],
-        market: Market.FUTURES,
-        timeframe: '1H',
-        params: {}, // empty = use script defaults (fastLen=20, slowLen=50)
-    },
-];
+export const PLATFORM_ASSIGNMENTS: PlatformAssignment[] = [];

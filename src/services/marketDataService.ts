@@ -1,6 +1,11 @@
 // src/services/marketDataService.ts
 import { Candle } from '../types/market';
-import { getCachedCandles, saveCandles, persistToSupabase, loadFromSupabase } from './marketCacheService';
+import {
+    getCachedCandles,
+    saveCandles,
+    persistToSupabase,
+    loadFromSupabase,
+} from './marketCacheService';
 
 const BINANCE_API_URL = '/api/binance/v3/klines';
 
@@ -37,7 +42,7 @@ export const normalizeTimeframe = (tf: string): string => {
         '4H': '4h',
         '1D': '1d',
         '1W': '1w',
-        '1M': '1M'
+        '1M': '1M',
     };
     return mapping[tf] || '1h'; // Default to 1h if unknown
 };
@@ -61,7 +66,7 @@ export const getCandles = async (
 
     // Check cache
     const now = Date.now();
-    if (cache[cacheKey] && (now - cache[cacheKey].timestamp < CACHE_TTL)) {
+    if (cache[cacheKey] && now - cache[cacheKey].timestamp < CACHE_TTL) {
         return cache[cacheKey].data;
     }
 
@@ -78,15 +83,15 @@ export const getCandles = async (
         const apiSymbol = isFutures ? cleanSymbol.replace('.P', '').replace('.p', '') : cleanSymbol;
 
         // Use Futures API for .P symbols, Spot API for others
-        const baseUrl = isFutures
-            ? '/fapi/binance/v1/klines'
-            : BINANCE_API_URL;
+        const baseUrl = isFutures ? '/fapi/binance/v1/klines' : BINANCE_API_URL;
 
         const chunks: Candle[][] = [];
         let remaining = limit;
         let endTime: number | undefined;
 
-        console.log(`[Chart] Fetching ${limit} ${isFutures ? 'FUTURES' : 'SPOT'} candles for ${apiSymbol}`);
+        console.log(
+            `[Chart] Fetching ${limit} ${isFutures ? 'FUTURES' : 'SPOT'} candles for ${apiSymbol}`
+        );
 
         while (remaining > 0) {
             const batchLimit = Math.min(remaining, 1000); // Binance max limit is 1000
@@ -113,7 +118,7 @@ export const getCandles = async (
                 high: parseFloat(d[2]),
                 low: parseFloat(d[3]),
                 close: parseFloat(d[4]),
-                volume: parseFloat(d[5])
+                volume: parseFloat(d[5]),
             }));
 
             // Store chunk - we are fetching backwards, so this chunk comes BEFORE the previous chunks
@@ -129,8 +134,8 @@ export const getCandles = async (
             if (candles.length < batchLimit) break;
         }
 
-        // Combine chunks correctly. 
-        // We pushed: [LatestBatch, OlderBatch, OldestBatch] 
+        // Combine chunks correctly.
+        // We pushed: [LatestBatch, OlderBatch, OldestBatch]
         // But inside each batch, data is Oldest -> Newest.
         // Wait, if we fetch without endTime, we get [OldestInBatch ... NewestInBatch] (representing Latest time window)
         // Next batch (with endTime) gets [OldestInBatch ... NewestInBatch] (representing Older time window)
@@ -143,11 +148,10 @@ export const getCandles = async (
         // Update cache
         cache[cacheKey] = {
             timestamp: now,
-            data: allCandles
+            data: allCandles,
         };
 
         return allCandles;
-
     } catch (error) {
         console.error('Failed to fetch real market data:', error);
         return [];
@@ -175,7 +179,7 @@ export interface SearchSymbol {
     volume: number;
     type: 'Crypto' | 'Forex';
     exchange: string;
-    market: 'Spot' | 'Futures';  // NEW: Distinguish between Spot and Futures
+    market: 'Spot' | 'Futures'; // NEW: Distinguish between Spot and Futures
 }
 
 const ALL_SYMBOLS_CACHE_KEY = 'all_binance_symbols';
@@ -217,7 +221,7 @@ export const fetchFuturesSymbols = async (): Promise<SearchSymbol[]> => {
             .map((t: any) => {
                 const base = t.symbol.replace('USDT', '');
                 return {
-                    symbol: `${base}/USDT.P`,  // .P suffix for Perpetual Futures
+                    symbol: `${base}/USDT.P`, // .P suffix for Perpetual Futures
                     description: `${base} / USDT Perpetual`,
                     price: parseFloat(t.lastPrice),
                     change: parseFloat(t.priceChange),
@@ -225,7 +229,7 @@ export const fetchFuturesSymbols = async (): Promise<SearchSymbol[]> => {
                     volume: parseFloat(t.quoteVolume || t.volume),
                     type: 'Crypto' as const,
                     exchange: 'BINANCE',
-                    market: 'Futures' as const
+                    market: 'Futures' as const,
                 };
             });
 
@@ -238,7 +242,10 @@ export const fetchFuturesSymbols = async (): Promise<SearchSymbol[]> => {
 
 export const fetchAllCryptoSymbols = async (): Promise<SearchSymbol[]> => {
     const now = Date.now();
-    if (cache[ALL_SYMBOLS_CACHE_KEY] && (now - cache[ALL_SYMBOLS_CACHE_KEY].timestamp < ALL_SYMBOLS_TTL)) {
+    if (
+        cache[ALL_SYMBOLS_CACHE_KEY] &&
+        now - cache[ALL_SYMBOLS_CACHE_KEY].timestamp < ALL_SYMBOLS_TTL
+    ) {
         return cache[ALL_SYMBOLS_CACHE_KEY].data as any;
     }
 
@@ -271,17 +278,17 @@ export const fetchAllCryptoSymbols = async (): Promise<SearchSymbol[]> => {
         const validQuotes = ['USDT', 'BTC', 'ETH', 'BNB', 'USDC'];
 
         const spotSymbols: SearchSymbol[] = data
-            .filter(t => {
+            .filter((t) => {
                 // Filter 1: Must end with valid quote currency
-                if (!validQuotes.some(q => t.symbol.endsWith(q))) return false;
+                if (!validQuotes.some((q) => t.symbol.endsWith(q))) return false;
 
                 // Filter 2: Must be actively TRADING (not delisted or paused)
                 if (!activeSymbols.has(t.symbol)) return false;
 
                 return true;
             })
-            .map(t => {
-                let quote = validQuotes.find(q => t.symbol.endsWith(q)) || '';
+            .map((t) => {
+                let quote = validQuotes.find((q) => t.symbol.endsWith(q)) || '';
                 let base = t.symbol.replace(quote, '');
 
                 return {
@@ -293,7 +300,7 @@ export const fetchAllCryptoSymbols = async (): Promise<SearchSymbol[]> => {
                     volume: parseFloat(t.quoteVolume),
                     type: 'Crypto',
                     exchange: 'BINANCE',
-                    market: 'Spot' as const
+                    market: 'Spot' as const,
                 };
             });
 
@@ -305,7 +312,7 @@ export const fetchAllCryptoSymbols = async (): Promise<SearchSymbol[]> => {
 
         cache[ALL_SYMBOLS_CACHE_KEY] = {
             timestamp: now,
-            data: allSymbols as any
+            data: allSymbols as any,
         };
 
         return allSymbols;
@@ -327,7 +334,7 @@ export interface CandleResult {
 /**
  * Stale-while-revalidate pattern for instant data loading
  * Returns cached data immediately (if available) while fetching fresh data in background
- * 
+ *
  * @param symbol - Trading pair symbol
  * @param timeframe - Chart timeframe
  * @param limit - Number of candles to fetch
@@ -348,7 +355,9 @@ export const getCandlesWithCache = async (
 
     if (cached.data && cached.data.length > 0) {
         // We have cached data - return it immediately
-        console.log(`[Cache] HIT for ${cleanSymbol}/${cleanTf} (${cached.data.length} candles, stale: ${cached.isStale})`);
+        console.log(
+            `[Cache] HIT for ${cleanSymbol}/${cleanTf} (${cached.data.length} candles, stale: ${cached.isStale})`
+        );
 
         // If stale or callback provided, fetch fresh data in background
         if (cached.isStale || onFreshData) {
@@ -359,7 +368,7 @@ export const getCandlesWithCache = async (
         return {
             data: cached.data,
             isStale: cached.isStale,
-            source: 'cache'
+            source: 'cache',
         };
     }
 
@@ -367,7 +376,9 @@ export const getCandlesWithCache = async (
     const supabaseData = await loadFromSupabase(cleanSymbol, cleanTf, limit);
 
     if (supabaseData.length > 0) {
-        console.log(`[Cache] Supabase HIT for ${cleanSymbol}/${cleanTf} (${supabaseData.length} candles)`);
+        console.log(
+            `[Cache] Supabase HIT for ${cleanSymbol}/${cleanTf} (${supabaseData.length} candles)`
+        );
 
         // Save to IndexedDB for next time
         await saveCandles(cleanSymbol, cleanTf, supabaseData);
@@ -378,7 +389,7 @@ export const getCandlesWithCache = async (
         return {
             data: supabaseData,
             isStale: true, // Supabase data may be outdated
-            source: 'supabase'
+            source: 'supabase',
         };
     }
 
@@ -396,7 +407,7 @@ export const getCandlesWithCache = async (
     return {
         data: freshData,
         isStale: false,
-        source: 'network'
+        source: 'network',
     };
 };
 
@@ -424,7 +435,9 @@ const fetchAndCacheFreshData = async (
 
             // Notify caller of fresh data
             if (onFreshData) {
-                console.log(`[Cache] Fresh data ready for ${cleanSymbol}/${cleanTf} (${freshData.length} candles)`);
+                console.log(
+                    `[Cache] Fresh data ready for ${cleanSymbol}/${cleanTf} (${freshData.length} candles)`
+                );
                 onFreshData(freshData);
             }
         }

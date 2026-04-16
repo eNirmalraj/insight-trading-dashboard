@@ -2,7 +2,7 @@ import React from 'react';
 import { PriceAlert, Drawing } from './types';
 import { Candle } from './types';
 import { BellIcon, CheckIcon } from '../IconComponents';
-import { calculateDrawingPriceAtTime } from './helpers';
+import { calculateDrawingPriceAtTime } from './chartUtils';
 
 interface AlertMarkersProps {
     alerts: PriceAlert[];
@@ -16,7 +16,17 @@ interface AlertMarkersProps {
     onEditAlert?: (alert: PriceAlert) => void;
 }
 
-export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [], yScale, timeToX, data, chartHeight, currentPrice, activeDrawingOverride, onEditAlert }) => {
+export const AlertMarkers: React.FC<AlertMarkersProps> = ({
+    alerts,
+    drawings = [],
+    yScale,
+    timeToX,
+    data,
+    chartHeight,
+    currentPrice,
+    activeDrawingOverride,
+    onEditAlert,
+}) => {
     // If no data, we can't position alerts correctly on the X axis
     if (!data || data.length === 0) return null;
 
@@ -24,7 +34,7 @@ export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [
 
     return (
         <div className="absolute inset-0 pointer-events-none fade-in" style={{ zIndex: 20 }}>
-            {alerts.map(alert => {
+            {alerts.map((alert) => {
                 let price = alert.value;
                 let isDrawingAlert = false;
                 let activeDrawing: Drawing | undefined;
@@ -44,7 +54,7 @@ export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [
                         activeDrawing = drawing; // Set active drawing for X positioning below
                     } else {
                         // Fallback to saved state
-                        const drawing = drawings.find(d => d.id === alert.drawingId);
+                        const drawing = drawings.find((d) => d.id === alert.drawingId);
                         if (drawing) {
                             const timeBasis = (drawing as any).start?.time || latestCandleTime;
                             const calculatedPrice = calculateDrawingPriceAtTime(drawing, timeBasis);
@@ -67,7 +77,11 @@ export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [
                 let x: number;
 
                 // activeDrawing is already set derived from either override or drawings list
-                if (activeDrawing && 'start' in activeDrawing && (activeDrawing as any).start?.time) {
+                if (
+                    activeDrawing &&
+                    'start' in activeDrawing &&
+                    (activeDrawing as any).start?.time
+                ) {
                     // For drawings with a start point (Trend Line, Ray, etc.), position at the start
                     x = timeToX((activeDrawing as any).start.time);
                 } else {
@@ -96,10 +110,18 @@ export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [
                         }}
                     >
                         {/* Line connecting to candle level */}
-                        <div className={`w-3 h-0.5 mr-1 ${isTriggered ? 'bg-red-500' : 'bg-yellow-500'} opacity-50`}></div>
+                        <div
+                            className={`w-3 h-0.5 mr-1 ${isTriggered ? 'bg-red-500' : 'bg-yellow-500'} opacity-50`}
+                        ></div>
 
-                        <div className={`p-1 rounded-full bg-gray-900 border border-gray-700 shadow-lg ${colorClass}`}>
-                            {isTriggered ? <BellIcon className="w-4 h-4" /> : <BellIcon className="w-4 h-4" />}
+                        <div
+                            className={`p-1 rounded-full bg-gray-900 border border-gray-700 shadow-lg ${colorClass}`}
+                        >
+                            {isTriggered ? (
+                                <BellIcon className="w-4 h-4" />
+                            ) : (
+                                <BellIcon className="w-4 h-4" />
+                            )}
                             {isTriggered && (
                                 <div className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5">
                                     <CheckIcon className="w-2 h-2 text-white" />
@@ -113,8 +135,13 @@ export const AlertMarkers: React.FC<AlertMarkersProps> = ({ alerts, drawings = [
                                 {isTriggered ? 'Alert Triggered' : 'Price Alert'}
                             </div>
                             <div className="text-gray-400">
-                                {alert.condition} <span className="text-white">{price?.toFixed(4)}</span>
-                                {isDrawingAlert && <span className="block text-gray-500 italic text-[10px]">linked to drawing</span>}
+                                {alert.condition}{' '}
+                                <span className="text-white">{price?.toFixed(4)}</span>
+                                {isDrawingAlert && (
+                                    <span className="block text-gray-500 italic text-[10px]">
+                                        linked to drawing
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>

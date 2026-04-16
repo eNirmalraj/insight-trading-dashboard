@@ -1,0 +1,31 @@
+{
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "npx prettier --write \"$TOOL_INPUT_file_path\" 2>/dev/null || true"
+                    }
+                ]
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo \"$TOOL_INPUT_file_path\" | grep -qE '\\.env($|\\.)' && echo 'BLOCK: Cannot edit .env files — contains secrets' && exit 1 || exit 0"
+                    }
+                ]
+            }
+        ]
+    },
+    "enabledPlugins": {
+        "supabase@claude-plugins-official": true,
+        "vercel@claude-plugins-official": false,
+        "chrome-devtools-mcp@claude-plugins-official": true
+    }
+}

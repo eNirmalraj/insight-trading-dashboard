@@ -12,5 +12,5 @@ export const GANN_LEVEL_COLORS = [
     '#4CAF50', // 0.5 (Green)
     '#26A69A', // 0.618 (Teal)
     '#AB47BC', // 0.75 (Purple)
-    '#787B86'  // 1
+    '#787B86', // 1
 ];

@@ -1,0 +1,13 @@
+---
+version: kuri 1.0
+type: indicator
+name: On Balance Volume
+short: OBV
+pane: separate
+---
+
+change = kuri.change(close)
+direction = math.sign(change)
+flowVolume = direction * volume
+obv = kuri.cum(flowVolume)
+mark(obv, title="OBV", color=#2962FF)

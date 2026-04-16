@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useOutsideAlerter } from './hooks';
-import { SearchIcon, CloseIcon, PlusCircleIcon, MarketIcon, CheckCircleIcon } from '../IconComponents';
+import {
+    SearchIcon,
+    CloseIcon,
+    PlusCircleIcon,
+    MarketIcon,
+    CheckCircleIcon,
+} from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
 
 interface SymbolSearchModalProps {
@@ -22,17 +28,19 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     defaultTab = 'All',
     allowedTabs,
     existingSymbols = [],
-    marketType
+    marketType,
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState(defaultTab);
 
     // Initialize filter based on prop (capitalize first letter)
     const initialMarketFilter = marketType
-        ? (marketType.charAt(0).toUpperCase() + marketType.slice(1) as 'Spot' | 'Futures')
+        ? ((marketType.charAt(0).toUpperCase() + marketType.slice(1)) as 'Spot' | 'Futures')
         : 'All';
 
-    const [marketFilter, setMarketFilter] = useState<'All' | 'Spot' | 'Futures'>(initialMarketFilter);
+    const [marketFilter, setMarketFilter] = useState<'All' | 'Spot' | 'Futures'>(
+        initialMarketFilter
+    );
     const [rankFilter, setRankFilter] = useState<'All' | 'Top 10' | 'Top 50' | 'Top 100'>('All');
     const [cryptoSymbols, setCryptoSymbols] = useState<SearchSymbol[]>([]);
     const [displayLimit, setDisplayLimit] = useState(50);
@@ -40,12 +48,16 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const modalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    useOutsideAlerter(modalRef, () => { if (isOpen) onClose(); });
+    useOutsideAlerter(modalRef, () => {
+        if (isOpen) onClose();
+    });
 
     // Ensure filter updates if prop changes
     useEffect(() => {
         if (marketType) {
-            setMarketFilter(marketType.charAt(0).toUpperCase() + marketType.slice(1) as 'Spot' | 'Futures');
+            setMarketFilter(
+                (marketType.charAt(0).toUpperCase() + marketType.slice(1)) as 'Spot' | 'Futures'
+            );
         } else {
             setMarketFilter('All');
         }
@@ -55,7 +67,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     useEffect(() => {
         if (isOpen && cryptoSymbols.length === 0) {
             setLoading(true);
-            fetchAllCryptoSymbols().then(data => {
+            fetchAllCryptoSymbols().then((data) => {
                 setCryptoSymbols(data);
                 setLoading(false);
             });
@@ -76,20 +88,48 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
 
     // Mock other categories
     const mockSymbols: Record<string, SearchSymbol[]> = {
-        'Forex': [
-            { symbol: 'EUR/USD', description: 'Euro / U.S. Dollar', price: 1.0855, change: 0.0030, changePercent: 0.28, volume: 0, type: 'Forex', exchange: 'FXCM', market: 'Spot' },
-            { symbol: 'GBP/USD', description: 'British Pound / U.S. Dollar', price: 1.2540, change: -0.0015, changePercent: -0.12, volume: 0, type: 'Forex', exchange: 'FXCM', market: 'Spot' },
-            { symbol: 'USD/JPY', description: 'U.S. Dollar / Japanese Yen', price: 155.80, change: 0.50, changePercent: 0.32, volume: 0, type: 'Forex', exchange: 'FXCM', market: 'Spot' },
+        Forex: [
+            {
+                symbol: 'EUR/USD',
+                description: 'Euro / U.S. Dollar',
+                price: 1.0855,
+                change: 0.003,
+                changePercent: 0.28,
+                volume: 0,
+                type: 'Forex',
+                exchange: 'FXCM',
+                market: 'Spot',
+            },
+            {
+                symbol: 'GBP/USD',
+                description: 'British Pound / U.S. Dollar',
+                price: 1.254,
+                change: -0.0015,
+                changePercent: -0.12,
+                volume: 0,
+                type: 'Forex',
+                exchange: 'FXCM',
+                market: 'Spot',
+            },
+            {
+                symbol: 'USD/JPY',
+                description: 'U.S. Dollar / Japanese Yen',
+                price: 155.8,
+                change: 0.5,
+                changePercent: 0.32,
+                volume: 0,
+                type: 'Forex',
+                exchange: 'FXCM',
+                market: 'Spot',
+            },
         ],
-        'Stocks': [],
-        'Futures': [],
-        'Indices': [],
+        Stocks: [],
+        Futures: [],
+        Indices: [],
     };
 
     const allTabs = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian'];
-    const tabs = allowedTabs
-        ? allTabs.filter(tab => allowedTabs.includes(tab))
-        : allTabs;
+    const tabs = allowedTabs ? allTabs.filter((tab) => allowedTabs.includes(tab)) : allTabs;
 
     const filteredSymbols = useMemo(() => {
         let source: SearchSymbol[] = [];
@@ -106,7 +146,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
 
         // Filter by Market (Spot/Futures)
         if (marketFilter !== 'All' && activeTab === 'Crypto') {
-            source = source.filter(s => s.market === marketFilter);
+            source = source.filter((s) => s.market === marketFilter);
         }
 
         let result = source;
@@ -114,9 +154,10 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         // Apply Search Filter
         if (searchTerm) {
             const lower = searchTerm.toLowerCase();
-            result = result.filter(s =>
-                s.symbol.toLowerCase().replace('/', '').includes(lower) ||
-                s.description.toLowerCase().includes(lower)
+            result = result.filter(
+                (s) =>
+                    s.symbol.toLowerCase().replace('/', '').includes(lower) ||
+                    s.description.toLowerCase().includes(lower)
             );
         }
 
@@ -144,7 +185,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
         if (scrollTop + clientHeight >= scrollHeight - 50) {
             if (displayLimit < filteredSymbols.length) {
-                setDisplayLimit(prev => Math.min(prev + 50, filteredSymbols.length));
+                setDisplayLimit((prev) => Math.min(prev + 50, filteredSymbols.length));
             }
         }
     };
@@ -152,7 +193,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const handleResizePointerDown = (e: React.PointerEvent) => {
         if (!modalRef.current) return;
         const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('button')) return;
+        if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('button'))
+            return;
 
         e.preventDefault();
         const startX = e.clientX;
@@ -209,13 +251,21 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                 ref={modalRef}
                 className="bg-gray-800/90 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl w-full max-w-[800px] flex flex-col h-[600px] absolute overflow-hidden text-[#D1D4DC]"
                 style={{ top: '15%', left: '50%', transform: 'translateX(-50%)' }}
-                onPointerDown={e => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
             >
                 {/* Header / Search Area */}
-                <div className="p-4 border-b border-gray-700/50" onPointerDown={handleResizePointerDown}>
+                <div
+                    className="p-4 border-b border-gray-700/50"
+                    onPointerDown={handleResizePointerDown}
+                >
                     <div className="flex justify-between items-center mb-4 cursor-move">
-                        <h2 className="text-lg font-medium text-white">{title || 'Symbol Search'}</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                        <h2 className="text-lg font-medium text-white">
+                            {title || 'Symbol Search'}
+                        </h2>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-white transition-colors"
+                        >
                             <CloseIcon className="w-5 h-5" />
                         </button>
                     </div>
@@ -236,18 +286,33 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-12 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                         />
                         <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-1">
-                            {searchTerm && (
+                            {searchTerm &&
                                 (() => {
-                                    const isAlreadyAdded = existingSymbols.includes(searchTerm.toUpperCase().replace('/', ''));
+                                    const isAlreadyAdded = existingSymbols.includes(
+                                        searchTerm.toUpperCase().replace('/', '')
+                                    );
                                     return (
                                         <>
                                             <button
-                                                onClick={() => !isAlreadyAdded && onSymbolSelect(searchTerm.toUpperCase().replace('/', ''))}
+                                                onClick={() =>
+                                                    !isAlreadyAdded &&
+                                                    onSymbolSelect(
+                                                        searchTerm.toUpperCase().replace('/', '')
+                                                    )
+                                                }
                                                 className={`p-1.5 rounded transition-colors ${isAlreadyAdded ? 'text-green-500 cursor-default' : 'text-blue-500 hover:text-blue-400 hover:bg-blue-500/10'}`}
-                                                title={isAlreadyAdded ? `${searchTerm} already added` : `Add ${searchTerm}`}
+                                                title={
+                                                    isAlreadyAdded
+                                                        ? `${searchTerm} already added`
+                                                        : `Add ${searchTerm}`
+                                                }
                                                 disabled={isAlreadyAdded}
                                             >
-                                                {isAlreadyAdded ? <CheckCircleIcon className="w-5 h-5" /> : <PlusCircleIcon className="w-5 h-5" />}
+                                                {isAlreadyAdded ? (
+                                                    <CheckCircleIcon className="w-5 h-5" />
+                                                ) : (
+                                                    <PlusCircleIcon className="w-5 h-5" />
+                                                )}
                                             </button>
                                             <button
                                                 onClick={() => setSearchTerm('')}
@@ -257,8 +322,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                             </button>
                                         </>
                                     );
-                                })()
-                            )}
+                                })()}
                         </div>
                     </div>
                 </div>
@@ -266,7 +330,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                 {/* Tabs & Filters */}
                 <div className="flex flex-col border-b border-gray-700/50 bg-gray-800/90">
                     <div className="flex items-center overflow-x-auto scrollbar-hide px-2">
-                        {tabs.map(tab => (
+                        {tabs.map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -284,7 +348,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                     {activeTab === 'Crypto' && !marketType && (
                         <div className="flex items-center gap-2">
                             <span className="text-gray-500 mr-1">Market:</span>
-                            {(['All', 'Spot', 'Futures'] as const).map(m => (
+                            {(['All', 'Spot', 'Futures'] as const).map((m) => (
                                 <button
                                     key={m}
                                     onClick={() => setMarketFilter(m)}
@@ -358,28 +422,43 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                                         {item.symbol}
                                                         {/* Optional badges could go here */}
                                                     </div>
-                                                    <div className="text-xs text-gray-500 group-hover:text-gray-400">{item.description}</div>
+                                                    <div className="text-xs text-gray-500 group-hover:text-gray-400">
+                                                        {item.description}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
 
                                         {/* Price Info (Hidden on very small screens if needed, but keeping for utility) */}
                                         <td className="p-3 text-right hidden sm:table-cell">
-                                            <div className={`text-sm font-mono ${item.changePercent >= 0 ? 'text-[#00C076]' : 'text-[#FF6838]'}`}>
-                                                {item.price > 100 ? item.price.toFixed(2) : item.price.toFixed(5)}
+                                            <div
+                                                className={`text-sm font-mono ${item.changePercent >= 0 ? 'text-[#00C076]' : 'text-[#FF6838]'}`}
+                                            >
+                                                {item.price > 100
+                                                    ? item.price.toFixed(2)
+                                                    : item.price.toFixed(5)}
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                {item.changePercent >= 0 ? '+' : ''}{item.changePercent.toFixed(2)}%
+                                                {item.changePercent >= 0 ? '+' : ''}
+                                                {item.changePercent.toFixed(2)}%
                                             </div>
                                         </td>
 
                                         {/* Exchange Badge */}
                                         <td className="p-3 text-right w-24">
                                             <div className="flex flex-col items-end">
-                                                <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider group-hover:text-gray-300">{item.type}</span>
+                                                <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider group-hover:text-gray-300">
+                                                    {item.type}
+                                                </span>
                                                 <div className="flex items-center gap-1 mt-0.5">
-                                                    <img src="https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=026" className="w-3 h-3 opacity-50 group-hover:opacity-100" alt="" />
-                                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-white uppercase">{item.exchange}</span>
+                                                    <img
+                                                        src="https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=026"
+                                                        className="w-3 h-3 opacity-50 group-hover:opacity-100"
+                                                        alt=""
+                                                    />
+                                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-white uppercase">
+                                                        {item.exchange}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </td>
@@ -387,18 +466,31 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                         {/* Add Action */}
                                         <td className="p-3 pr-6 text-right w-12">
                                             {(() => {
-                                                const isAlreadyAdded = existingSymbols.includes(item.symbol.replace('/', ''));
+                                                const isAlreadyAdded = existingSymbols.includes(
+                                                    item.symbol.replace('/', '')
+                                                );
                                                 return (
                                                     <button
                                                         className={`p-2 rounded-full transition-all ${isAlreadyAdded ? 'text-green-500 cursor-default' : 'text-gray-500 hover:text-blue-500 bg-gray-700/0 hover:bg-blue-500/10'}`}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (!isAlreadyAdded) onSymbolSelect(item.symbol.replace('/', ''));
+                                                            if (!isAlreadyAdded)
+                                                                onSymbolSelect(
+                                                                    item.symbol.replace('/', '')
+                                                                );
                                                         }}
                                                         disabled={isAlreadyAdded}
-                                                        title={isAlreadyAdded ? "Already Added" : "Add to list"}
+                                                        title={
+                                                            isAlreadyAdded
+                                                                ? 'Already Added'
+                                                                : 'Add to list'
+                                                        }
                                                     >
-                                                        {isAlreadyAdded ? <CheckCircleIcon className="w-5 h-5" /> : <PlusCircleIcon className="w-5 h-5" />}
+                                                        {isAlreadyAdded ? (
+                                                            <CheckCircleIcon className="w-5 h-5" />
+                                                        ) : (
+                                                            <PlusCircleIcon className="w-5 h-5" />
+                                                        )}
                                                     </button>
                                                 );
                                             })()}

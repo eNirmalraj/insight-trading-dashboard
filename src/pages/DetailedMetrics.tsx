@@ -1,6 +1,3 @@
-
-
-
 import React from 'react';
 // Fix: Use namespace import for react-router-dom to resolve module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
@@ -38,12 +35,17 @@ const DetailedMetrics: React.FC = () => {
     return (
         <div className="space-y-6">
             <div>
-                 <button onClick={() => navigate('/metrics')} className="flex items-center text-sm text-cyan-400 hover:text-cyan-300 mb-4">
+                <button
+                    onClick={() => navigate('/metrics')}
+                    className="flex items-center text-sm text-cyan-400 hover:text-cyan-300 mb-4"
+                >
                     <ChevronLeftIcon className="w-4 h-4 mr-1" />
                     Back to Metrics Overview
                 </button>
                 <h1 className="text-2xl font-bold text-white">{title}</h1>
-                <p className="text-gray-400 mt-1">A detailed breakdown of your {accountType} account performance.</p>
+                <p className="text-gray-400 mt-1">
+                    A detailed breakdown of your {accountType} account performance.
+                </p>
             </div>
 
             <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
