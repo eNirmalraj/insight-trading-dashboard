@@ -239,9 +239,11 @@ export const createAlertWithDefaults = async (
     indicatorType?: string,
     alertConditionId?: string,
     conditionParameters?: Record<string, any>,
+    /** For pure price alerts (no drawing) */
+    rawPrice?: number,
 ): Promise<PriceAlert | null> => {
     let condition: AlertConditionType = 'Crossing';
-    let price = 0;
+    let price = rawPrice || 0;
     let drawingId: string | undefined;
     let fibLevel: number | undefined;
 

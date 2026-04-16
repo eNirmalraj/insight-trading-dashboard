@@ -3935,14 +3935,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     // Legacy runAlertEngine effect REMOVED - Logic is now centralized in global AlertEngine.
 
     const handleAddAlertAtPrice = async (price: number) => {
-        const fakeDrawing: any = {
-            id: `price-${Date.now()}`,
-            type: 'Horizontal Line',
-            price,
-            style: { color: '#FFD700', width: 1, dash: [] },
-            isVisible: true,
-        };
-        const newAlert = await createAlertWithDefaults(symbol, fakeDrawing);
+        const newAlert = await createAlertWithDefaults(
+            symbol,
+            undefined, // no drawing
+            undefined, // no indicator
+            undefined,
+            undefined,
+            undefined,
+            price,     // raw price
+        );
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
             setToastAlert(newAlert);
