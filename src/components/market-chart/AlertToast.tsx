@@ -10,12 +10,10 @@ interface AlertToastProps {
     alert: PriceAlert;
     onCustomize: () => void;
     onDismiss: () => void;
-    /** Expanded editor mode */
     expanded?: boolean;
     drawing?: Drawing | null;
     indicatorId?: string;
     indicatorType?: string;
-    indicatorOutputs?: string[];
     onSave?: (updated: PriceAlert) => void;
     onDelete?: (id: string) => void;
 }
@@ -40,7 +38,6 @@ const AlertToast: React.FC<AlertToastProps> = ({
     onSave,
     onDelete,
 }) => {
-    // Auto-dismiss only in toast mode
     useEffect(() => {
         if (expanded) return;
         const timer = setTimeout(onDismiss, 5000);
@@ -51,7 +48,6 @@ const AlertToast: React.FC<AlertToastProps> = ({
         ? `${alert.condition} ${alert.value.toFixed(5)}`
         : alert.condition;
 
-    // ── Expanded editor state ──
     const isIndicatorAlert = !!indicatorId && !!indicatorType;
     const isChannel = drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel';
     const condOptions = isChannel ? CHANNEL_OPTIONS : COND_OPTIONS;
@@ -106,55 +102,49 @@ const AlertToast: React.FC<AlertToastProps> = ({
     if (!expanded) {
         return (
             <div
-                className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl"
+                className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-3 py-2.5 rounded-xl"
                 style={{
-                    background: 'linear-gradient(135deg, rgba(30,28,40,0.92), rgba(18,16,26,0.96))',
-                    backdropFilter: 'blur(40px)',
-                    WebkitBackdropFilter: 'blur(40px)',
-                    border: '1px solid rgba(167,139,250,0.15)',
-                    boxShadow: '0 0 60px -15px rgba(167,139,250,0.15), 0 20px 50px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
+                    background: '#131315',
+                    border: '1px solid rgba(196,181,240,0.12)',
+                    boxShadow: '0 12px 40px -8px rgba(0,0,0,0.7)',
                     animation: 'alertToastIn 0.35s ease',
                 }}
             >
                 <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{
-                        background: 'linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1))',
-                        boxShadow: '0 0 12px -4px rgba(167,139,250,0.2)',
-                    }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(52,211,153,0.1)' }}
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5">
                         <polyline points="20 6 9 17 4 12" />
                     </svg>
                 </div>
                 <div>
-                    <div className="text-xs font-semibold text-white">Alert created</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: 'rgba(167,139,250,0.6)' }}>
+                    <div className="text-xs font-semibold text-[#e8e8e8]">Alert created</div>
+                    <div className="text-[10px] text-[#555] mt-0.5">
                         {alert.symbol} — {conditionText}
                     </div>
                 </div>
-                <div className="flex gap-1.5 ml-3">
+                <div className="flex gap-1 ml-2">
                     <button
+                        type="button"
                         onClick={onCustomize}
-                        className="px-4 py-1.5 rounded-xl text-[10px] font-semibold text-white transition-all"
-                        style={{
-                            background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
-                            boxShadow: '0 4px 16px -4px rgba(139,92,246,0.4)',
-                        }}
+                        className="px-3 py-1 rounded-md text-[10px] font-semibold transition-colors"
+                        style={{ background: 'rgba(196,181,240,0.1)', color: '#c4b5f0' }}
                     >
                         Customize
                     </button>
                     <button
+                        type="button"
                         onClick={onDismiss}
-                        className="px-3 py-1.5 rounded-xl text-[10px] font-semibold text-[#555] hover:text-[#a78bfa] transition-colors"
+                        className="px-2 py-1 rounded-md text-[10px] font-semibold text-[#444] hover:text-[#888] transition-colors"
                     >
                         Dismiss
                     </button>
                 </div>
                 <style>{`
                     @keyframes alertToastIn {
-                        from { opacity: 0; transform: translateX(-50%) translateY(20px) scale(0.95); }
-                        to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+                        from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                        to { opacity: 1; transform: translateX(-50%) translateY(0); }
                     }
                 `}</style>
             </div>
@@ -164,48 +154,43 @@ const AlertToast: React.FC<AlertToastProps> = ({
     // ── Expanded editor mode ──
     return (
         <div
-            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col rounded-2xl overflow-hidden"
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col rounded-xl overflow-hidden"
             style={{
                 width: 340,
-                background: 'linear-gradient(135deg, rgba(30,28,40,0.95), rgba(18,16,26,0.98))',
-                backdropFilter: 'blur(40px)',
-                WebkitBackdropFilter: 'blur(40px)',
-                border: '1px solid rgba(167,139,250,0.12)',
-                boxShadow: '0 0 80px -20px rgba(167,139,250,0.12), 0 30px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
+                background: '#131315',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow: '0 20px 60px -12px rgba(0,0,0,0.8)',
                 animation: 'alertToastIn 0.25s ease',
             }}
         >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'rgba(255,255,255,0.015)' }}>
+            <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-2">
-                    <div
-                        className="w-6 h-6 rounded-lg flex items-center justify-center"
-                        style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1))' }}
-                    >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2">
+                    <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: 'rgba(196,181,240,0.08)' }}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#c4b5f0" strokeWidth="2">
                             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                         </svg>
                     </div>
-                    <span className="text-xs font-semibold text-white">{alert.symbol}</span>
-                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md" style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }}>
+                    <span className="text-[11px] font-semibold text-[#e8e8e8]">{alert.symbol}</span>
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ color: '#888', background: 'rgba(255,255,255,0.04)' }}>
                         {isIndicatorAlert ? indicatorType : drawing?.type || 'Price'}
                     </span>
                 </div>
-                <button onClick={onDismiss} className="w-6 h-6 flex items-center justify-center rounded-full text-[#555] hover:text-white hover:bg-[rgba(255,255,255,0.06)] text-sm transition-all">
+                <button type="button" onClick={onDismiss} className="w-5 h-5 flex items-center justify-center rounded text-[#444] hover:text-[#aaa] text-xs transition-colors">
                     &times;
                 </button>
             </div>
 
             {/* Editor body */}
-            <div className="px-4 py-3 flex flex-col gap-3">
+            <div className="px-3.5 py-2.5 flex flex-col gap-2.5">
                 {/* Condition row */}
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-[1.5px] w-14 flex-shrink-0" style={{ color: 'rgba(167,139,250,0.5)' }}>Cond</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Cond</span>
                     {isIndicatorAlert ? (
                         <select
                             title="Alert condition"
-                            className="flex-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1.5 text-[11px] text-[#ccc] appearance-none cursor-pointer"
+                            className="flex-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#ccc] appearance-none cursor-pointer"
                             value={selectedCondId}
                             onChange={(e) => {
                                 setSelectedCondId(e.target.value);
@@ -218,19 +203,19 @@ const AlertToast: React.FC<AlertToastProps> = ({
                             }}
                         >
                             {conditions.map((c) => (
-                                <option key={c.id} value={c.id} style={{ background: '#1e1c28' }}>{c.name}</option>
+                                <option key={c.id} value={c.id} style={{ background: '#1a1a1e' }}>{c.name}</option>
                             ))}
                         </select>
                     ) : (
                         <>
                             <select
                                 title="Condition type"
-                                className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1.5 text-[11px] text-[#a78bfa] font-medium appearance-none cursor-pointer"
+                                className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#c4b5f0] font-medium appearance-none cursor-pointer"
                                 value={condition}
                                 onChange={(e) => setCondition(e.target.value as AlertConditionType)}
                             >
                                 {condOptions.map((o) => (
-                                    <option key={o} value={o} style={{ background: '#1e1c28' }}>{o}</option>
+                                    <option key={o} value={o} style={{ background: '#1a1a1e' }}>{o}</option>
                                 ))}
                             </select>
                             {!isChannel && (
@@ -238,7 +223,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                     title="Alert price"
                                     type="number"
                                     step="0.00001"
-                                    className="w-24 bg-transparent border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1.5 text-[12px] text-white font-mono text-right focus:border-[rgba(167,139,250,0.3)] focus:outline-none"
+                                    className="w-24 bg-transparent border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[12px] text-white font-mono text-right focus:border-[rgba(196,181,240,0.25)] focus:outline-none"
                                     value={value}
                                     onChange={(e) => setValue(parseFloat(e.target.value))}
                                 />
@@ -250,11 +235,11 @@ const AlertToast: React.FC<AlertToastProps> = ({
                 {/* Indicator params */}
                 {isIndicatorAlert && selectedDef?.parameters.map((p) => (
                     <div key={p.name} className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-semibold uppercase tracking-[1.5px] w-14 flex-shrink-0" style={{ color: 'rgba(167,139,250,0.5)' }}>{p.name}</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">{p.name}</span>
                         <input
                             title={p.name}
                             type="number"
-                            className="w-20 bg-transparent border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1.5 text-[11.5px] text-white font-mono text-center focus:border-[rgba(167,139,250,0.3)] focus:outline-none"
+                            className="w-20 bg-transparent border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11.5px] text-white font-mono text-center focus:border-[rgba(196,181,240,0.25)] focus:outline-none"
                             value={condParams[p.name] ?? p.default}
                             min={p.min}
                             max={p.max}
@@ -266,10 +251,10 @@ const AlertToast: React.FC<AlertToastProps> = ({
                 {/* Fib level */}
                 {!isIndicatorAlert && drawing?.type === 'Fibonacci Retracement' && (
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-semibold uppercase tracking-[1.5px] w-14 flex-shrink-0" style={{ color: 'rgba(167,139,250,0.5)' }}>Fib</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Fib</span>
                         <select
                             title="Fibonacci level"
-                            className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1.5 text-[11px] text-[#ccc] appearance-none"
+                            className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#ccc] appearance-none"
                             value={fibLevel}
                             onChange={(e) => {
                                 const lvl = parseFloat(e.target.value);
@@ -278,28 +263,25 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                 setValue(fib.start.price + (fib.end.price - fib.start.price) * lvl);
                             }}
                         >
-                            {FIB_LEVELS.map((l) => (<option key={l} value={l} style={{ background: '#1e1c28' }}>Fib {l}</option>))}
+                            {FIB_LEVELS.map((l) => (<option key={l} value={l} style={{ background: '#1a1a1e' }}>Fib {l}</option>))}
                         </select>
                     </div>
                 )}
 
                 {/* Trigger row */}
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-[1.5px] w-14 flex-shrink-0" style={{ color: 'rgba(167,139,250,0.5)' }}>Trigger</span>
-                    <div className="flex gap-1 flex-1">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Trigger</span>
+                    <div className="flex gap-0.5 flex-1 p-0.5 rounded-md" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
                         {TRIGS.map((t) => (
                             <button
+                                type="button"
                                 key={t.value}
                                 onClick={() => setTrigger(t.value)}
-                                className={`flex-1 py-1.5 rounded-lg text-[9.5px] font-medium transition-all ${
+                                className={`flex-1 py-1.5 rounded text-[9.5px] font-medium transition-colors ${
                                     trigger === t.value
-                                        ? 'text-[#a78bfa]'
+                                        ? 'bg-[rgba(196,181,240,0.1)] text-[#c4b5f0]'
                                         : 'text-[#444] hover:text-[#888]'
                                 }`}
-                                style={trigger === t.value ? {
-                                    background: 'linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1))',
-                                    boxShadow: '0 0 12px -4px rgba(167,139,250,0.2)',
-                                } : { background: 'transparent' }}
                             >
                                 {t.label}
                             </button>
@@ -309,36 +291,28 @@ const AlertToast: React.FC<AlertToastProps> = ({
 
                 {/* Actions row */}
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-semibold uppercase tracking-[1.5px] w-14 flex-shrink-0" style={{ color: 'rgba(167,139,250,0.5)' }}>Actions</span>
-                    <div className="flex gap-1.5 flex-1">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Actions</span>
+                    <div className="flex gap-1 flex-1">
                         <button
+                            type="button"
                             onClick={() => setNotifyApp((v) => !v)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
-                                notifyApp ? 'text-[#a78bfa]' : 'text-[#444]'
+                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[10px] font-medium border transition-colors ${
+                                notifyApp
+                                    ? 'bg-[rgba(196,181,240,0.06)] text-[#c4b5f0] border-[rgba(196,181,240,0.15)]'
+                                    : 'bg-transparent text-[#444] border-[rgba(255,255,255,0.04)]'
                             }`}
-                            style={notifyApp ? {
-                                background: 'rgba(167,139,250,0.08)',
-                                border: '1px solid rgba(167,139,250,0.18)',
-                            } : {
-                                background: 'rgba(255,255,255,0.02)',
-                                border: '1px solid rgba(255,255,255,0.05)',
-                            }}
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
                             Notify
                         </button>
                         <button
+                            type="button"
                             onClick={() => setPlaySound((v) => !v)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
-                                playSound ? 'text-[#a78bfa]' : 'text-[#444]'
+                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[10px] font-medium border transition-colors ${
+                                playSound
+                                    ? 'bg-[rgba(196,181,240,0.06)] text-[#c4b5f0] border-[rgba(196,181,240,0.15)]'
+                                    : 'bg-transparent text-[#444] border-[rgba(255,255,255,0.04)]'
                             }`}
-                            style={playSound ? {
-                                background: 'rgba(167,139,250,0.08)',
-                                border: '1px solid rgba(167,139,250,0.18)',
-                            } : {
-                                background: 'rgba(255,255,255,0.02)',
-                                border: '1px solid rgba(255,255,255,0.05)',
-                            }}
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
                             Sound
@@ -348,23 +322,19 @@ const AlertToast: React.FC<AlertToastProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="flex gap-2 px-4 py-2.5" style={{ borderTop: '1px solid rgba(167,139,250,0.08)' }}>
+            <div className="flex gap-1.5 px-3.5 py-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                 <button
+                    type="button"
                     onClick={() => onDelete?.(alert.id)}
-                    className="px-3 py-2 rounded-xl text-[#555] hover:text-[#ef4444] transition-colors"
+                    className="px-2.5 py-1.5 rounded-md text-[#444] hover:text-[#ef4444] transition-colors"
                     title="Delete alert"
                 >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                 </button>
                 <button
+                    type="button"
                     onClick={handleSave}
-                    className="flex-1 py-2 rounded-xl text-[11px] font-semibold text-white transition-all"
-                    style={{
-                        background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
-                        boxShadow: '0 4px 16px -4px rgba(139,92,246,0.4)',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 20px -4px rgba(139,92,246,0.6)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 4px 16px -4px rgba(139,92,246,0.4)')}
+                    className="flex-1 py-1.5 rounded-md text-[11px] font-semibold bg-[#c4b5f0] text-[#111] hover:bg-[#d4c8f5] transition-colors"
                 >
                     Save
                 </button>
@@ -372,8 +342,8 @@ const AlertToast: React.FC<AlertToastProps> = ({
 
             <style>{`
                 @keyframes alertToastIn {
-                    from { opacity: 0; transform: translateX(-50%) translateY(20px) scale(0.95); }
-                    to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+                    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                    to { opacity: 1; transform: translateX(-50%) translateY(0); }
                 }
             `}</style>
         </div>
