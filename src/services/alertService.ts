@@ -1,5 +1,5 @@
-import { supabase } from './supabaseClient';
-import { PriceAlert, AlertConditionType, Drawing, Candle } from '../components/market-chart/types';
+import { db } from './supabaseClient';
+import { PriceAlert, AlertConditionType, Drawing, HorizontalLineDrawing, TrendLineDrawing, RayDrawing, FibonacciRetracementDrawing } from '../components/market-chart/types';
 
 export const isMockMode = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -10,13 +10,13 @@ let mockAlerts: PriceAlert[] = [];
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
 
-export const subscribe = (listener: Listener): () => void => {
+export const subscribe = (listener: Listener): (() => void) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
 };
 
 const notifyListeners = () => {
-    listeners.forEach(l => l());
+    listeners.forEach((l) => l());
 };
 
 const mapDbRowToAlert = (row: any): PriceAlert => ({
@@ -45,10 +45,10 @@ export const getAlerts = async (): Promise<PriceAlert[]> => {
     }
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db()
             .from('price_alerts')
             .select('*')
-            //.eq('triggered', false) // UI might want to see history? User "Load active (untriggered)" for engine. 
+            //.eq('triggered', false) // UI might want to see history? User "Load active (untriggered)" for engine.
             // Services usually return valid data. Let's return only active for now to match engine, or all?
             // "getAlerts()" in engine uses this. Engine wants active.
             // SidePanels might want history.
@@ -60,7 +60,7 @@ export const getAlerts = async (): Promise<PriceAlert[]> => {
 
         return (data || []).map(mapDbRowToAlert);
     } catch (error) {
-        console.error("Failed to fetch alerts:", error);
+        console.error('Failed to fetch alerts:', error);
         return [];
     }
 };
@@ -81,7 +81,7 @@ export const createAlert = async (alertData: Partial<PriceAlert>): Promise<Price
         notifyApp: alertData.notifyApp ?? true,
         playSound: alertData.playSound ?? true,
         triggerFrequency: alertData.triggerFrequency || 'Only Once',
-        drawingId: alertData.drawingId
+        drawingId: alertData.drawingId,
     };
 
     if (isMockMode) {
@@ -91,24 +91,26 @@ export const createAlert = async (alertData: Partial<PriceAlert>): Promise<Price
     }
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db()
             .from('price_alerts')
-            .insert([{
-                symbol,
-                condition,
-                price,
-                triggered: false,
-                drawing_id: alertData.drawingId,
-                fib_level: alertData.fibLevel,
-                message: alertData.message,
-                notify_app: alertData.notifyApp,
-                play_sound: alertData.playSound,
-                trigger_frequency: alertData.triggerFrequency,
-                // Indicator Alert Fields
-                indicator_id: alertData.indicatorId,
-                alert_condition_id: alertData.alertConditionId,
-                condition_parameters: alertData.conditionParameters,
-            }])
+            .insert([
+                {
+                    symbol,
+                    condition,
+                    price,
+                    triggered: false,
+                    drawing_id: alertData.drawingId,
+                    fib_level: alertData.fibLevel,
+                    message: alertData.message,
+                    notify_app: alertData.notifyApp,
+                    play_sound: alertData.playSound,
+                    trigger_frequency: alertData.triggerFrequency,
+                    // Indicator Alert Fields
+                    indicator_id: alertData.indicatorId,
+                    alert_condition_id: alertData.alertConditionId,
+                    condition_parameters: alertData.conditionParameters,
+                },
+            ])
             .select()
             .single();
 
@@ -117,7 +119,7 @@ export const createAlert = async (alertData: Partial<PriceAlert>): Promise<Price
         notifyListeners();
         return mapDbRowToAlert(data);
     } catch (error) {
-        console.error("Failed to create alert:", error);
+        console.error('Failed to create alert:', error);
         window.alert(`Failed to create alert: ${(error as any).message || 'Unknown error'}`);
         return null;
     }
@@ -131,32 +133,32 @@ export const saveAlert = async (alert: PriceAlert): Promise<PriceAlert[]> => {
 
 export const deleteAlert = async (id: string): Promise<boolean> => {
     if (isMockMode) {
-        mockAlerts = mockAlerts.filter(a => a.id !== id);
+        mockAlerts = mockAlerts.filter((a) => a.id !== id);
         notifyListeners();
         return Promise.resolve(true);
     }
 
     try {
-        const { error } = await supabase
-            .from('price_alerts')
-            .delete()
-            .eq('id', id);
+        const { error } = await db().from('price_alerts').delete().eq('id', id);
 
         if (error) throw error;
 
         notifyListeners();
         return true;
     } catch (error) {
-        console.error("Failed to delete alert:", error);
+        console.error('Failed to delete alert:', error);
         return false;
     }
 };
 
 // ... deleteAlert impl
 
-export const updateAlert = async (id: string, updates: Partial<PriceAlert>): Promise<PriceAlert | null> => {
+export const updateAlert = async (
+    id: string,
+    updates: Partial<PriceAlert>
+): Promise<PriceAlert | null> => {
     if (isMockMode) {
-        const index = mockAlerts.findIndex(a => a.id === id);
+        const index = mockAlerts.findIndex((a) => a.id === id);
         if (index > -1) {
             mockAlerts[index] = { ...mockAlerts[index], ...updates };
             notifyListeners();
@@ -166,7 +168,7 @@ export const updateAlert = async (id: string, updates: Partial<PriceAlert>): Pro
     }
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db()
             .from('price_alerts')
             .update({
                 symbol: updates.symbol,
@@ -180,7 +182,7 @@ export const updateAlert = async (id: string, updates: Partial<PriceAlert>): Pro
                 fib_level: updates.fibLevel,
                 indicator_id: updates.indicatorId,
                 alert_condition_id: updates.alertConditionId,
-                condition_parameters: updates.conditionParameters
+                condition_parameters: updates.conditionParameters,
             })
             .eq('id', id)
             .select()
@@ -191,7 +193,7 @@ export const updateAlert = async (id: string, updates: Partial<PriceAlert>): Pro
         notifyListeners();
         return mapDbRowToAlert(data);
     } catch (error) {
-        console.error("Failed to update alert:", error);
+        console.error('Failed to update alert:', error);
         return null;
     }
 };
@@ -199,7 +201,7 @@ export const updateAlert = async (id: string, updates: Partial<PriceAlert>): Pro
 export const markTriggered = async (id: string): Promise<boolean> => {
     // ...
     if (isMockMode) {
-        const index = mockAlerts.findIndex(a => a.id === id);
+        const index = mockAlerts.findIndex((a) => a.id === id);
         if (index > -1) {
             mockAlerts[index].triggered = true;
             mockAlerts[index].lastTriggeredAt = Date.now();
@@ -209,11 +211,11 @@ export const markTriggered = async (id: string): Promise<boolean> => {
     }
 
     try {
-        const { error } = await supabase
+        const { error } = await db()
             .from('price_alerts')
             .update({
                 triggered: true,
-                triggered_at: new Date().toISOString()
+                triggered_at: new Date().toISOString(),
             })
             .eq('id', id);
 
@@ -221,23 +223,73 @@ export const markTriggered = async (id: string): Promise<boolean> => {
         notifyListeners();
         return true;
     } catch (error) {
-        console.error("Failed to mark alert as triggered:", error);
+        console.error('Failed to mark alert as triggered:', error);
         return false;
     }
 };
 
-// Legacy Condition Checker (Needed by CandlestickChart if it still does some drawing checks, 
-// OR if I didn't clean up all usages. Engine uses its own checkCondition, but simpler. 
-// Ideally export checkCondition from Engine or here to avoid dup, but for now strict copy is safe).
+/**
+ * One-click alert creation with smart defaults.
+ * Extracts price from drawing, sets sensible defaults.
+ */
+export const createAlertWithDefaults = async (
+    symbol: string,
+    drawing?: Drawing,
+    indicatorId?: string,
+    indicatorType?: string,
+    alertConditionId?: string,
+    conditionParameters?: Record<string, any>,
+): Promise<PriceAlert | null> => {
+    let condition: AlertConditionType = 'Crossing';
+    let price = 0;
+    let drawingId: string | undefined;
+    let fibLevel: number | undefined;
 
-export const checkAlertCondition = (alert: PriceAlert, currentPrice: number, lastCandle: Candle, drawing?: Drawing): boolean => {
-    // Basic implementation for legacy compatibility if called
-    if (alert.triggered) return false;
-    if (alert.value !== undefined) {
-        const target = alert.value;
-        if (alert.condition === 'Greater Than') return currentPrice > target;
-        if (alert.condition === 'Less Than') return currentPrice < target;
-        // ... simplified
+    if (drawing) {
+        drawingId = drawing.id;
+        switch (drawing.type) {
+            case 'Horizontal Line':
+                price = (drawing as HorizontalLineDrawing).price;
+                break;
+            case 'Trend Line':
+            case 'Ray':
+                price = (drawing as TrendLineDrawing | RayDrawing).end.price;
+                break;
+            case 'Fibonacci Retracement': {
+                const fib = drawing as FibonacciRetracementDrawing;
+                fibLevel = 0.618;
+                price = fib.start.price + (fib.end.price - fib.start.price) * fibLevel;
+                break;
+            }
+            case 'Rectangle':
+            case 'Parallel Channel':
+                condition = 'Entering Channel';
+                break;
+        }
     }
-    return false;
+
+    const priceStr = price ? price.toFixed(5) : '';
+    let message = '';
+    if (indicatorType && alertConditionId) {
+        message = `${symbol} ${indicatorType} alert`;
+    } else if (drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel') {
+        message = `${symbol} ${condition} ${drawing.type}`;
+    } else {
+        message = `${symbol} Price ${condition} ${priceStr}`;
+    }
+
+    return createAlert({
+        symbol,
+        condition,
+        value: price || undefined,
+        drawingId,
+        fibLevel,
+        message,
+        notifyApp: true,
+        playSound: false,
+        triggerFrequency: 'Only Once',
+        indicatorId,
+        alertConditionId,
+        conditionParameters,
+    });
 };
