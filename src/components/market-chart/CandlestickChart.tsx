@@ -1,13 +1,14 @@
+// cspell:ignore hitbox gann ohlc vwma macd bollinger vwap donchian ichimoku keltner watchlist forex recalc dema tema smma zlema swma linreg defval minval maxval ampm retracement trendline
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { Position, PositionStatus, TradeDirection, Strategy } from '../../types';
-import CreateAlertModal from '../CreateAlertModal';
+import AlertToast from './AlertToast';
+import AlertSlidePanel from './AlertSlidePanel';
 import * as api from '../../api';
 import indicatorService from '../../services/indicatorService';
 import * as priceAlertService from '../../services/alertService';
+import { createAlertWithDefaults, updateAlert, deleteAlert } from '../../services/alertService';
 import { saveMarketState } from '../../services/marketStateService';
 import { saveDrawings } from '../../services/chartDrawingService';
-import { convertKuriDrawings, getKuriTables } from './kuriDrawingConverter';
-import KuriTableOverlay from './KuriTableOverlay';
 import { getCandles } from '../../services/marketDataService';
 import { alertEngine } from '../../engine/alertEngine';
 import {
@@ -46,26 +47,70 @@ import {
     GANN_LEVELS,
     GANN_LEVEL_COLORS,
 } from './constants';
-import { calculateIndicator } from './helpers';
 import { ChartError, toChartErrorFromString } from './errorUtils';
-import { Kuri, Context, SecurityDataFetcher } from '@insight/kuri-engine';
+import { convertKuriDrawings } from './kuriDrawingConverter';
+import { KuriBridge, getKuriBridge } from '../../lib/kuri/kuri-bridge';
 import ChartHeader from './ChartHeader';
-// import LeftToolbar from './LeftToolbar'; // Removed, functionality moved to BottomPanel
 import RightToolbar from './RightToolbar';
+import IndicatorEditorPanel from './IndicatorEditorPanel';
 import BottomPanel from './BottomPanel';
+import { ConsoleLog } from './types';
 import ChartNavigation from './ChartNavigation';
 import { SidePanels } from './SidePanels';
 import FloatingDrawingToolbar from './FloatingDrawingToolbar';
-import { IndicatorPanel, IndicatorSettingsModal } from './IndicatorPanels';
+import IndicatorPanel from './IndicatorPickerModal';
+import IndicatorSettingsModal from './IndicatorSettingsPanel';
+import { DEFAULT_INDICATORS } from '../../indicators';
 import ChartSettingsModal from './ChartSettingsModal';
 import ActiveIndicatorsDisplay from './ActiveIndicatorsDisplay';
 import ContextMenu from './ContextMenu';
 import TemplateManagerModal from './TemplateManagerModal';
 import { SettingsIcon } from '../IconComponents';
-import { AlertMarkers } from './AlertMarkers'; // Import AlertMarkers
+import { AlertMarkers } from './AlertMarkers';
 import { MobileDrawingToolsModal, MobileMoreMenu } from './mobile';
 import { useResponsive } from '../../hooks/useResponsive';
-import { getIndicatorDefinition } from '../../data/builtInIndicators';
+
+/** Extract and convert Kuri drawings from engine result */
+const extractKuriDrawings = (result: any) => {
+    const raw = result.drawings;
+    if (!raw) return undefined;
+    const converted = convertKuriDrawings(raw);
+    if (
+        converted.lines.length === 0 &&
+        converted.labels.length === 0 &&
+        converted.boxes.length === 0
+    )
+        return undefined;
+    return converted;
+};
+
+/** Find a registry entry by IndicatorType, searching DEFAULT_INDICATORS directly */
+function findRegistryEntry(type: string) {
+    const typeLower = type.toLowerCase();
+    return DEFAULT_INDICATORS.find(
+        (ind) =>
+            ind.id === typeLower || ind.shortname === type || ind.shortname === type.toUpperCase()
+    );
+}
+
+/** Read a plot's color by index, falling back to kuriPlots then a hardcoded default. */
+const getPlotColor = (ind: Indicator, plotIndex: number, fallback: string): string => {
+    const s = ind.settings as any;
+    return s[`plot_${plotIndex}_color`] ?? ind.kuriPlots?.[plotIndex]?.color ?? fallback;
+};
+
+/** Read a plot's color by title (e.g. "Upper", "Basis"), falling back to default. */
+const getPlotColorByTitle = (ind: Indicator, title: string, fallback: string): string => {
+    const plots = ind.kuriPlots || [];
+    const idx = plots.findIndex((p) => p.title === title);
+    if (idx >= 0) return getPlotColor(ind, idx, fallback);
+    return fallback;
+};
+
+const getIndicatorDefinition = (type: string) => {
+    const found = findRegistryEntry(type);
+    return found ? { name: found.name, shortname: found.shortname, overlay: found.overlay } : null;
+};
 
 const FIB_LEVEL_COLORS = [
     'rgba(128, 0, 128, 0.2)', // Purple for 0-0.236
@@ -141,136 +186,44 @@ const getTextColorForBackground = (hexColor: string): string => {
     return yiq >= 128 ? '#000000' : '#FFFFFF';
 };
 
-const getDefaultIndicatorSettings = (type: IndicatorType): IndicatorSettings => {
-    switch (type) {
-        // Moving Averages
-        case 'MA':
-        case 'SMA':
-            return { period: 20, color: '#3B82F6' };
-        case 'EMA':
-            return { period: 20, color: '#FBBF24' };
-        case 'WMA':
-            return { period: 20, color: '#10B981' };
-        case 'VWMA':
-            return { period: 20, color: '#EC4899' };
-        case 'HMA':
-            return { period: 20, color: '#8B5CF6' };
-        case 'MA Ribbon':
-            return { ribbonPeriods: '10,20,30,40,50,60', ribbonBaseColor: '#2962FF' };
+// Kuri engine provides all defaults via inputDefs and plots.
+// This returns empty settings — populated by Kuri on first run.
+const getIndicatorDefaults = (_type: IndicatorType): IndicatorSettings => ({});
 
-        // Oscillators
-        case 'RSI':
-            return { period: 14, color: '#A78BFA' };
-        case 'MACD':
-            return {
-                fastPeriod: 12,
-                slowPeriod: 26,
-                signalPeriod: 9,
-                macdColor: '#2962FF',
-                signalColor: '#FF6D00',
-                histogramUpColor: '#4CAF50',
-                histogramDownColor: '#F44336',
-            };
-        case 'Stochastic':
-            return { kPeriod: 14, kSlowing: 3, dPeriod: 3, kColor: '#2962FF', dColor: '#FF6D00' };
-        case 'CCI':
-            return { period: 20, color: '#FBBF24' };
-        case 'MFI':
-            return { period: 14, color: '#3B82F6' };
-        case 'ADX':
-            return { period: 14, color: '#F59E0B' };
-
-        // Volatility
-        case 'BB':
-        case 'Bollinger Bands':
-            return {
-                period: 20,
-                stdDev: 2,
-                upperColor: '#2962FF',
-                middleColor: '#FF6D00',
-                lowerColor: '#2962FF',
-            };
-        case 'ATR':
-            return { period: 14, color: '#EF4444' };
-        case 'SuperTrend':
-            return { atrPeriod: 10, factor: 3, upColor: '#4CAF50', downColor: '#F44336' };
-
-        // Volume
-        case 'VWAP':
-            return { color: '#EC4899' };
-        case 'OBV':
-            return { color: '#10B981' };
-        case 'Volume':
-            return { volumeUpColor: '#10B981', volumeDownColor: '#EF4444' };
-
-        // Channels (match both registry ID and legacy/short names)
-        case 'DONCHIAN':
-        case 'DC':
-            return { period: 20, color: '#FF6D00' };
-        case 'ICHIMOKU':
-        case 'Ichimoku':
-            return { period: 9 };
-        case 'KELTNER':
-        case 'KC':
-            return { period: 20, multiplier: 2, color: '#2962FF' };
-        case 'ADR':
-            return { period: 14, color: '#2962FF' };
-        case 'KURI_LINE':
-        case 'KURI_AREA':
-        case 'KURI_HISTOGRAM':
-        case 'KURI_BAND':
-        case 'KURI_COLUMNS':
-        case 'KURI_MARKERS':
-            return { color: '#FF9800' };
-
-        default:
-            return {};
-    }
+/** Migrate legacy setting keys to Kuri title keys for saved indicators.
+ *  Maps old keys (period, fastPeriod, etc.) → Kuri titles (Length, Fast Length, etc.)
+ *  so user-customized values survive the migration. Runs once on load. */
+const LEGACY_TO_TITLE: Record<string, string[]> = {
+    period: ['Length', 'RSI Length', 'ATR Period'],
+    source: ['Source'],
+    stdDev: ['StdDev', 'BB StdDev', 'Multiplier'],
+    fastPeriod: ['Fast Length'],
+    slowPeriod: ['Slow Length'],
+    signalPeriod: ['Signal Smoothing', 'Signal Length'],
+    kPeriod: ['%K Length'],
+    kSlowing: ['%K Smoothing'],
+    dPeriod: ['%D Smoothing'],
+    factor: ['Factor'],
+    atrPeriod: ['ATR Length'],
 };
-
-const extractDefaults = (parameters: any[]) => {
-    const defaults: any = {};
-    if (parameters) {
-        parameters.forEach((p) => (defaults[p.name] = p.default));
-    }
-    return defaults;
-};
-
-import { registry } from '../../core/registry/IndicatorRegistry';
-import { shouldUseRegistryFor } from '../../core/config/featureFlags';
-
-const getIndicatorDefaults = (type: IndicatorType) => {
-    if (shouldUseRegistryFor(type)) {
-        const def = registry.getIndicator(type);
-        if (def) {
-            return extractDefaults(def.parameters);
-        }
-    }
-    return getDefaultIndicatorSettings(type);
-};
-
-const calculateIndicatorData = (indicator: Indicator, data: Candle[]) => {
-    switch (indicator.type) {
-        case 'Volume':
-            return { main: data.map((c) => c.volume || 0) };
-        case 'KURI_LINE':
-        case 'KURI_AREA':
-        case 'KURI_HISTOGRAM':
-        case 'KURI_BAND':
-        case 'KURI_COLUMNS':
-        case 'KURI_MARKERS':
-            // Pre-computed by Kuri engine — return as-is
-            return indicator.data;
-        default: {
-            const result = calculateIndicator(indicator.type, data, indicator.settings);
-            if (result.ok) {
-                return result.data;
+function migrateSettingsToTitleKeys(
+    settings: IndicatorSettings,
+    inputDefs?: any[]
+): IndicatorSettings {
+    if (!inputDefs || inputDefs.length === 0) return settings;
+    const s = { ...settings } as any;
+    const titleSet = new Set(inputDefs.map((d: any) => d.title));
+    for (const [legacyKey, titles] of Object.entries(LEGACY_TO_TITLE)) {
+        if (s[legacyKey] !== undefined) {
+            for (const title of titles) {
+                if (titleSet.has(title) && s[title] === undefined) {
+                    s[title] = s[legacyKey];
+                }
             }
-            console.warn(`Indicator calculation failed for ${indicator.type}: ${result.error}`);
-            return {};
         }
     }
-};
+    return s;
+}
 
 // Helper function to feed indicator values to AlertEngine
 const feedIndicatorToAlertEngine = (indicator: Indicator) => {
@@ -313,7 +266,7 @@ interface HistoryState {
     drawings: Drawing[];
     indicators: Indicator[];
     view: ViewState;
-    priceRange: PriceRange;
+    priceRange: { min: number; max: number } | null;
     isAutoScaling: boolean;
 }
 
@@ -341,11 +294,8 @@ interface CandlestickChartProps {
     onAddCustomTimeframe: (tf: string) => void;
     onLogout: () => void;
     onToggleMobileSidebar: () => void;
-    initialSettings?: ChartSettings | null;
+    initialSettings?: Partial<ChartSettings> | null;
     onSettingsChange?: (settings: ChartSettings) => void;
-    strategyVisibility?: Record<string, boolean>;
-
-    onToggleStrategyVisibility?: (id: string, visible: boolean) => void;
     initialDrawings?: Drawing[];
     onDrawingsChange?: (drawings: Drawing[]) => void;
     customScripts?: Strategy[];
@@ -353,6 +303,7 @@ interface CandlestickChartProps {
     onAutoAddComplete?: () => void;
     onChartError?: (error: ChartError) => void;
     onClearErrors?: (source?: string) => void;
+    readOnly?: boolean;
 }
 
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
@@ -366,8 +317,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         onToggleMobileSidebar,
         initialSettings,
         onSettingsChange,
-        strategyVisibility,
-        onToggleStrategyVisibility,
         customScripts = [],
         autoAddScriptId,
         onAutoAddComplete,
@@ -375,10 +324,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         onDrawingsChange,
         onChartError,
         onClearErrors,
+        readOnly = false,
     } = props;
     const svgRef = useRef<SVGSVGElement>(null);
     const chartCanvasRef = useRef<HTMLCanvasElement>(null);
-    const [kuriTables, setKuriTables] = useState<any[]>([]);
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const eventContainerRef = useRef<HTMLDivElement>(null);
     const yAxisCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -455,7 +404,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [isBottomPanelOpen, setBottomPanelOpen] = useState(false);
 
     // Console logging for indicator diagnostics
-    const [consoleLogs, setConsoleLogs] = useState<import('./BottomPanel').ConsoleLog[]>([]);
+    interface LocalConsoleLog {
+        id: string;
+        level: 'info' | 'warn' | 'error';
+        source: string;
+        message: string;
+        details?: string;
+        timestamp: Date;
+    }
+    const [consoleLogs, setConsoleLogs] = useState<LocalConsoleLog[]>([]);
     const addConsoleLog = useCallback(
         (level: 'info' | 'warn' | 'error', source: string, message: string, details?: string) => {
             setConsoleLogs((prev) => [
@@ -505,18 +462,158 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [rightPanel, setRightPanel] = useState<
         'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | null
     >(null);
-    const [alertModalInfo, setAlertModalInfo] = useState<{
-        visible: boolean;
-        drawing: Drawing | null;
-        alertToEdit?: PriceAlert | null;
-        indicatorId?: string; // NEW: For indicator alerts
-        indicatorType?: string; // NEW: Indicator type (RSI, SMA, etc.)
-    }>({ visible: false, drawing: null, alertToEdit: null });
+    const [toastAlert, setToastAlert] = useState<PriceAlert | null>(null);
+    const [panelAlert, setPanelAlert] = useState<{
+        alert: PriceAlert;
+        drawing?: Drawing | null;
+        indicatorId?: string;
+        indicatorType?: string;
+        indicatorOutputs?: string[];
+    } | null>(null);
 
+    const [isIndicatorEditorOpen, setIsIndicatorEditorOpen] = useState(false);
     const [isIndicatorPanelOpen, setIndicatorPanelOpen] = useState(false);
     const [allActiveIndicators, setAllActiveIndicators] = useState<Indicator[]>([]);
     const [indicatorToEdit, setIndicatorToEdit] = useState<Indicator | null>(null);
     const [indicatorsLoaded, setIndicatorsLoaded] = useState(false); // Track if indicators are loaded from DB
+
+    // Hydrate Kuri data and open settings panel.
+    // Runs the .kuri script through the engine to extract inputDefs/plots/hlines
+    // so the settings panel auto-generates from the script, not hardcoded fields.
+    const openIndicatorSettings = useCallback(
+        async (ind: Indicator) => {
+            // Already has Kuri data — open directly
+            if (ind.kuriInputDefs && ind.kuriInputDefs.length > 0) {
+                setIndicatorToEdit(ind);
+                return;
+            }
+
+            // Find .kuri source: first check the indicator itself, then look up from registry
+            let kuriSource = ind.kuriSource || null;
+            if (!kuriSource) {
+                const registryEntry = findRegistryEntry(ind.type);
+                kuriSource = registryEntry?.kuriSource ?? null;
+            }
+
+            // Run engine to extract inputDefs, plots, hlines
+            if (kuriSource && data.length > 0) {
+                try {
+                    const bridge = getKuriBridge();
+                    const result = await bridge.run(kuriSource, data);
+                    // Use Kuri data if inputDefs were produced, even if there were
+                    // some runtime errors — inputDefs come from bar-0 parsing
+                    const defs = result.inputDefs || [];
+                    // Deduplicate plots by title (engine may produce dupes across bars)
+                    const seenPlots = new Set<string>();
+                    const plots = (result.plots || []).filter((p: any) => {
+                        const key = p.title || p.id;
+                        if (seenPlots.has(key)) return false;
+                        seenPlots.add(key);
+                        return true;
+                    });
+                    if (defs.length > 0 || plots.length > 0) {
+                        const hydratedPlots = plots.map((p: any) => ({
+                            title: p.title || 'Plot',
+                            color: p.color || '#2962FF',
+                            colors: p.colors || null,
+                            linewidth: p.linewidth || 1,
+                            linewidths: p.linewidths || null,
+                            style: p.style || 'line',
+                            kind: p.kind || 'plot',
+                            display: p.display || undefined,
+                        }));
+
+                        // Sync Kuri inputDef defaults into settings so chart
+                        // calculations and rendering use .kuri values, not hardcoded defaults
+                        const syncedSettings = { ...ind.settings };
+                        for (const def of defs) {
+                            if (def.type === 'source') {
+                                (syncedSettings as any)[def.title] =
+                                    (syncedSettings as any)[def.title] ?? 'close';
+                                continue;
+                            }
+                            (syncedSettings as any)[def.title] =
+                                (syncedSettings as any)[def.title] ?? def.defval;
+                            // Also write legacy key
+                            const legacyKey = Object.entries(LEGACY_TO_TITLE).find(([, titles]) =>
+                                titles.includes(def.title)
+                            )?.[0];
+                            if (legacyKey) {
+                                (syncedSettings as any)[legacyKey] =
+                                    (syncedSettings as any)[legacyKey] ??
+                                    (syncedSettings as any)[def.title] ??
+                                    def.defval;
+                            }
+                        }
+                        // Sync plot colors into settings
+                        hydratedPlots.forEach((p: any, i: number) => {
+                            (syncedSettings as any)[`plot_${i}_color`] =
+                                (syncedSettings as any)[`plot_${i}_color`] ?? p.color;
+                            (syncedSettings as any)[`plot_${i}_linewidth`] =
+                                (syncedSettings as any)[`plot_${i}_linewidth`] ?? p.linewidth;
+                            (syncedSettings as any)[`plot_${i}_visible`] =
+                                (syncedSettings as any)[`plot_${i}_visible`] ?? true;
+                        });
+                        if (hydratedPlots.length > 0 && !syncedSettings.color) {
+                            syncedSettings.color = hydratedPlots[0].color;
+                        }
+
+                        const hydrated: Indicator = {
+                            ...ind,
+                            kuriSource,
+                            kuriTitle: result.indicator?.title || '',
+                            kuriOverlay: result.indicator?.overlay ?? false,
+                            kuriInputDefs: defs,
+                            kuriPlots: hydratedPlots,
+                            kuriHlines: (result.hlines || []).map((h: any) => ({
+                                price: h.price,
+                                title: h.title || '',
+                                color: h.color || '#787B86',
+                                editable: h.editable !== false,
+                            })),
+                            kuriBgcolors: (result as any).bgcolors || [],
+                            kuriFills: ((result as any).fills || []).map((f: any) => ({
+                                plot1: f.plot1?.title || '',
+                                plot2: f.plot2?.title || '',
+                                color: f.color || 'rgba(33,150,243,0.1)',
+                            })),
+                            settings: syncedSettings,
+                            data: {},
+                            kuriDrawings: extractKuriDrawings(result),
+                        };
+                        // Use Kuri engine data
+                        hydrated.data = bridge.toIndicatorData(result);
+                        // Back-fill the main indicator array so Kuri data persists
+                        setAllActiveIndicators((prev) =>
+                            prev.map((i) =>
+                                i.id === hydrated.id
+                                    ? {
+                                          ...i,
+                                          kuriSource: hydrated.kuriSource,
+                                          kuriTitle: hydrated.kuriTitle,
+                                          kuriInputDefs: hydrated.kuriInputDefs,
+                                          kuriPlots: hydrated.kuriPlots,
+                                          kuriHlines: hydrated.kuriHlines,
+                                          kuriDrawings: hydrated.kuriDrawings,
+                                          settings: hydrated.settings,
+                                          data: hydrated.data,
+                                      }
+                                    : i
+                            )
+                        );
+                        setIndicatorToEdit(hydrated);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn(`[Settings] Kuri hydration failed for ${ind.type}:`, e);
+                }
+            }
+
+            // Fallback: open with whatever data we have
+            setIndicatorToEdit(ind);
+        },
+        [data]
+    );
     const indicatorCanvasRefs = useRef<
         Map<string, { chart: HTMLCanvasElement | null; yAxis: HTMLCanvasElement | null }>
     >(new Map());
@@ -540,7 +637,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [lockedVerticalLineTime, setLockedVerticalLineTime] = useState<number | null>(null);
     const [chartSettings, setChartSettings] = useState<ChartSettings>(() => {
         // Use prop if available initially
-        if (props.initialSettings) return props.initialSettings;
+        if (props.initialSettings) {
+            const defaults = getDefaultChartSettings(props.symbol);
+            return {
+                symbol: { ...defaults.symbol, ...props.initialSettings.symbol },
+                statusLine: { ...defaults.statusLine, ...props.initialSettings.statusLine },
+                scalesAndLines: { ...defaults.scalesAndLines, ...props.initialSettings.scalesAndLines },
+                canvas: { ...defaults.canvas, ...props.initialSettings.canvas },
+            };
+        }
 
         const defaults = getDefaultChartSettings(props.symbol);
         try {
@@ -630,6 +735,32 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [binanceBalanceValue, setBinanceBalanceValue] = useState(0);
     const [positions, setPositions] = useState<Position[]>([]);
 
+    const handleToggleIndicatorEditor = useCallback(() => {
+        setIsIndicatorEditorOpen((prev) => !prev);
+    }, []);
+
+    // Ctrl+E to toggle indicator editor
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                e.preventDefault();
+                handleToggleIndicatorEditor();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [handleToggleIndicatorEditor]);
+
+    const handleIndicatorSaved = useCallback(async () => {
+        try {
+            const { getStrategies } = await import('../../services/strategyService');
+            const all = await getStrategies();
+            console.log('[Chart] Indicator saved, reloaded', all.length, 'scripts');
+        } catch (err) {
+            console.error('[Chart] Failed to reload indicators:', err);
+        }
+    }, []);
+
     const handleToggleBottomPanel = () => {
         const newIsOpen = !isBottomPanelOpen;
         setBottomPanelOpen(newIsOpen);
@@ -695,85 +826,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    // Sync strategy indicators
-    useEffect(() => {
-        if (!strategyVisibility) return;
-
-        setAllActiveIndicators((currentIndicators) => {
-            // 1. Identify persistent (manual) indicators vs strategy indicators
-            // Fix: Recalculate data for manual indicators as well to support Timeframe switches
-            const manualIndicators = currentIndicators
-                .filter((ind) => !ind.id.startsWith('strategy_'))
-                .map((ind) => {
-                    // Skip Kuri indicators — their data is managed by the dedicated
-                    // async Kuri recalculation effect (avoids overwriting plot data)
-                    if (ind.type.startsWith('KURI_') || ind.kuriScript) {
-                        return ind;
-                    }
-                    return {
-                        ...ind,
-                        data: calculateIndicatorData(ind, data),
-                    };
-                });
-
-            // 2. Build list of desired strategy indicators
-            const strategyIndicators: Indicator[] = [];
-
-            customScripts.forEach((strategy) => {
-                if (strategyVisibility[strategy.id]) {
-                    strategy.indicators.forEach((config, index) => {
-                        const indId = `strategy_${strategy.id}_${index}`;
-
-                        // Check if already exists to preserve data/settings if possible (though settings are driven by strategy)
-                        // Actually, strategy settings should be valid source of truth.
-                        // But calculated data might need re-calc if not present.
-
-                        // Map config to settings
-                        const settings: IndicatorSettings = {
-                            period: config.parameters.period,
-                            stdDev: config.parameters.stdDev,
-                            // generic map
-                            ...config.parameters,
-                        };
-
-                        // Ensure color is set if missing
-                        if (!settings.color) settings.color = '#FFFF00'; // Default yellow for strategies
-
-                        // Calculate data
-                        // Note: Data is usually calculated when added or update.
-                        // We can use calculateIndicatorData helper.
-                        // But we need the helper imported? Yes, explicitly.
-                        // Wait, calculateIndicatorData is defined in this file (lines 93-109) or imported?
-                        // It was defined in lines 93-109 in the file view I saw earlier!
-                        // Ah, no, lines 93-109 in the file view calls IMPORTED helpers.
-                        // Line 93: const calculateIndicatorData = ...
-
-                        const tempIndicator: Indicator = {
-                            id: indId,
-                            type: config.type as IndicatorType,
-                            settings: settings,
-                            data: {}, // Calculated below
-                            isVisible: true,
-                        };
-
-                        const calculatedData = calculateIndicatorData(tempIndicator, data);
-                        tempIndicator.data = calculatedData;
-
-                        strategyIndicators.push(tempIndicator);
-                    });
-                }
-            });
-
-            // 3. Merge: Manual + New Strategy Indicators
-            // Note: This replaces all strategy indicators with fresh ones.
-            // This is safer for consistency with the strategy definition, but might be heavy if data doesn't change.
-            // However, this effect runs on [strategyVisibility, customScripts, data].
-            // If data updates, we want re-calc anyway.
-
-            return [...manualIndicators, ...strategyIndicators];
-        });
-    }, [strategyVisibility, customScripts, data]);
-
     // Keep header OHLC in sync with latest data when not hovering
     useEffect(() => {
         if (!tooltip.visible && data.length > 0) {
@@ -794,32 +846,141 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             );
             if (cancelled) return;
 
-            // Calculate data for loaded indicators
-            // KURI_LINE indicators preserve existing data if available — they'll be
-            // recalculated asynchronously by the Kuri recalculation effect below
-            setAllActiveIndicators((prev) => {
-                const prevMap = new Map<string, Indicator>();
-                prev.forEach((p) => prevMap.set(p.id, p));
-
-                const indicatorsWithData = dbIndicators.map((ind) => {
-                    if (ind.type.startsWith('KURI_')) {
-                        // Preserve existing KURI data to avoid blinking during reload
-                        const existing = prevMap.get(ind.id);
-                        const hasData = existing?.data && Object.keys(existing.data).length > 0;
-                        return {
-                            ...ind,
-                            data: hasData ? existing!.data : {},
-                            settings: hasData
-                                ? { ...ind.settings, ...existing!.settings }
-                                : ind.settings,
-                        };
+            // Hydrate kuri defaults and calculate data for loaded indicators (async, off main thread)
+            const bridge = getKuriBridge();
+            const indicatorsWithData = await Promise.all(
+                dbIndicators.map(async (ind) => {
+                    // Hydrate kuriSource from registry if not saved in DB
+                    let hydratedInd = { ...ind };
+                    if (!hydratedInd.kuriSource) {
+                        const registryEntry = findRegistryEntry(hydratedInd.type);
+                        if (registryEntry?.kuriSource) {
+                            hydratedInd.kuriSource = registryEntry.kuriSource;
+                        }
                     }
-                    return {
-                        ...ind,
-                        data: calculateIndicatorData(ind, data),
-                    };
-                });
 
+                    // Migrate legacy key names → Kuri title keys for DB-saved indicators
+                    hydratedInd.settings = migrateSettingsToTitleKeys(
+                        hydratedInd.settings,
+                        hydratedInd.kuriInputDefs
+                    );
+
+                    // Sync kuri inputDef defaults into settings (fill missing keys only)
+                    if (hydratedInd.kuriSource && data.length > 0) {
+                        try {
+                            // Build overrides from existing settings
+                            const overrides: Record<string, any> = {};
+                            if (hydratedInd.kuriInputDefs && hydratedInd.kuriInputDefs.length > 0) {
+                                hydratedInd.kuriInputDefs.forEach((def: any) => {
+                                    const engineKey = def.title.toLowerCase().replace(/\s+/g, '_');
+                                    const val = (hydratedInd.settings as any)[def.title];
+                                    if (val !== undefined) overrides[engineKey] = val;
+                                });
+                            } else {
+                                // No inputDefs yet (first load) — pass settings directly
+                                // using lowercased keys so the engine can match them
+                                Object.entries(hydratedInd.settings || {}).forEach(([k, v]) => {
+                                    if (v !== undefined && v !== null && !k.startsWith('plot_') && !k.startsWith('vis_') && !k.startsWith('hline_') && !k.startsWith('fill_') && !k.startsWith('bgcolor_') && k !== 'color') {
+                                        overrides[k.toLowerCase().replace(/\s+/g, '_')] = v;
+                                    }
+                                });
+                            }
+                            const result = await bridge.run(
+                                hydratedInd.kuriSource,
+                                data,
+                                overrides
+                            );
+                            const defs = result.inputDefs || [];
+                            const seenPlots = new Set<string>();
+                            const plots = (result.plots || []).filter((p: any) => {
+                                const key = p.title || p.id;
+                                if (seenPlots.has(key)) return false;
+                                seenPlots.add(key);
+                                return true;
+                            });
+
+                            // Sync inputDef defaults → settings (only fill missing keys)
+                            const syncedSettings = { ...hydratedInd.settings };
+                            for (const def of defs) {
+                                if ((syncedSettings as any)[def.title] === undefined) {
+                                    (syncedSettings as any)[def.title] =
+                                        def.type === 'source' ? 'close' : def.defval;
+                                }
+                                // Also write legacy key
+                                const legacyKey = Object.entries(LEGACY_TO_TITLE).find(
+                                    ([, titles]) => titles.includes(def.title)
+                                )?.[0];
+                                if (legacyKey && (syncedSettings as any)[legacyKey] === undefined) {
+                                    (syncedSettings as any)[legacyKey] =
+                                        (syncedSettings as any)[def.title] ?? def.defval;
+                                }
+                            }
+
+                            // Sync plot colors → settings (only fill missing keys)
+                            const kuriPlots = plots.map((p: any) => ({
+                                title: p.title || 'Plot',
+                                color: p.color || '#2962FF',
+                                colors: p.colors || null,
+                                linewidth: p.linewidth || 1,
+                                linewidths: p.linewidths || null,
+                                style: p.style || 'line',
+                                kind: p.kind || 'plot',
+                                location: p.location,
+                                size: p.size,
+                                text: p.text,
+                                texts: p.texts || null,
+                                textcolor: p.textcolor,
+                            }));
+                            kuriPlots.forEach((p: any, i: number) => {
+                                if (!(syncedSettings as any)[`plot_${i}_color`]) {
+                                    (syncedSettings as any)[`plot_${i}_color`] = p.color;
+                                }
+                                if ((syncedSettings as any)[`plot_${i}_linewidth`] === undefined) {
+                                    (syncedSettings as any)[`plot_${i}_linewidth`] = p.linewidth;
+                                }
+                                if ((syncedSettings as any)[`plot_${i}_visible`] === undefined) {
+                                    (syncedSettings as any)[`plot_${i}_visible`] = true;
+                                }
+                            });
+                            if (kuriPlots.length > 0 && !syncedSettings.color) {
+                                syncedSettings.color = kuriPlots[0].color;
+                            }
+                            // Map plot colors → named renderer keys (fill missing only)
+                            hydratedInd.settings = syncedSettings;
+                            hydratedInd.kuriInputDefs = hydratedInd.kuriInputDefs || defs;
+                            hydratedInd.kuriPlots = hydratedInd.kuriPlots || kuriPlots;
+                            hydratedInd.kuriHlines =
+                                hydratedInd.kuriHlines ||
+                                (result.hlines || []).map((h: any) => ({
+                                    price: h.price,
+                                    title: h.title || '',
+                                    color: h.color || '#787B86',
+                                    editable: h.editable !== false,
+                                }));
+                            // Restore kuriOverlay from engine result (not persisted in DB)
+                            hydratedInd.kuriOverlay =
+                                result.indicator?.overlay ?? hydratedInd.kuriOverlay;
+                            hydratedInd.kuriDrawings = extractKuriDrawings(result);
+                            // Use Kuri engine data
+                            hydratedInd.data = bridge.toIndicatorData(result);
+                        } catch {
+                            // Continue with existing settings/data
+                        }
+                    }
+                    // Fallback: derive kuriOverlay from registry if still unset
+                    if (hydratedInd.kuriOverlay === undefined) {
+                        const registryEntry = findRegistryEntry(hydratedInd.type);
+                        if (registryEntry) {
+                            hydratedInd.kuriOverlay = registryEntry.overlay;
+                        }
+                    }
+                    return hydratedInd;
+                })
+            );
+
+            if (cancelled) return;
+
+            setAllActiveIndicators((prev) => {
                 const dbIds = new Set(indicatorsWithData.map((i) => i.id));
                 // Keep locally-added indicators that aren't in the DB yet (optimistic adds)
                 const localOnly = prev.filter((p) => !dbIds.has(p.id));
@@ -835,339 +996,119 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         };
     }, [props.symbol, props.activeTimeframe]); // DB reload only on symbol/timeframe change
 
-    // Recalculate built-in indicator data when new candles arrive
+    // Track last candle close for change detection on tick updates
+    const lastCloseRef = useRef<number | null>(null);
+    const lastClose = data.length > 0 ? data[data.length - 1].close : null;
+    const closeChanged = lastClose !== lastCloseRef.current;
+    lastCloseRef.current = lastClose;
+
+    // Recalculate indicator data when new candles arrive or price ticks
     useEffect(() => {
         if (!indicatorsLoaded || data.length === 0) return;
-        setAllActiveIndicators((prev) =>
-            prev.map((ind) => {
-                if (ind.type.startsWith('KURI_')) return ind; // KURI handled by its own effect
-                const newData = calculateIndicatorData(ind, data);
-                // Skip update if data hasn't changed (same length)
-                if (ind.data?.main?.length === newData?.main?.length) return ind;
-                return { ...ind, data: newData };
-            })
-        );
-    }, [data.length, indicatorsLoaded]); // Only when new candles arrive
-
-    // Async recalculation for KURI_LINE indicators when data changes
-    // (e.g., new candles arrive, symbol/timeframe switch)
-    useEffect(() => {
-        if (!indicatorsLoaded || data.length === 0) return;
-
-        const kuriIndicators = allActiveIndicators.filter(
-            (ind) => ind.type.startsWith('KURI_') && ind.kuriScript
-        );
-        if (kuriIndicators.length === 0) return;
-
         let cancelled = false;
+        const bridge = getKuriBridge();
 
-        const recalculate = async () => {
-            const context = {
-                open: data.map((c) => c.open),
-                high: data.map((c) => c.high),
-                low: data.map((c) => c.low),
-                close: data.map((c) => c.close),
-                volume: data.map((c) => c.volume || 0),
-                time: data.map((c) => c.time * 1000),
-            };
+        // Capture current indicators for the async work
+        setAllActiveIndicators((prev) => {
+            // Kick off async recalculation using a snapshot of prev
+            const snapshot = prev;
+            (async () => {
+                const updated = await Promise.all(
+                    snapshot.map(async (ind) => {
+                        if (ind.type.startsWith('KURI_')) return ind;
+                        // Skip if data length hasn't changed AND close price is unchanged
+                        const firstKey = Object.keys(ind.data || {})[0] || 'main';
+                        if (ind.data?.[firstKey]?.length === data.length && !closeChanged) return ind;
 
-            const securityFetcher = async (symbol: string, timeframe: string, limit: number) => {
-                const candles = await getCandles(symbol, timeframe, limit);
-                return candles.map((c) => ({
-                    time: c.time * 1000,
-                    open: c.open,
-                    high: c.high,
-                    low: c.low,
-                    close: c.close,
-                    volume: c.volume || 0,
-                }));
-            };
-
-            // Group by kuriScript to avoid re-executing identical scripts
-            const scriptGroups = new Map<string, Indicator[]>();
-            for (const ind of kuriIndicators) {
-                const key = ind.kuriScript!;
-                if (!scriptGroups.has(key)) scriptGroups.set(key, []);
-                scriptGroups.get(key)!.push(ind);
-            }
-
-            const updatedIndicators: Indicator[] = [];
-
-            for (const [script, indicators] of scriptGroups) {
-                try {
-                    // Collect user input overrides from the first indicator in the group
-                    const inputOverrides =
-                        (indicators[0]?.settings as any)?.kuriInputs || undefined;
-
-                    const result = await Kuri.executeWithVMAsync(script, context, {
-                        securityFetcher,
-                        inputOverrides,
-                    });
-                    if (cancelled) return;
-
-                    const allPlots = (result.plots || []).filter(
-                        (plot: { data: any }) =>
-                            Array.isArray(plot.data) || (plot.data && typeof plot.data === 'object')
-                    );
-
-                    // Match each indicator to its corresponding plot(s)
-                    for (const ind of indicators) {
-                        // Grouped multi-series indicator (has seriesColors in settings)
-                        const isGrouped = !!(ind.settings as any)?.seriesColors;
-                        if (isGrouped) {
-                            const seriesColors = (ind.settings as any)?.seriesColors as
-                                | Record<string, string>
-                                | undefined;
-                            const overlayLinePlots = allPlots.filter((p: any) => {
-                                const pt = (p as any).type || 'line';
-                                return pt === 'line';
-                            });
-                            if (overlayLinePlots.length > 0) {
-                                const groupedData: Record<string, (number | null)[]> = {};
-                                const newSeriesColors: Record<string, string> = {};
-                                overlayLinePlots.forEach((plot: any, idx: number) => {
-                                    const key = plot.title || `line_${idx}`;
-                                    groupedData[key] = Array.isArray(plot.data) ? plot.data : [];
-                                    newSeriesColors[key] =
-                                        plot.config?.color ||
-                                        (seriesColors && seriesColors[key]) ||
-                                        '#FF9800';
+                        // Recalculate via Kuri engine (off main thread)
+                        if (ind.kuriSource) {
+                            try {
+                                const overrides: Record<string, any> = {};
+                                (ind.kuriInputDefs || []).forEach((def: any) => {
+                                    const engineKey = def.title.toLowerCase().replace(/\s+/g, '_');
+                                    const val = (ind.settings as any)[def.title];
+                                    if (val !== undefined) overrides[engineKey] = val;
                                 });
-                                updatedIndicators.push({
+                                const result = await bridge.run(ind.kuriSource, data, overrides);
+                                const updatedPlots = (result.plots || []).map((p: any) => ({
+                                    title: p.title || 'Plot',
+                                    color: p.color || '#2962FF',
+                                    colors: p.colors || null,
+                                    linewidth: p.linewidth || 1,
+                                    linewidths: p.linewidths || null,
+                                    style: p.style || 'line',
+                                    kind: p.kind || 'plot',
+                                    location: p.location,
+                                    size: p.size,
+                                    text: p.text,
+                                    texts: p.texts || null,
+                                    textcolor: p.textcolor,
+                                }));
+                                return {
                                     ...ind,
-                                    data: groupedData,
-                                    settings: {
-                                        ...ind.settings,
-                                        seriesColors: newSeriesColors,
-                                    },
-                                    kuriInputDefs: result.inputDefinitions || ind.kuriInputDefs,
-                                });
-                            } else {
-                                updatedIndicators.push(ind);
-                            }
-                            continue;
-                        }
-
-                        // Match plot by title first, then fallback to index-based matching from ID
-                        let plot = allPlots.find((p: any) => p.title === ind.kuriPlotTitle);
-
-                        if (!plot) {
-                            const plotIdxMatch = ind.id.match(/plot(\d+)/);
-                            const plotIdx = plotIdxMatch ? parseInt(plotIdxMatch[1], 10) : 0;
-                            plot = allPlots[plotIdx];
-                        }
-
-                        if (plot) {
-                            const plotType = (plot as any).type || 'line';
-                            // Build data based on plot type
-                            let plotData: Record<string, (number | null)[]>;
-                            if (plotType === 'band' && plot.data && !Array.isArray(plot.data)) {
-                                plotData = {
-                                    upper: (plot.data as any).upper || [],
-                                    lower: (plot.data as any).lower || [],
-                                    middle:
-                                        (plot.data as any).middle || (plot.data as any).basis || [],
+                                    data: bridge.toIndicatorData(result),
+                                    kuriPlots: updatedPlots,
+                                    kuriDrawings: extractKuriDrawings(result),
+                                    kuriBgcolors: (result as any).bgcolors || [],
+                                    kuriFills: ((result as any).fills || []).map((f: any) => ({
+                                        plot1: f.plot1?.title || '',
+                                        plot2: f.plot2?.title || '',
+                                        color: f.color || 'rgba(33,150,243,0.1)',
+                                    })),
                                 };
-                            } else {
-                                plotData = {
-                                    main: Array.isArray(plot.data)
-                                        ? (plot.data as (number | null)[])
-                                        : [],
-                                };
+                            } catch {
+                                // Keep existing data on error
                             }
-
-                            updatedIndicators.push({
-                                ...ind,
-                                data: plotData,
-                                settings: {
-                                    ...ind.settings,
-                                    color:
-                                        (plot as any).config?.color ||
-                                        ind.settings.color ||
-                                        '#FF9800',
-                                },
-                                kuriInputDefs: result.inputDefinitions || ind.kuriInputDefs,
-                            });
-                        } else {
-                            updatedIndicators.push(ind);
                         }
-                    }
-
-                    // Update Kuri drawings too
-                    const kuriDrawings = convertKuriDrawings(result.drawings, data);
-                    const tables = getKuriTables(result.drawings);
-                    if (tables.length > 0) setKuriTables(tables);
-                    if (kuriDrawings.length > 0) {
-                        setDrawings((prev) => [
-                            ...prev.filter((d: Drawing) => !d.id.startsWith('kuri_')),
-                            ...kuriDrawings,
-                        ]);
-                    }
-                } catch (e) {
-                    console.error('Failed to recalculate Kuri indicator:', e);
-                    addConsoleLog(
-                        'error',
-                        'Kuri Recalc',
-                        `Failed to recalculate indicator: ${e instanceof Error ? e.message : String(e)}`,
-                        indicators.map((i) => i.kuriPlotTitle || i.type).join(', ')
-                    );
-                    // Clear stale data for failed indicators
-                    updatedIndicators.push(...indicators.map((ind) => ({ ...ind, data: {} })));
-                    if (onChartError) {
-                        onChartError(
-                            toChartErrorFromString(
-                                `Indicator execution failed: ${e instanceof Error ? e.message : String(e)}`,
-                                indicators.map((i) => i.type).join(', ') || 'Indicator'
-                            )
-                        );
-                    }
+                        return ind;
+                    })
+                );
+                if (!cancelled) {
+                    setAllActiveIndicators(updated);
                 }
-            }
+            })();
+            // Return prev synchronously — async update will follow
+            return prev;
+        });
 
-            if (cancelled || updatedIndicators.length === 0) return;
-
-            // Log recalculated data diagnostics
-            updatedIndicators.forEach((ind) => {
-                const dataKeys = Object.keys(ind.data);
-                if (dataKeys.length === 0) {
-                    addConsoleLog(
-                        'warn',
-                        'Kuri Recalc',
-                        `"${ind.kuriPlotTitle || ind.type}" recalculated but data is empty — script may not have a matching plot.`
-                    );
-                    return;
-                }
-                const allNull = dataKeys.every((k) => {
-                    const arr = (ind.data as any)[k];
-                    return (
-                        !Array.isArray(arr) ||
-                        arr.length === 0 ||
-                        arr.every((v: any) => v === null || v === undefined)
-                    );
-                });
-                if (allNull) {
-                    addConsoleLog(
-                        'warn',
-                        'Kuri Recalc',
-                        `"${ind.kuriPlotTitle || ind.type}" recalculated but all ${dataKeys.length} series contain only null values — the formula may need more candles or has a logic issue.`,
-                        `Series: [${dataKeys.join(', ')}], Candles: ${data.length}`
-                    );
-                } else {
-                    const totalPoints = dataKeys.reduce((sum, k) => {
-                        const arr = (ind.data as any)[k];
-                        return (
-                            sum +
-                            (Array.isArray(arr)
-                                ? arr.filter((v: any) => v !== null && v !== undefined).length
-                                : 0)
-                        );
-                    }, 0);
-                    addConsoleLog(
-                        'info',
-                        'Kuri Recalc',
-                        `"${ind.kuriPlotTitle || ind.type}" recalculated — ${totalPoints} valid data points across ${dataKeys.length} series`
-                    );
-                }
-            });
-
-            setAllActiveIndicators((prev) => {
-                const updatedMap = new Map<string, Indicator>();
-                updatedIndicators.forEach((u) => updatedMap.set(u.id, u));
-
-                return prev.map((ind) => updatedMap.get(ind.id) || ind);
-            });
-        };
-
-        // Debounce recalculation to avoid excessive re-execution on rapid data updates
-        const timeoutId = setTimeout(recalculate, 300);
         return () => {
             cancelled = true;
-            clearTimeout(timeoutId);
         };
-    }, [data.length, indicatorsLoaded]); // Trigger on new candles, not every tick update
+    }, [data.length, lastClose, indicatorsLoaded]);
 
     // Debounce indicator saves to database
-    useEffect(() => {
-        if (!indicatorsLoaded) return; // Don't save during initial load
 
-        const timeoutId = setTimeout(async () => {
-            // Filter out strategy indicators (they're managed by strategy visibility)
-            const manualIndicators = allActiveIndicators.filter(
-                (ind) => !ind.id.startsWith('strategy_')
-            );
+    // Overlay detection: driven entirely by the kuriOverlay flag set from the
+    // indicator() declaration in the .kuri script (overlay=true/false).
+    const isOverlayIndicator = useCallback((i: Indicator) => i.kuriOverlay === true, []);
 
-            // Note: This is a simplified approach - ideally track individual changes
-            // For now, we rely on handlers below to save individual changes
-        }, 1000);
-
-        return () => clearTimeout(timeoutId);
-    }, [allActiveIndicators, indicatorsLoaded, data]);
-
-    // Overlay indicators render on main chart (price-based)
-    // Panel indicators render in separate panels (oscillators, volume, etc.)
-    // Shared overlay type list — single source of truth
-    const OVERLAY_TYPES = useMemo(
-        () => [
-            // Moving Averages (original + new)
-            'MA',
-            'SMA',
-            'EMA',
-            'WMA',
-            'VWMA',
-            'HMA',
-            'MA Ribbon',
-            'DEMA',
-            'TEMA',
-            'ALMA',
-            'KAMA',
-            'SMMA',
-            'ZLEMA',
-            'RMA',
-            'SWMA',
-            'LINREG',
-            // Volatility / Channels
-            'BB',
-            'Bollinger Bands',
-            'BOLLINGER_BANDS',
-            'SuperTrend',
-            'DONCHIAN',
-            'DC',
-            'Donchian Channels',
-            'ICHIMOKU',
-            'Ichimoku',
-            'Ichimoku Cloud',
-            'KELTNER',
-            'KC',
-            'Keltner Channels',
-            // Price overlays
-            'VWAP',
-            'SAR',
-            'ADR',
-            // Custom Kuri scripts (overlay types)
-            'KURI_LINE',
-            'KURI_AREA',
-            'KURI_BAND',
-            'KURI_HISTOGRAM',
-            'KURI_COLUMNS',
-            'KURI_MARKERS',
-        ],
-        []
+    // Timeframe visibility filter — maps activeTimeframe to visibility group key
+    const isVisibleOnTimeframe = useCallback(
+        (i: Indicator): boolean => {
+            const s = i.settings as any;
+            const tf = activeTimeframe;
+            // Map timeframe string to visibility group key
+            let groupKey: string;
+            if (/^\d+S$/i.test(tf)) groupKey = 'seconds';
+            else if (/^\d+$/.test(tf) || /^\d+m$/i.test(tf)) groupKey = 'minutes';
+            else if (/^\d+h$/i.test(tf)) groupKey = 'hours';
+            else if (/^\d+D$/i.test(tf)) groupKey = 'days';
+            else if (/^\d+W$/i.test(tf)) groupKey = 'weeks';
+            else if (/^\d+M$/i.test(tf)) groupKey = 'months';
+            else groupKey = 'minutes'; // fallback
+            // Check if vis_<group> is explicitly set to false
+            return s[`vis_${groupKey}`] !== false;
+        },
+        [activeTimeframe]
     );
 
     const overlayIndicators = useMemo(() => {
-        return allActiveIndicators.filter((i) => {
-            // Kuri indicators: use the kuriOverlay flag if set
-            if (i.kuriOverlay !== undefined) return i.kuriOverlay;
-            return OVERLAY_TYPES.includes(i.type);
-        });
-    }, [allActiveIndicators, OVERLAY_TYPES]);
+        return allActiveIndicators.filter((i) => isOverlayIndicator(i) && isVisibleOnTimeframe(i));
+    }, [allActiveIndicators, isOverlayIndicator, isVisibleOnTimeframe]);
 
     const panelIndicators = useMemo(() => {
-        return allActiveIndicators.filter((i) => {
-            if (i.kuriOverlay !== undefined) return !i.kuriOverlay;
-            return !OVERLAY_TYPES.includes(i.type);
-        });
-    }, [allActiveIndicators, OVERLAY_TYPES]);
+        return allActiveIndicators.filter((i) => !isOverlayIndicator(i) && isVisibleOnTimeframe(i));
+    }, [allActiveIndicators, isOverlayIndicator, isVisibleOnTimeframe]);
 
     // Diagnose indicator data issues (runs once per indicator change, not on every render)
     useEffect(() => {
@@ -1180,12 +1121,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             if (dataKeys.length === 0) {
                 // Skip empty-data warning for Kuri types — they always load with data: {} from DB
                 // and will be recalculated by the Kuri recalc effect which has its own diagnostics
-                if (ind.type.startsWith('KURI_') && ind.kuriScript) return;
+                if (ind.type.startsWith('KURI_') && false /* removed kuriScript */) return;
                 loggedIndicatorWarnings.current.add(warnKey);
                 addConsoleLog(
                     'warn',
                     'Diagnostics',
-                    `"${ind.kuriPlotTitle || ind.type}" has empty data object — no series to plot.`,
+                    `"${ind.type || ind.type}" has empty data object — no series to plot.`,
                     `ID: ${ind.id}, Type: ${ind.type}`
                 );
                 return;
@@ -1200,7 +1141,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 addConsoleLog(
                     'warn',
                     'Diagnostics',
-                    `"${ind.kuriPlotTitle || ind.type}" has data keys [${dataKeys.join(', ')}] but all values are null — line will not be visible.`,
+                    `"${ind.type || ind.type}" has data keys [${dataKeys.join(', ')}] but all values are null — line will not be visible.`,
                     `This usually means: not enough candles loaded for the indicator period, or the formula returned null for all bars.`
                 );
             }
@@ -1297,7 +1238,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setDrawings(newState.drawings);
         setAllActiveIndicators(newState.indicators);
         setView(newState.view);
-        setPriceRange(newState.priceRange);
+        setPriceRange(newState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(newState.isAutoScaling);
         setChartType(newState.chartType);
     };
@@ -1320,7 +1261,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setDrawings(previousState.drawings);
         setAllActiveIndicators(previousState.indicators);
         setView(previousState.view);
-        setPriceRange(previousState.priceRange);
+        setPriceRange(previousState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(previousState.isAutoScaling);
         setChartType(previousState.chartType);
     };
@@ -1343,7 +1284,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setDrawings(nextState.drawings);
         setAllActiveIndicators(nextState.indicators);
         setView(nextState.view);
-        setPriceRange(nextState.priceRange);
+        setPriceRange(nextState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(nextState.isAutoScaling);
         setChartType(nextState.chartType);
     };
@@ -1407,6 +1348,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
     const handleAddIndicator = async (type: IndicatorType) => {
         commitCurrentState(); // Save state before adding indicator
+
         const newIndicator: Indicator = {
             id: `ind${Date.now()}`,
             type,
@@ -1414,7 +1356,111 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             data: {},
             isVisible: true,
         };
-        newIndicator.data = calculateIndicatorData(newIndicator, data);
+
+        // Run Kuri engine on the .kuri source to extract inputDefs, plots, hlines
+        const registryEntry = findRegistryEntry(type);
+        if (registryEntry?.kuriSource && data.length > 0) {
+            try {
+                const bridge = getKuriBridge();
+                const result = await bridge.run(registryEntry.kuriSource, data);
+                const defs = result.inputDefs || [];
+                const plots = result.plots || [];
+                if (defs.length > 0 || plots.length > 0) {
+                    newIndicator.kuriSource = registryEntry.kuriSource;
+                    newIndicator.kuriTitle = result.indicator?.title || '';
+                    newIndicator.kuriOverlay = result.indicator?.overlay ?? false;
+                    newIndicator.kuriInputDefs = defs;
+                    // Deduplicate plots
+                    const seenPlots = new Set<string>();
+                    newIndicator.kuriPlots = plots
+                        .filter((p: any) => {
+                            const key = p.title || p.id;
+                            if (seenPlots.has(key)) return false;
+                            seenPlots.add(key);
+                            return true;
+                        })
+                        .map((p: any) => ({
+                            title: p.title || 'Plot',
+                            color: p.color || '#2962FF',
+                            colors: p.colors || null,
+                            linewidth: p.linewidth || 1,
+                            linewidths: p.linewidths || null,
+                            style: p.style || 'line',
+                            kind: p.kind || 'plot',
+                            display: p.display || undefined,
+                        }));
+                    newIndicator.kuriHlines = (result.hlines || []).map((h: any) => ({
+                        price: h.price,
+                        title: h.title || '',
+                        color: h.color || '#787B86',
+                        editable: h.editable !== false,
+                    }));
+                    newIndicator.kuriDrawings = extractKuriDrawings(result);
+                    newIndicator.kuriBgcolors = (result as any).bgcolors || [];
+                    newIndicator.kuriFills = ((result as any).fills || []).map((f: any) => ({
+                        plot1: f.plot1?.title || '',
+                        plot2: f.plot2?.title || '',
+                        color: f.color || 'rgba(33,150,243,0.1)',
+                    }));
+
+                    // Sync Kuri input defaults into settings
+                    // Write Kuri input defaults under title keys + legacy keys
+                    for (const def of defs) {
+                        // Source inputs: defval is the data array, but settings need the
+                        // source name string (e.g. "close") for the dropdown and engine override
+                        if (def.type === 'source') {
+                            (newIndicator.settings as any)[def.title] =
+                                (newIndicator.settings as any)[def.title] ?? 'close';
+                            continue;
+                        }
+                        (newIndicator.settings as any)[def.title] = def.defval;
+                        // Also write legacy key for compatibility
+                        const legacyKey = Object.entries(LEGACY_TO_TITLE).find(([, titles]) =>
+                            titles.includes(def.title)
+                        )?.[0];
+                        if (legacyKey) {
+                            (newIndicator.settings as any)[legacyKey] = def.defval;
+                        }
+                    }
+
+                    // MA Ribbon: construct ribbonPeriods from individual MA length inputs
+                    if (type === 'MA Ribbon') {
+                        const ribbonLengths: number[] = [];
+                        for (const def of defs) {
+                            if (def.title.match(/MA #\d+ Length/)) {
+                                ribbonLengths.push(def.defval);
+                            }
+                        }
+                        if (ribbonLengths.length > 0) {
+                            (newIndicator.settings as any).ribbonPeriods = ribbonLengths.join(',');
+                        }
+                    }
+
+                    // Write initial plot/hline styles into settings (single source of truth)
+                    newIndicator.kuriPlots.forEach((p, i) => {
+                        (newIndicator.settings as any)[`plot_${i}_color`] = p.color;
+                        (newIndicator.settings as any)[`plot_${i}_linewidth`] = p.linewidth;
+                        (newIndicator.settings as any)[`plot_${i}_visible`] = true;
+                    });
+                    if (newIndicator.kuriPlots.length > 0) {
+                        (newIndicator.settings as any).color = newIndicator.kuriPlots[0].color;
+                    }
+
+                    if (newIndicator.kuriHlines) {
+                        newIndicator.kuriHlines.forEach((h, i) => {
+                            (newIndicator.settings as any)[`hline_${i}_color`] = h.color;
+                            (newIndicator.settings as any)[`hline_${i}_linestyle`] = 'solid';
+                            (newIndicator.settings as any)[`hline_${i}_visible`] = true;
+                        });
+                    }
+
+                    // Use Kuri engine output for chart data
+                    newIndicator.data = bridge.toIndicatorData(result);
+                }
+            } catch (e) {
+                console.error(`[Chart] Kuri engine failed for ${type}:`, e);
+            }
+        }
 
         // Log indicator diagnostics
         const dataKeys = Object.keys(newIndicator.data);
@@ -1426,7 +1472,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             addConsoleLog(
                 'info',
                 'Indicator',
-                `Added "${type}" — ${dataKeys.length} series, ${data.length} candles`
+                `Added "${type}" — ${dataKeys.length} series, ${data.length} candles${newIndicator.kuriInputDefs ? ` (${newIndicator.kuriInputDefs.length} inputs from Kuri)` : ''}`
             );
         } else {
             addConsoleLog(
@@ -1446,6 +1492,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             indicators: [...prev.indicators, newIndicator],
         }));
 
+        // Auto-open settings if any input has confirm=true (TradingView behavior)
+        const hasConfirmInput = (newIndicator.kuriInputDefs || []).some((def: any) => def.confirm);
+        if (hasConfirmInput) {
+            setIndicatorToEdit(newIndicator);
+        }
+
         // Save to database (don't block UI)
         const saved = await indicatorService.saveIndicator(
             props.symbol,
@@ -1463,336 +1515,100 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
     const handleAddCustomIndicator = useCallback(
         async (script: Strategy) => {
-            // Handle Kuri scripts — execute and extract plot series
-            if (script.kuriScript) {
-                try {
-                    const context = {
-                        open: data.map((c) => c.open),
-                        high: data.map((c) => c.high),
-                        low: data.map((c) => c.low),
-                        close: data.map((c) => c.close),
-                        volume: data.map((c) => c.volume || 0),
-                        time: data.map((c) => c.time * 1000), // Kuri expects ms
-                    };
+            const scriptCode =
+                script.scriptSource ||
+                script.kuriScript ||
+                script.content?.code ||
+                script.content?.scriptSource;
 
-                    // Security fetcher for request.security() cross-symbol support
-                    const securityFetcher = async (
-                        symbol: string,
-                        timeframe: string,
-                        limit: number
-                    ) => {
-                        const candles = await getCandles(symbol, timeframe, limit);
-                        return candles.map((c) => ({
-                            time: c.time * 1000,
-                            open: c.open,
-                            high: c.high,
-                            low: c.low,
-                            close: c.close,
-                            volume: c.volume || 0,
-                        }));
-                    };
-
-                    const result = await Kuri.executeWithVMAsync(script.kuriScript, context, {
-                        securityFetcher,
-                    });
-                    const plots = result.plots || [];
-                    const inputDefs = result.inputDefinitions || [];
-
-                    // Log Kuri execution diagnostics
-                    if (plots.length === 0) {
-                        addConsoleLog(
-                            'warn',
-                            'Kuri Script',
-                            `Script "${script.name}" executed successfully but produced 0 plots — nothing to display.`,
-                            'Make sure the script uses plot() or similar functions to output data.'
-                        );
-                    } else {
-                        plots.forEach((plot: any, idx: number) => {
-                            const plotData = plot.data;
-                            const plotTitle = plot.title || `plot_${idx}`;
-                            if (!plotData) {
-                                addConsoleLog(
-                                    'warn',
-                                    'Kuri Script',
-                                    `Plot "${plotTitle}" in "${script.name}" has no data property.`
-                                );
-                            } else if (Array.isArray(plotData)) {
-                                const nonNullCount = plotData.filter(
-                                    (v: any) => v !== null && v !== undefined
-                                ).length;
-                                if (nonNullCount === 0) {
-                                    addConsoleLog(
-                                        'warn',
-                                        'Kuri Script',
-                                        `Plot "${plotTitle}" in "${script.name}" has ${plotData.length} values but all are null — line will be invisible.`,
-                                        'Check that the indicator formula produces valid numbers for the given candle data.'
-                                    );
-                                } else {
-                                    addConsoleLog(
-                                        'info',
-                                        'Kuri Script',
-                                        `Plot "${plotTitle}": ${nonNullCount}/${plotData.length} valid data points, type="${plot.type || 'line'}"`
-                                    );
-                                }
-                            } else if (typeof plotData === 'object') {
-                                const keys = Object.keys(plotData);
-                                addConsoleLog(
-                                    'info',
-                                    'Kuri Script',
-                                    `Plot "${plotTitle}": band/multi with keys [${keys.join(', ')}], type="${plot.type || 'line'}"`
-                                );
-                            }
-                        });
-                    }
-
-                    // Extract and convert Kuri drawings (labels, lines, boxes)
-                    const kuriDrawings = convertKuriDrawings(result.drawings, data);
-                    // Extract Kuri tables for HTML overlay
-                    const tables = getKuriTables(result.drawings);
-                    if (tables.length > 0) setKuriTables(tables);
-
-                    // Determine overlay from script declaration (parse from script text)
-                    const overlayMatch = script.kuriScript?.match(/overlay\s*=\s*(true|false)/);
-                    const scriptIsOverlay = overlayMatch ? overlayMatch[1] === 'true' : true;
-
-                    // Map Kuri plot types to chart indicator types
-                    const mapPlotType = (plotType: string): IndicatorType => {
-                        switch (plotType) {
-                            case 'histogram':
-                            case 'columns':
-                                return 'KURI_HISTOGRAM';
-                            case 'area':
-                                return 'KURI_AREA';
-                            case 'band':
-                                return 'KURI_BAND';
-                            case 'markers':
-                            case 'marker':
-                            case 'shapes':
-                                return 'KURI_MARKERS';
-                            default:
-                                return 'KURI_LINE';
-                        }
-                    };
-
-                    // Determine if a plot type should be in a separate panel
-                    const isOverlayPlot = (plotType: string): boolean => {
-                        if (!scriptIsOverlay) return false; // indicator(overlay=false) → all panels
-                        // Histograms/columns naturally go to panels
-                        if (plotType === 'histogram' || plotType === 'columns') return false;
-                        return true;
-                    };
-
-                    // Group overlay line plots from the same script into a single multi-series indicator
-                    const validPlots = plots.filter(
-                        (plot: any) =>
-                            Array.isArray(plot.data) || (plot.data && typeof plot.data === 'object')
-                    );
-                    const overlayLinePlots = validPlots.filter((plot: any) => {
-                        const pt = plot.type || 'line';
-                        return pt === 'line' && isOverlayPlot(pt);
-                    });
-                    const otherPlots = validPlots.filter((plot: any) => {
-                        const pt = plot.type || 'line';
-                        return !(pt === 'line' && isOverlayPlot(pt));
-                    });
-
-                    const kuriIndicators: Indicator[] = [];
-
-                    // Create a single grouped indicator for all overlay line plots
-                    if (overlayLinePlots.length > 0) {
-                        const groupedData: Record<string, (number | null)[]> = {};
-                        const seriesColors: Record<string, string> = {};
-                        overlayLinePlots.forEach((plot: any, idx: number) => {
-                            const key = plot.title || `line_${idx}`;
-                            groupedData[key] = Array.isArray(plot.data) ? plot.data : [];
-                            seriesColors[key] = plot.config?.color || '#FF9800';
-                        });
-                        // Use first plot's color as the primary indicator color
-                        const primaryColor = overlayLinePlots[0]?.config?.color || '#FF9800';
-                        kuriIndicators.push({
-                            id: `kuri_${script.id}_grouped_${Date.now()}`,
-                            type: 'KURI_LINE' as IndicatorType,
-                            settings: {
-                                color: primaryColor,
-                                period: 1,
-                                seriesColors,
-                                ...(overlayLinePlots[0]?.config?.lineWidth && {
-                                    lineWidth: overlayLinePlots[0].config.lineWidth,
-                                }),
-                            },
-                            data: groupedData,
-                            isVisible: true,
-                            kuriScript: script.kuriScript,
-                            kuriPlotType: 'line',
-                            kuriOverlay: true,
-                            kuriInputDefs: inputDefs.map((d: any) => ({
-                                id: d.id,
-                                type: d.type,
-                                title: d.title,
-                                defval: d.defval,
-                                minval: d.minval,
-                                maxval: d.maxval,
-                                step: d.step,
-                                options: d.options,
-                                tooltip: d.tooltip,
-                                group: d.group,
-                            })),
-                            kuriPlotTitle: script.name || overlayLinePlots[0]?.title || 'Kuri',
-                        });
-                    }
-
-                    // Create individual indicators for non-line / non-overlay plots
-                    otherPlots.forEach((plot: any, idx: number) => {
-                        const plotType = plot.type || 'line';
-                        const chartType = mapPlotType(plotType);
-
-                        let plotData: Record<string, (number | null)[]>;
-                        if (plotType === 'band' && plot.data && !Array.isArray(plot.data)) {
-                            plotData = {
-                                upper: plot.data.upper || [],
-                                lower: plot.data.lower || [],
-                                middle: plot.data.middle || plot.data.basis || [],
-                            };
-                        } else {
-                            plotData = { main: Array.isArray(plot.data) ? plot.data : [] };
-                        }
-
-                        kuriIndicators.push({
-                            id: `kuri_${script.id}_plot${idx}_${Date.now()}`,
-                            type: chartType,
-                            settings: {
-                                color: plot.config?.color || '#FF9800',
-                                period: 1,
-                                ...(plot.config?.fillColor && { fillColor: plot.config.fillColor }),
-                                ...(plot.config?.positiveColor && {
-                                    histogramUpColor: plot.config.positiveColor,
-                                }),
-                                ...(plot.config?.negativeColor && {
-                                    histogramDownColor: plot.config.negativeColor,
-                                }),
-                                ...(plot.config?.upperColor && {
-                                    upperColor: plot.config.upperColor,
-                                }),
-                                ...(plot.config?.lowerColor && {
-                                    lowerColor: plot.config.lowerColor,
-                                }),
-                                ...(plot.config?.lineWidth && { lineWidth: plot.config.lineWidth }),
-                            },
-                            data: plotData,
-                            isVisible: true,
-                            kuriScript: script.kuriScript,
-                            kuriPlotType: plotType,
-                            kuriOverlay: isOverlayPlot(plotType),
-                            kuriInputDefs: inputDefs.map((d: any) => ({
-                                id: d.id,
-                                type: d.type,
-                                title: d.title,
-                                defval: d.defval,
-                                minval: d.minval,
-                                maxval: d.maxval,
-                                step: d.step,
-                                options: d.options,
-                                tooltip: d.tooltip,
-                                group: d.group,
-                            })),
-                            kuriPlotTitle: plot.title || script.name,
-                        });
-                    });
-
-                    if (kuriIndicators.length > 0 || kuriDrawings.length > 0) {
-                        addConsoleLog(
-                            'info',
-                            'Kuri Script',
-                            `Executed "${script.name}" — ${kuriIndicators.length} plot(s), ${kuriDrawings.length} drawing(s)`
-                        );
-                        kuriIndicators.forEach((ind) => {
-                            const dataKeys = Object.keys(ind.data);
-                            const hasData = dataKeys.some((k) => {
-                                const arr = (ind.data as any)[k];
-                                return (
-                                    Array.isArray(arr) &&
-                                    arr.some((v: any) => v !== null && v !== undefined)
-                                );
-                            });
-                            if (!hasData) {
-                                addConsoleLog(
-                                    'warn',
-                                    'Kuri Script',
-                                    `Plot "${ind.kuriPlotTitle || ind.type}" has no data points — line will not be visible`,
-                                    `Type: ${ind.kuriPlotType || ind.type}`
-                                );
-                            }
-                        });
-                        kuriIndicators.forEach(feedIndicatorToAlertEngine);
-                        commitStateAndApplyChanges((prev) => ({
-                            ...prev,
-                            indicators: [...prev.indicators, ...kuriIndicators],
-                            // Merge Kuri drawings: remove old kuri drawings, add new ones
-                            drawings: [
-                                ...prev.drawings.filter((d: Drawing) => !d.id.startsWith('kuri_')),
-                                ...kuriDrawings,
-                            ],
-                        }));
-
-                        // Persist each Kuri indicator to database (don't block UI)
-                        kuriIndicators.forEach(async (ind) => {
-                            const saved = await indicatorService.saveIndicator(
-                                props.symbol,
-                                props.activeTimeframe,
-                                ind
-                            );
-                            if (saved) {
-                                // Update with DB-generated ID
-                                setAllActiveIndicators((prev) =>
-                                    prev.map((i) => (i.id === ind.id ? { ...i, id: saved.id } : i))
-                                );
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.error('Failed to execute Kuri indicator script:', e);
-                    addConsoleLog(
-                        'error',
-                        'Kuri Script',
-                        `Failed to execute script "${script.name}": ${e instanceof Error ? e.message : String(e)}`
+            if (!scriptCode) {
+                console.warn('[Chart] Custom script has no Kuri source:', script.name);
+                if (onChartError) {
+                    onChartError(
+                        toChartErrorFromString(
+                            `Custom indicator "${script.name || 'Untitled'}" has no script source code`,
+                            'Custom Indicator'
+                        )
                     );
                 }
                 return;
             }
 
-            // Handle traditional JSON indicator configs
-            if (!script.indicators || script.indicators.length === 0) return;
-            const newIndicators: Indicator[] = script.indicators.map((indData: any) => {
-                const type = indData.type as IndicatorType;
-                const settings = { ...getDefaultIndicatorSettings(type), ...indData.parameters };
-                const newInd: Indicator = {
-                    id: `ind${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                    type,
-                    settings,
-                    data: {},
+            try {
+                const bridge = getKuriBridge();
+                const result = await bridge.run(scriptCode, data);
+
+                const compileErrors = result.errors.filter((e: any) => e.phase !== 'runtime');
+                if (compileErrors.length > 0) {
+                    const errorMsg = compileErrors
+                        .map((e: any) => `Line ${e.line || '?'}: ${e.message}`)
+                        .join('\n');
+                    console.error('[Chart] Kuri compile errors in custom script:', compileErrors);
+                    if (onChartError) {
+                        onChartError(
+                            toChartErrorFromString(
+                                `Custom indicator "${script.name || 'Untitled'}" failed to compile:\n${errorMsg}`,
+                                'Custom Indicator'
+                            )
+                        );
+                    }
+                    return;
+                }
+
+                // Determine overlay from result.indicator or from plots
+                const isOverlay =
+                    result.indicator?.overlay ??
+                    (result.plots.length > 0 &&
+                        result.plots.every((p: any) => p.overlay !== false));
+                const newIndicator: Indicator = {
+                    id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    type: 'KURI' as IndicatorType,
+                    settings: {},
+                    data: bridge.toIndicatorData(result),
                     isVisible: true,
+                    kuriSource: scriptCode,
+                    kuriTitle: result.indicator?.title || script.name || 'Custom Indicator',
+                    kuriOverlay: isOverlay,
+                    kuriInputDefs: result.inputDefs,
+                    kuriPlots: result.plots.map((p: any) => ({
+                        title: p.title || 'Plot',
+                        color: p.color || '#2962FF',
+                        colors: p.colors || null,
+                        linewidth: p.linewidth || 1,
+                        style: p.style || 'line',
+                        kind: p.kind || 'plot',
+                        overlay: p.overlay ?? isOverlay,
+                    })),
+                    kuriHlines: result.hlines,
+                    kuriDrawings: extractKuriDrawings(result),
+                    kuriBgcolors: (result as any).bgcolors || [],
+                    kuriFills: ((result as any).fills || []).map((f: any) => ({
+                        plot1: f.plot1?.title || '',
+                        plot2: f.plot2?.title || '',
+                        color: f.color || 'rgba(33,150,243,0.1)',
+                    })),
                 };
-                return newInd;
-            });
 
-            newIndicators.forEach(feedIndicatorToAlertEngine);
-            commitStateAndApplyChanges((prev) => ({
-                ...prev,
-                indicators: [...prev.indicators, ...newIndicators],
-            }));
+                feedIndicatorToAlertEngine(newIndicator);
+                commitStateAndApplyChanges((prev) => ({
+                    ...prev,
+                    indicators: [...prev.indicators, newIndicator],
+                }));
 
-            newIndicators.forEach((ind) =>
-                indicatorService.saveIndicator(props.symbol, props.activeTimeframe, ind)
-            );
+                indicatorService.saveIndicator(props.symbol, props.activeTimeframe, newIndicator);
+            } catch (err: any) {
+                console.error('[Chart] Failed to run custom Kuri script:', err);
+                if (onChartError) {
+                    onChartError(
+                        toChartErrorFromString(
+                            `Custom indicator "${script.name || 'Untitled'}" error: ${err.message || String(err)}`,
+                            'Custom Indicator'
+                        )
+                    );
+                }
+            }
         },
-        [
-            data,
-            props.symbol,
-            props.activeTimeframe,
-            setKuriTables,
-            commitStateAndApplyChanges,
-            indicatorService,
-        ]
+        [data, props.symbol, props.activeTimeframe, commitStateAndApplyChanges, indicatorService]
     );
 
     // Auto-add script from Strategy Studio when navigated with ?addScript=<id>
@@ -1808,13 +1624,25 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         // Don't clear if script not found yet — customScripts may still be loading
     }, [autoAddScriptId, customScripts, data, handleAddCustomIndicator, onAutoAddComplete]);
 
-    const handleCreateIndicatorAlert = (indicator: Indicator) => {
-        setAlertModalInfo({
-            visible: true,
-            drawing: { type: 'Horizontal Line', price: 0 } as Drawing, // Dummy drawing to satisfy types if needed, or update Modal types
-            indicatorId: indicator.id,
-            indicatorType: indicator.type,
-        });
+    const handleCreateIndicatorAlert = async (indicator: any) => {
+        const { getAlertConditions } = await import('../../data/indicatorAlertConditions');
+        const conditions = getAlertConditions(indicator.type);
+        const firstCond = conditions[0];
+        const params: Record<string, any> = {};
+        firstCond?.parameters.forEach((p: any) => (params[p.name] = p.default));
+
+        const newAlert = await createAlertWithDefaults(
+            symbol,
+            undefined,
+            indicator.id,
+            indicator.type,
+            firstCond?.id,
+            params
+        );
+        if (newAlert) {
+            setAlerts((prev) => [...prev, newAlert]);
+            setToastAlert(newAlert);
+        }
     };
 
     const handleRemoveIndicator = async (id: string) => {
@@ -1845,7 +1673,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
         // Save to database (don't block UI)
         // Save to database (don't block UI)
-        if (!id.startsWith('ind') && !id.startsWith('strategy_')) {
+        if (!id.startsWith('ind')) {
             const indicator = allActiveIndicators.find((i) => i.id === id);
             if (indicator) {
                 await indicatorService.toggleIndicatorVisibility(id, !indicator.isVisible);
@@ -1860,119 +1688,108 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         }));
     };
 
+    // Debounced DB save ref — prevents excessive writes during live settings updates
+    const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
     const handleUpdateIndicator = async (id: string, newSettings: IndicatorSettings) => {
-        // Optimistic update
+        // Find the indicator to determine if a Kuri re-run is needed
+        const targetInd = allActiveIndicators.find((i) => i.id === id);
+        let kuriResult: {
+            data: ReturnType<KuriBridge['toIndicatorData']>;
+            kuriPlots: any[];
+            kuriHlines: any[];
+            kuriDrawings?: Indicator['kuriDrawings'];
+            kuriBgcolors: any[];
+            kuriFills: any[];
+        } | null = null;
+
+        // Check if any INPUT values changed (not just style keys like plot_N_color)
+        // Style-only changes don't need an engine re-run — they're purely cosmetic
+        const isStyleOnlyKey = (k: string) =>
+            /^plot_\d+_(color|linewidth|linestyle|plotstyle|visible|barcolor_\d+)$/.test(k) ||
+            /^hline_\d+_(color|linestyle|visible)$/.test(k) ||
+            /^fill_\d+_(color|visible)$/.test(k) ||
+            /^bgcolor_\d+_visible$/.test(k) ||
+            /^vis_/.test(k);
+        const needsRerun =
+            targetInd?.kuriInputDefs?.some((def: any) => {
+                const oldVal = (targetInd.settings as any)[def.title];
+                const newVal = (newSettings as any)[def.title];
+                return oldVal !== newVal;
+            }) ?? false;
+
+        // If indicator has Kuri source AND input values changed, re-run engine
+        if (needsRerun && targetInd?.kuriSource && data.length > 0) {
+            try {
+                const bridge = getKuriBridge();
+                // Build inputOverrides keyed by the engine's internal key
+                // (title lowercased, spaces → underscores), which is what
+                // handleInputCall uses to store/retrieve override values.
+                const overrides: Record<string, any> = {};
+                (targetInd.kuriInputDefs || []).forEach((def: any) => {
+                    const engineKey = def.title.toLowerCase().replace(/\s+/g, '_');
+                    const settingKey = def.title;
+                    const val = newSettings[settingKey as keyof IndicatorSettings];
+                    if (val !== undefined) {
+                        overrides[engineKey] = val;
+                    }
+                });
+                const result = await bridge.run(targetInd.kuriSource, data, overrides);
+                const defs = result.inputDefs || [];
+                const plots = result.plots || [];
+                if (defs.length > 0 || plots.length > 0) {
+                    // Update plot/hline metadata and data from Kuri
+                    const seenPlots = new Set<string>();
+                    kuriResult = {
+                        data: bridge.toIndicatorData(result),
+                        kuriPlots: plots
+                            .filter((p: any) => {
+                                const key = p.title || p.id;
+                                if (seenPlots.has(key)) return false;
+                                seenPlots.add(key);
+                                return true;
+                            })
+                            .map((p: any) => ({
+                                title: p.title || 'Plot',
+                                color: p.color || '#2962FF',
+                                colors: p.colors || null,
+                                linewidth: p.linewidth || 1,
+                                linewidths: p.linewidths || null,
+                                style: p.style || 'line',
+                                kind: p.kind || 'plot',
+                            })),
+                        kuriHlines: (result.hlines || []).map((h: any) => ({
+                            price: h.price,
+                            title: h.title || '',
+                            color: h.color || '#787B86',
+                            editable: h.editable !== false,
+                        })),
+                        kuriDrawings: extractKuriDrawings(result),
+                        kuriBgcolors: (result as any).bgcolors || [],
+                        kuriFills: ((result as any).fills || []).map((f: any) => ({
+                            plot1: f.plot1?.title || '',
+                            plot2: f.plot2?.title || '',
+                            color: f.color || 'rgba(33,150,243,0.1)',
+                        })),
+                    };
+                }
+            } catch (e) {
+                console.warn(`[Chart] Kuri re-run failed:`, e);
+            }
+        }
+
+        // Apply the update (now synchronous since Kuri work is done)
         commitStateAndApplyChanges((prev) => {
             const indicators = prev.indicators.map((i) => {
                 if (i.id === id) {
                     const updated = { ...i, settings: newSettings };
-
-                    // Re-execute Kuri script when inputs change
-                    if (
-                        updated.type.startsWith('KURI_') &&
-                        updated.kuriScript &&
-                        'kuriInputs' in newSettings
-                    ) {
-                        try {
-                            const ctx = {
-                                open: data.map((c) => c.open),
-                                high: data.map((c) => c.high),
-                                low: data.map((c) => c.low),
-                                close: data.map((c) => c.close),
-                                volume: data.map((c) => c.volume || 0),
-                                time: data.map((c) => c.time * 1000),
-                            };
-                            const result = Kuri.executeWithVM(updated.kuriScript, ctx, {
-                                inputOverrides: newSettings.kuriInputs || undefined,
-                            });
-                            const plots = (result.plots || []).filter(
-                                (p: any) =>
-                                    Array.isArray(p.data) || (p.data && typeof p.data === 'object')
-                            );
-
-                            // Check if this is a grouped multi-series indicator
-                            const isGrouped = !!(updated.settings as any)?.seriesColors;
-                            if (isGrouped) {
-                                // Rebuild grouped data structure from all line plots
-                                const linePlots = plots.filter(
-                                    (p: any) => (p.type || 'line') === 'line'
-                                );
-                                if (linePlots.length > 0) {
-                                    const groupedData: Record<string, (number | null)[]> = {};
-                                    const newSeriesColors: Record<string, string> = {};
-                                    const oldSeriesColors =
-                                        (updated.settings as any)?.seriesColors || {};
-                                    linePlots.forEach((plot: any, idx: number) => {
-                                        const key = plot.title || `line_${idx}`;
-                                        groupedData[key] = Array.isArray(plot.data)
-                                            ? plot.data
-                                            : [];
-                                        newSeriesColors[key] =
-                                            plot.config?.color || oldSeriesColors[key] || '#FF9800';
-                                    });
-                                    updated.data = groupedData;
-                                    updated.settings = {
-                                        ...updated.settings,
-                                        seriesColors: newSeriesColors,
-                                    };
-                                }
-                            } else {
-                                // Single-series: match by title or index
-                                let plot = plots.find(
-                                    (p: any) => p.title === updated.kuriPlotTitle
-                                );
-                                if (!plot) {
-                                    const plotIdxMatch = updated.id.match(/plot(\d+)/);
-                                    const plotIdx = plotIdxMatch
-                                        ? parseInt(plotIdxMatch[1], 10)
-                                        : 0;
-                                    plot =
-                                        plots[plotIdx] ||
-                                        plots.find((p: any) => Array.isArray(p.data));
-                                }
-                                if (plot) {
-                                    const plotType = (plot as any).type || 'line';
-                                    if (
-                                        plotType === 'band' &&
-                                        plot.data &&
-                                        !Array.isArray(plot.data)
-                                    ) {
-                                        updated.data = {
-                                            upper: (plot.data as any).upper || [],
-                                            lower: (plot.data as any).lower || [],
-                                            middle:
-                                                (plot.data as any).middle ||
-                                                (plot.data as any).basis ||
-                                                [],
-                                        };
-                                    } else {
-                                        updated.data = {
-                                            main: Array.isArray(plot.data)
-                                                ? (plot.data as (number | null)[])
-                                                : [],
-                                        };
-                                    }
-                                }
-                            }
-                            // Update input definitions in case script structure changed
-                            updated.kuriInputDefs =
-                                result.inputDefinitions || updated.kuriInputDefs;
-
-                            addConsoleLog(
-                                'info',
-                                'Kuri Update',
-                                `Re-executed "${updated.kuriPlotTitle || updated.type}" with updated inputs — ${Object.keys(updated.data).length} series`
-                            );
-                        } catch (e) {
-                            console.error('Failed to re-execute Kuri script:', e);
-                            addConsoleLog(
-                                'error',
-                                'Kuri Update',
-                                `Failed to re-execute script for "${updated.kuriPlotTitle || updated.type}": ${e instanceof Error ? e.message : String(e)}`
-                            );
-                        }
-                    } else if (!updated.type.startsWith('KURI_')) {
-                        updated.data = calculateIndicatorData(updated, data);
+                    if (kuriResult) {
+                        updated.data = kuriResult.data;
+                        updated.kuriPlots = kuriResult.kuriPlots;
+                        updated.kuriHlines = kuriResult.kuriHlines;
+                        updated.kuriDrawings = kuriResult.kuriDrawings;
+                        updated.kuriBgcolors = kuriResult.kuriBgcolors;
+                        updated.kuriFills = kuriResult.kuriFills;
                     }
                     return updated;
                 }
@@ -1981,9 +1798,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             return { ...prev, indicators };
         });
 
-        // Save to database (don't block UI)
+        // Debounced DB save — coalesce rapid live updates into a single write
         if (!id.startsWith('ind')) {
-            await indicatorService.updateIndicator(id, { settings: newSettings });
+            clearTimeout(dbSaveTimerRef.current);
+            dbSaveTimerRef.current = setTimeout(() => {
+                indicatorService.updateIndicator(id, { settings: newSettings });
+            }, 800);
         }
     };
 
@@ -2006,14 +1826,50 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         localStorage.setItem('chartTemplates', JSON.stringify(templates));
         alert('Template saved.');
     };
-    const handleLoadTemplate = (name: string) => {
+    const handleLoadTemplate = async (name: string) => {
         const templates = getChartTemplates();
         if (templates[name]) {
             const { drawings: loadedDrawings, indicators: loadedIndicators } = templates[name];
-            const indicatorsWithData = (loadedIndicators as any[]).map((ind: Indicator) => ({
-                ...ind,
-                data: calculateIndicatorData(ind, data),
-            }));
+            const bridge = getKuriBridge();
+            const indicatorsWithData = await Promise.all(
+                (loadedIndicators as any[]).map(async (ind: Indicator) => {
+                    if (ind.kuriSource && data.length > 0) {
+                        try {
+                            const overrides: Record<string, any> = {};
+                            (ind.kuriInputDefs || []).forEach((def: any) => {
+                                const engineKey = def.title.toLowerCase().replace(/\s+/g, '_');
+                                const val = (ind.settings as any)[def.title];
+                                if (val !== undefined) overrides[engineKey] = val;
+                            });
+                            const result = await bridge.run(ind.kuriSource, data, overrides);
+                            const updatedPlots = (result.plots || []).map((p: any) => ({
+                                title: p.title || 'Plot',
+                                color: p.color || '#2962FF',
+                                colors: p.colors || null,
+                                linewidth: p.linewidth || 1,
+                                linewidths: p.linewidths || null,
+                                style: p.style || 'line',
+                                kind: p.kind || 'plot',
+                            }));
+                            return {
+                                ...ind,
+                                data: bridge.toIndicatorData(result),
+                                kuriPlots: updatedPlots,
+                                kuriDrawings: extractKuriDrawings(result),
+                                kuriBgcolors: (result as any).bgcolors || [],
+                                kuriFills: ((result as any).fills || []).map((f: any) => ({
+                                    plot1: f.plot1?.title || '',
+                                    plot2: f.plot2?.title || '',
+                                    color: f.color || 'rgba(33,150,243,0.1)',
+                                })),
+                            };
+                        } catch {
+                            // Keep existing data on error
+                        }
+                    }
+                    return ind;
+                })
+            );
             commitStateAndApplyChanges((prev) => ({
                 ...prev,
                 drawings: loadedDrawings,
@@ -2974,39 +2830,28 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             // Determine Scale (Min/Max)
             let min = Infinity,
                 max = -Infinity;
-            const isBounded = ['RSI', 'Stochastic', 'MFI', 'CCI', 'ADX'].includes(indicator.type);
+            // KURI type = custom script, never use bounded scaling
+            const isBounded =
+                indicator.type !== 'KURI' &&
+                ['RSI', 'Stochastic', 'Stoch', 'MFI', 'CCI', 'ADX'].includes(indicator.type);
 
-            // Auto-scale based on VISIBLE data for all indicator types
+            // Auto-scale based on VISIBLE data — check ALL data series
+            const allDataKeys = Object.keys(indicator.data);
             visibleData.forEach((_, i) => {
                 const dataIndex = firstIndexToRender + i;
-                const check = (val: any) => {
+                for (const key of allDataKeys) {
+                    const val = indicator.data[key]?.[dataIndex];
                     if (typeof val === 'number' && !isNaN(val)) {
                         min = Math.min(min, val);
                         max = Math.max(max, val);
                     }
-                };
-
-                const mainVal = indicator.data.main?.[dataIndex];
-                check(mainVal);
-
-                if (indicator.type === 'MACD') {
-                    check(indicator.data.macd?.[dataIndex]);
-                    check(indicator.data.signal?.[dataIndex]);
-                    check(indicator.data.histogram?.[dataIndex]);
-                }
-                if (indicator.type === 'Stochastic') {
-                    check(indicator.data.k?.[dataIndex]);
-                    check(indicator.data.d?.[dataIndex]);
-                }
-                if ((indicator.type as string) === 'Bollinger Bands') {
-                    check(indicator.data.upper?.[dataIndex]);
-                    check(indicator.data.lower?.[dataIndex]);
                 }
             });
 
             if (isBounded) {
                 if (
                     indicator.type === 'Stochastic' ||
+                    (indicator.type as string) === 'Stoch' ||
                     indicator.type === 'RSI' ||
                     indicator.type === 'MFI'
                 ) {
@@ -3016,7 +2861,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 } else if (indicator.type === 'CCI') {
                     min = Math.min(min === Infinity ? -100 : min, -100);
                     max = Math.max(max === -Infinity ? 100 : max, 100);
-                } else if (indicator.type === 'ADX') {
+                } else if ((indicator.type as string) === 'ADX') {
                     min = 0;
                     max = 100;
                 } else {
@@ -3084,253 +2929,472 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             };
             ctx.setLineDash(dashPatterns[userLineStyle] || []);
 
-            const drawLine = (dataArr: (number | null)[], color: string) => {
-                ctx.beginPath();
-                ctx.strokeStyle = color;
-                let started = false;
-
-                for (let i = 0; i < view.visibleCandles; i++) {
-                    const dataIndex = Math.floor(view.startIndex) + i;
-                    const val = dataArr[dataIndex];
-                    if (val === null || val === undefined || isNaN(val as number)) {
-                        started = false;
-                        continue;
-                    }
-
-                    const x = indexToX(dataIndex - view.startIndex);
-                    const y = getPanelY(val);
-
-                    if (!started) {
-                        ctx.moveTo(x, y);
-                        started = true;
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.stroke();
-            };
-
-            if (indicator.type === 'MACD') {
-                // Histogram
-                const hist = indicator.data.histogram;
-                if (hist) {
+            const drawLine = (
+                dataArr: (number | null)[],
+                color: string,
+                perBarColors?: (string | null)[] | null,
+                perBarWidths?: (number | null)[] | null
+            ) => {
+                if (perBarColors || perBarWidths) {
+                    // Per-segment rendering (color and/or linewidth vary)
+                    let prevX: number | null = null;
+                    let prevY: number | null = null;
                     for (let i = 0; i < view.visibleCandles; i++) {
                         const dataIndex = Math.floor(view.startIndex) + i;
-                        const val = hist[dataIndex];
-                        if (val === null || val === undefined) continue;
-
+                        const val = dataArr[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) {
+                            prevX = null;
+                            prevY = null;
+                            continue;
+                        }
                         const x = indexToX(dataIndex - view.startIndex);
                         const y = getPanelY(val);
-                        const zeroY = getPanelY(0);
+                        if (prevX !== null && prevY !== null) {
+                            ctx.beginPath();
+                            ctx.strokeStyle = perBarColors?.[dataIndex] ?? color;
+                            ctx.lineWidth = perBarWidths?.[dataIndex] ?? ctx.lineWidth;
+                            ctx.moveTo(prevX, prevY);
+                            ctx.lineTo(x, y);
+                            ctx.stroke();
+                        }
+                        prevX = x;
+                        prevY = y;
+                    }
+                } else {
+                    // Single color — batch into one path for performance
+                    ctx.beginPath();
+                    ctx.strokeStyle = color;
+                    let started = false;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        const val = dataArr[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) {
+                            started = false;
+                            continue;
+                        }
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val);
+                        if (!started) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    ctx.stroke();
+                }
+            };
 
-                        ctx.fillStyle = val >= 0 ? '#26a69a' : '#ef5350';
-                        ctx.globalAlpha = 0.5;
-                        const barWidth = xStep * 0.8;
-                        // Center bar on x
-                        ctx.fillRect(
-                            x - barWidth / 2,
-                            Math.min(y, zeroY),
-                            barWidth,
-                            Math.abs(y - zeroY)
-                        );
+            // Dynamic Kuri-driven rendering — use plot styles from .kuri script
+
+            // Draw bgcolor() bands (per-bar background colors)
+            if (indicator.kuriBgcolors && indicator.kuriBgcolors.length > 0) {
+                indicator.kuriBgcolors.forEach((bg: any, bgIdx: number) => {
+                    if (!bg.data) return;
+                    if ((indicator.settings as any)?.[`bgcolor_${bgIdx}_visible`] === false) return;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        if (dataIndex < 0 || dataIndex >= bg.data.length) continue;
+                        const c = bg.data[dataIndex];
+                        if (!c) continue;
+                        const x = indexToX(dataIndex - view.startIndex) - xStep / 2;
+                        ctx.fillStyle = c;
+                        ctx.globalAlpha = 0.25;
+                        ctx.fillRect(x, 0, xStep, height);
                     }
                     ctx.globalAlpha = 1;
-                }
+                });
+            }
 
-                if (indicator.data.macd)
-                    drawLine(
-                        indicator.data.macd,
-                        (indicator.settings as any).macdColor || '#2962FF'
-                    );
-                if (indicator.data.signal)
-                    drawLine(
-                        indicator.data.signal,
-                        (indicator.settings as any).signalColor || '#FF6D00'
-                    );
-            } else if (indicator.type === 'Stochastic') {
-                const k = indicator.data.k;
-                const d = indicator.data.d;
+            // Draw fill() regions between two plot series
+            if (indicator.kuriFills && indicator.kuriFills.length > 0) {
+                (indicator.kuriFills as any[]).forEach((fill: any, fillIdx: number) => {
+                    if ((indicator.settings as any)?.[`fill_${fillIdx}_visible`] === false) return;
+                    const fillColor =
+                        (indicator.settings as any)?.[`fill_${fillIdx}_color`] ?? fill.color;
+                    const s1 = indicator.data[fill.plot1];
+                    const s2 = indicator.data[fill.plot2];
+                    if (!s1 || !s2) return;
+                    ctx.fillStyle = fillColor;
+                    ctx.globalAlpha = 0.2;
+                    ctx.beginPath();
+                    const pts1: [number, number][] = [];
+                    const pts2: [number, number][] = [];
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        const v1 = s1[dataIndex];
+                        const v2 = s2[dataIndex];
+                        if (v1 == null || v2 == null || isNaN(v1 as number) || isNaN(v2 as number))
+                            continue;
+                        const x = indexToX(dataIndex - view.startIndex);
+                        pts1.push([x, getPanelY(v1 as number)]);
+                        pts2.push([x, getPanelY(v2 as number)]);
+                    }
+                    if (pts1.length > 1) {
+                        ctx.moveTo(pts1[0][0], pts1[0][1]);
+                        for (let j = 1; j < pts1.length; j++) ctx.lineTo(pts1[j][0], pts1[j][1]);
+                        for (let j = pts2.length - 1; j >= 0; j--)
+                            ctx.lineTo(pts2[j][0], pts2[j][1]);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    ctx.globalAlpha = 1;
+                });
+            }
 
-                // Fill between 80-20 bands — Pine: fill(h0, h1, color=color.rgb(33, 150, 243, 90))
-                const y80 = getPanelY(80);
-                const y20 = getPanelY(20);
-                ctx.fillStyle = 'rgba(33, 150, 243, 0.10)';
-                ctx.fillRect(0, y80, width, y20 - y80);
-
-                // Draw Levels (20, 50, 80)
-                [20, 50, 80].forEach((level) => {
+            // Draw hlines from .kuri if available
+            if (indicator.kuriHlines && indicator.kuriHlines.length > 0) {
+                indicator.kuriHlines.forEach((h: any, hi: number) => {
+                    const hVisible = (indicator.settings as any)?.[`hline_${hi}_visible`];
+                    if (hVisible === false) return;
+                    const hColor =
+                        (indicator.settings as any)?.[`hline_${hi}_color`] || h.color || '#787B86';
+                    const y = getPanelY(h.price);
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = hColor;
+                    ctx.globalAlpha = 0.7;
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.globalAlpha = 1;
+                });
+            } else if (isBounded) {
+                const levels = indicator.type === 'RSI' ? [30, 70] : [20, 80];
+                levels.forEach((level) => {
                     const y = getPanelY(level);
                     ctx.beginPath();
                     ctx.setLineDash([4, 4]);
                     ctx.strokeStyle = '#E0E0E0';
-                    ctx.globalAlpha = level === 50 ? 0.5 : 1;
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
                     ctx.stroke();
                     ctx.setLineDash([]);
-                    ctx.globalAlpha = 1;
                 });
+            }
 
-                if (k) drawLine(k, (indicator.settings as any).kColor || '#2962FF');
-                if (d) drawLine(d, (indicator.settings as any).dColor || '#FF6D00');
-            } else if (indicator.type === 'CCI') {
-                // CCI with levels at +100, 0, -100
-                const main = indicator.data.main;
+            // Render each plot according to its style
+            const plots = indicator.kuriPlots || [
+                {
+                    title: 'main',
+                    style: 'line',
+                    color: indicator.settings.color || '#2962FF',
+                    linewidth: 1,
+                },
+            ];
+            plots.forEach((plot: any, plotIdx: number) => {
+                const plotVisible = (indicator.settings as any)?.[`plot_${plotIdx}_visible`];
+                if (plotVisible === false) return;
+                const plotColor = getPlotColor(indicator, plotIdx, plot.color || '#2962FF');
+                const plotWidth =
+                    (indicator.settings as any)?.[`plot_${plotIdx}_linewidth`] ||
+                    plot.linewidth ||
+                    1;
+                // Find the data series for this plot
+                const seriesData =
+                    indicator.data[plot.title] ||
+                    (plotIdx === 0 ? indicator.data.main || indicator.data.value : null);
+                if (!seriesData) return;
 
-                // Draw Levels
-                [100, 0, -100].forEach((level) => {
-                    const y = getPanelY(level);
-                    ctx.beginPath();
-                    ctx.setLineDash([4, 4]);
-                    ctx.strokeStyle =
-                        level === 0 ? '#E0E0E0' : chartSettings.scalesAndLines.gridColor;
-                    ctx.globalAlpha = level === 0 ? 0.8 : 0.5;
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                    ctx.globalAlpha = 1;
-                });
+                const style =
+                    (indicator.settings as any)?.[`plot_${plotIdx}_plotstyle`] ||
+                    plot.style ||
+                    'line';
+                const plotKind = plot.kind || 'plot';
+                let perBarColors = plot.colors as (string | null)[] | null;
 
-                if (main) drawLine(main, indicator.settings.color || '#FF9800');
-            } else if (indicator.type === 'ADX') {
-                // ADX with levels at 25 and 50
-                const main = indicator.data.main;
-
-                // Draw Levels
-                [25, 50].forEach((level) => {
-                    const y = getPanelY(level);
-                    ctx.beginPath();
-                    ctx.setLineDash([4, 4]);
-                    ctx.strokeStyle = chartSettings.scalesAndLines.gridColor;
-                    ctx.globalAlpha = 0.5;
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                    ctx.globalAlpha = 1;
-                });
-
-                if (main) drawLine(main, indicator.settings.color || '#3F51B5');
-            } else if (indicator.type === 'MFI') {
-                // MFI with levels at 20 and 80
-                const main = indicator.data.main;
-
-                // Draw Levels
-                [20, 80].forEach((level) => {
-                    const y = getPanelY(level);
-                    ctx.beginPath();
-                    ctx.setLineDash([4, 4]);
-                    ctx.strokeStyle = chartSettings.scalesAndLines.gridColor;
-                    ctx.globalAlpha = 0.5;
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                    ctx.globalAlpha = 1;
-                });
-
-                if (main) drawLine(main, indicator.settings.color || '#3B82F6');
-            } else if (indicator.type === 'OBV') {
-                // OBV - no specific levels, just draw the line
-                const main = indicator.data.main;
-                if (main) drawLine(main, indicator.settings.color || '#10B981');
-            } else if (indicator.type === 'KURI_HISTOGRAM' || indicator.type === 'KURI_COLUMNS') {
-                // Kuri Histogram — bars above/below zero line
-                const main = indicator.data.main;
-                if (main) {
-                    // Draw zero line
-                    const zeroY = getPanelY(0);
-                    ctx.beginPath();
-                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-                    ctx.setLineDash([4, 4]);
-                    ctx.moveTo(0, zeroY);
-                    ctx.lineTo(width, zeroY);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    const upColor = (indicator.settings as any)?.histogramUpColor || '#26a69a';
-                    const downColor = (indicator.settings as any)?.histogramDownColor || '#ef5350';
-                    const barW = Math.max(1, xStep * 0.6);
-                    const hStart = Math.max(0, Math.floor(view.startIndex));
-                    const hEnd = Math.min(
-                        main.length,
-                        Math.ceil(view.startIndex + view.visibleCandles)
-                    );
-                    for (let i = hStart; i < hEnd; i++) {
-                        const val = main[i];
-                        if (val === null || val === undefined) continue;
-                        const x = (i - view.startIndex) * xStep + xStep / 2 - barW / 2;
-                        const y = getPanelY(val);
-                        const barHeight = Math.abs(y - zeroY);
-                        ctx.fillStyle = val >= 0 ? upColor : downColor;
-                        ctx.fillRect(x, Math.min(y, zeroY), barW, Math.max(1, barHeight));
+                // Apply per-bar color overrides from settings (e.g. MACD histogram 4-color scheme)
+                if (perBarColors) {
+                    const s = indicator.settings as any;
+                    // Build remap: extract unique original colors, check for overrides
+                    const uniqueOrig: string[] = [];
+                    const seen = new Set<string>();
+                    for (const c of perBarColors) {
+                        if (c && !seen.has(c)) {
+                            seen.add(c);
+                            uniqueOrig.push(c);
+                        }
+                    }
+                    let hasOverride = false;
+                    const colorMap = new Map<string, string>();
+                    uniqueOrig.forEach((orig, ci) => {
+                        const ov = s[`plot_${plotIdx}_barcolor_${ci}`];
+                        if (ov && ov !== orig) {
+                            colorMap.set(orig, ov);
+                            hasOverride = true;
+                        }
+                    });
+                    if (hasOverride) {
+                        perBarColors = perBarColors.map((c) => (c ? (colorMap.get(c) ?? c) : c));
                     }
                 }
-            } else if (indicator.type === 'KURI_LINE' || indicator.type === 'KURI_AREA') {
-                // Kuri line/area in panel mode (when kuriOverlay is false)
-                const main = indicator.data.main;
-                if (main) {
-                    drawLine(main, indicator.settings.color || '#FF9800');
-                    // For area, add fill below
-                    if (indicator.type === 'KURI_AREA') {
-                        const aStart = Math.max(0, Math.floor(view.startIndex));
-                        const aEnd = Math.min(
-                            main.length,
-                            Math.ceil(view.startIndex + view.visibleCandles)
+
+                if (
+                    style === 'columns' ||
+                    style === 'histogram' ||
+                    style === 'plot.style_columns'
+                ) {
+                    // Column/bar rendering (Volume, MACD histogram)
+                    const barWidth = xStep * 0.7;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        if (dataIndex < 0 || dataIndex >= data.length) continue;
+                        const val = seriesData[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) continue;
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val as number);
+                        const zeroY = getPanelY(0);
+                        ctx.fillStyle = perBarColors?.[dataIndex] ?? plotColor;
+                        ctx.globalAlpha = 0.7;
+                        ctx.fillRect(
+                            x - barWidth / 2,
+                            Math.min(y, zeroY),
+                            barWidth,
+                            Math.max(0.5, Math.abs(y - zeroY))
                         );
-                        ctx.globalAlpha = 0.1;
-                        ctx.fillStyle = indicator.settings.color || '#FF9800';
+                    }
+                    ctx.globalAlpha = 1;
+                } else if (style === 'circles') {
+                    // Scatter/circle rendering
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        if (dataIndex < 0 || dataIndex >= data.length) continue;
+                        const val = seriesData[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) continue;
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val as number);
+                        ctx.fillStyle = perBarColors?.[dataIndex] ?? plotColor;
                         ctx.beginPath();
-                        let started = false;
-                        for (let i = aStart; i < aEnd; i++) {
-                            const val = main[i];
-                            if (val === null || val === undefined) continue;
-                            const x = (i - view.startIndex) * xStep + xStep / 2;
-                            const y = getPanelY(val);
-                            if (!started) {
-                                ctx.moveTo(x, y);
-                                started = true;
-                            } else ctx.lineTo(x, y);
+                        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } else if (style === 'cross' || style === 'xcross') {
+                    // Cross / X marker rendering
+                    const sz = 4;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        if (dataIndex < 0 || dataIndex >= data.length) continue;
+                        const val = seriesData[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) continue;
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val as number);
+                        ctx.strokeStyle = perBarColors?.[dataIndex] ?? plotColor;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        if (style === 'xcross') {
+                            ctx.moveTo(x - sz, y - sz);
+                            ctx.lineTo(x + sz, y + sz);
+                            ctx.moveTo(x + sz, y - sz);
+                            ctx.lineTo(x - sz, y + sz);
+                        } else {
+                            ctx.moveTo(x - sz, y);
+                            ctx.lineTo(x + sz, y);
+                            ctx.moveTo(x, y - sz);
+                            ctx.lineTo(x, y + sz);
                         }
-                        ctx.lineTo(
-                            (aEnd - 1 - view.startIndex) * xStep + xStep / 2,
-                            panelPadding + drawHeight
+                        ctx.stroke();
+                    }
+                } else if (style === 'area' || style === 'areabr') {
+                    // Area: line with filled region to baseline
+                    ctx.lineWidth = plotWidth;
+                    const areaWidths = plot.linewidths as (number | null)[] | null;
+                    drawLine(seriesData as (number | null)[], plotColor, perBarColors, areaWidths);
+                    // Fill below line to zero/bottom
+                    const zeroY = getPanelY(0);
+                    ctx.fillStyle = plotColor;
+                    ctx.globalAlpha = 0.15;
+                    ctx.beginPath();
+                    let started = false;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        const val = seriesData[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) {
+                            if (started) {
+                                ctx.lineTo(indexToX(dataIndex - 1 - view.startIndex), zeroY);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.beginPath();
+                                started = false;
+                            }
+                            continue;
+                        }
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val);
+                        if (!started) {
+                            ctx.moveTo(x, zeroY);
+                            ctx.lineTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    if (started) {
+                        // Close to baseline
+                        const lastVisIdx = Math.min(
+                            Math.floor(view.startIndex) + view.visibleCandles - 1,
+                            data.length - 1
                         );
-                        ctx.lineTo(
-                            (aStart - view.startIndex) * xStep + xStep / 2,
-                            panelPadding + drawHeight
-                        );
+                        ctx.lineTo(indexToX(lastVisIdx - view.startIndex), zeroY);
                         ctx.closePath();
                         ctx.fill();
-                        ctx.globalAlpha = 1;
                     }
-                }
-            } else {
-                // Standard Single Line (RSI, MFI, etc.)
-                const main = indicator.data.main;
-                if (main) {
-                    // Levels for oscillating indicators
-                    if (isBounded) {
-                        const levels = indicator.type === 'RSI' ? [30, 70] : [20, 80]; // default
-
-                        levels.forEach((level) => {
-                            const y = getPanelY(level);
+                    ctx.globalAlpha = 1;
+                } else if (style === 'stepline') {
+                    // Step line: horizontal then vertical
+                    ctx.lineWidth = plotWidth;
+                    ctx.strokeStyle = plotColor;
+                    ctx.beginPath();
+                    let prevX: number | null = null;
+                    let prevY: number | null = null;
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        const val = seriesData[dataIndex];
+                        if (val === null || val === undefined || isNaN(val as number)) {
+                            if (prevX !== null) {
+                                ctx.stroke();
+                                ctx.beginPath();
+                            }
+                            prevX = null;
+                            prevY = null;
+                            continue;
+                        }
+                        const x = indexToX(dataIndex - view.startIndex);
+                        const y = getPanelY(val);
+                        if (prevX !== null && prevY !== null) {
+                            if (perBarColors) {
+                                ctx.stroke();
+                                ctx.beginPath();
+                                ctx.strokeStyle = perBarColors[dataIndex] ?? plotColor;
+                                ctx.moveTo(prevX, prevY);
+                            }
+                            ctx.lineTo(x, prevY); // horizontal
+                            ctx.lineTo(x, y); // vertical
+                        } else {
+                            ctx.moveTo(x, y);
+                        }
+                        prevX = x;
+                        prevY = y;
+                    }
+                    ctx.stroke();
+                } else if (
+                    plotKind === 'plotshape' ||
+                    plotKind === 'plotchar' ||
+                    plotKind === 'plotarrow'
+                ) {
+                    // Shape/arrow/char markers
+                    const shapeStyle = style || 'circle';
+                    const sz = 5;
+                    const shapeLocation = (plot as any).location || 'abovebar';
+                    const shapeText = (plot as any).text || '';
+                    const shapeTexts = (plot as any).texts as (string | null)[] | null;
+                    const shapeTextColor = (plot as any).textcolor || plotColor;
+                    const locationOffset = 12; // pixels offset from bar
+                    for (let i = 0; i < view.visibleCandles; i++) {
+                        const dataIndex = Math.floor(view.startIndex) + i;
+                        if (dataIndex < 0 || dataIndex >= data.length) continue;
+                        const val = seriesData[dataIndex] as any;
+                        // Skip false, null, undefined, NaN — plotshape condition is boolean
+                        if (!val || val === null || (typeof val === 'number' && isNaN(val)))
+                            continue;
+                        const x = indexToX(dataIndex - view.startIndex);
+                        // Position based on location: use candle high/low, not the boolean value
+                        let y: number;
+                        const candle = data[dataIndex];
+                        if (shapeLocation === 'belowbar' && candle) {
+                            y = getPanelY(candle.low) + locationOffset;
+                        } else if (shapeLocation === 'abovebar' && candle) {
+                            y = getPanelY(candle.high) - locationOffset;
+                        } else if (typeof val === 'number' && !isNaN(val) && val !== 1) {
+                            // location.absolute: use the value itself as y
+                            y = getPanelY(val);
+                        } else if (candle) {
+                            y = getPanelY(candle.high) - locationOffset;
+                        } else {
+                            continue;
+                        }
+                        const c = perBarColors?.[dataIndex] ?? plotColor;
+                        ctx.fillStyle = c;
+                        ctx.strokeStyle = c;
+                        ctx.lineWidth = 1.5;
+                        if (shapeStyle === 'triangleup' || shapeStyle === 'arrowup') {
                             ctx.beginPath();
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                            // Could do fill between 70/30
-                            ctx.setLineDash([4, 4]);
-                            ctx.strokeStyle = '#E0E0E0';
-                            ctx.moveTo(0, y);
-                            ctx.lineTo(width, y);
+                            ctx.moveTo(x, y - sz);
+                            ctx.lineTo(x - sz, y + sz);
+                            ctx.lineTo(x + sz, y + sz);
+                            ctx.closePath();
+                            ctx.fill();
+                        } else if (shapeStyle === 'triangledown' || shapeStyle === 'arrowdown') {
+                            ctx.beginPath();
+                            ctx.moveTo(x, y + sz);
+                            ctx.lineTo(x - sz, y - sz);
+                            ctx.lineTo(x + sz, y - sz);
+                            ctx.closePath();
+                            ctx.fill();
+                        } else if (shapeStyle === 'diamond' || shapeStyle === 'square') {
+                            if (shapeStyle === 'diamond') {
+                                ctx.beginPath();
+                                ctx.moveTo(x, y - sz);
+                                ctx.lineTo(x + sz, y);
+                                ctx.lineTo(x, y + sz);
+                                ctx.lineTo(x - sz, y);
+                                ctx.closePath();
+                                ctx.fill();
+                            } else {
+                                ctx.fillRect(x - sz, y - sz, sz * 2, sz * 2);
+                            }
+                        } else if (shapeStyle === 'cross' || shapeStyle === 'xcross') {
+                            ctx.beginPath();
+                            if (shapeStyle === 'xcross') {
+                                ctx.moveTo(x - sz, y - sz);
+                                ctx.lineTo(x + sz, y + sz);
+                                ctx.moveTo(x + sz, y - sz);
+                                ctx.lineTo(x - sz, y + sz);
+                            } else {
+                                ctx.moveTo(x - sz, y);
+                                ctx.lineTo(x + sz, y);
+                                ctx.moveTo(x, y - sz);
+                                ctx.lineTo(x, y + sz);
+                            }
                             ctx.stroke();
-                            ctx.setLineDash([]);
-                        });
+                        } else if (
+                            shapeStyle === 'flag' ||
+                            shapeStyle === 'labelup' ||
+                            shapeStyle === 'labeldown'
+                        ) {
+                            // Flag/label: small rectangle with stem
+                            ctx.fillRect(x - 3, y - sz, 6, sz * 2);
+                            ctx.fillStyle = '#fff';
+                            ctx.font = '8px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(shapeStyle === 'flag' ? '\u25B2' : '\u25CF', x, y + 3);
+                            ctx.fillStyle = c;
+                        } else {
+                            // Default: circle
+                            ctx.beginPath();
+                            ctx.arc(x, y, sz, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        // Render text label (e.g., "FR↑", "FB↓")
+                        const barText = shapeTexts?.[dataIndex] || shapeText;
+                        if (barText) {
+                            ctx.fillStyle = shapeTextColor;
+                            ctx.font = 'bold 9px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline =
+                                shapeLocation === 'belowbar' ? 'top' : 'bottom';
+                            const textY =
+                                shapeLocation === 'belowbar' ? y + sz + 2 : y - sz - 2;
+                            ctx.fillText(barText, x, textY);
+                        }
                     }
-
-                    drawLine(main, indicator.settings.color || '#2962FF');
+                } else {
+                    // Default: line rendering
+                    ctx.lineWidth = plotWidth;
+                    const lineWidths = plot.linewidths as (number | null)[] | null;
+                    drawLine(seriesData as (number | null)[], plotColor, perBarColors, lineWidths);
                 }
-            }
+            });
 
             // Reset line dash and width after indicator drawing
             ctx.setLineDash([]);
@@ -3350,9 +3414,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 let valToShow: number | null = null;
 
                 // Prioritize main
+                // Try common keys first, then fall back to first available series
                 if (indicator.data.main) valToShow = indicator.data.main[safeIndex];
                 else if (indicator.data.macd) valToShow = indicator.data.macd[safeIndex];
                 else if (indicator.data.k) valToShow = indicator.data.k[safeIndex];
+                else {
+                    const firstKey = Object.keys(indicator.data)[0];
+                    if (firstKey) valToShow = indicator.data[firstKey][safeIndex];
+                }
 
                 if (valToShow !== null && valToShow !== undefined) {
                     const y = getPanelY(valToShow);
@@ -3866,96 +3935,68 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
     // Legacy runAlertEngine effect REMOVED - Logic is now centralized in global AlertEngine.
 
-    const handleAddAlertFromContext = (price: number) => {
-        // Create fake drawing for modal context to support simple price alerts
-        const fakeDrawing: HorizontalLineDrawing = {
-            id: `temp_alert_${Date.now()}`,
+    const handleAddAlertAtPrice = async (price: number) => {
+        const fakeDrawing: any = {
+            id: `price-${Date.now()}`,
             type: 'Horizontal Line',
-            price: price,
-            style: { color: 'transparent', width: 0, lineStyle: 'solid' },
-            isVisible: false,
+            price,
+            style: { color: '#FFD700', width: 1, dash: [] },
+            isVisible: true,
         };
-        setAlertModalInfo({ visible: true, drawing: fakeDrawing });
-        setContextMenu(null);
+        const newAlert = await createAlertWithDefaults(symbol, fakeDrawing);
+        if (newAlert) {
+            setAlerts((prev) => [...prev, newAlert]);
+            setToastAlert(newAlert);
+        }
     };
 
-    const handleCreateDrawingAlert = (drawing: Drawing) => {
-        // Enforce one alert per drawing limit
-        const existingAlert = alerts.find((a) => a.drawingId === drawing.id);
-        if (existingAlert) {
-            alert(
-                'An alert already exists for this drawing. Please delete the existing alert first.'
-            );
+    const handleCreateDrawingAlert = async (drawing: Drawing) => {
+        const existing = alerts.find((a) => a.drawingId === drawing.id);
+        if (existing) {
+            setPanelAlert({ alert: existing, drawing });
             return;
         }
-
-        setAlertModalInfo({ visible: true, drawing });
-        setContextMenu(null);
+        const newAlert = await createAlertWithDefaults(symbol, drawing);
+        if (newAlert) {
+            setAlerts((prev) => [...prev, newAlert]);
+            setToastAlert(newAlert);
+        }
     };
 
-    const handleCreateAlertFromModal = (settings: {
-        condition: AlertConditionType;
-        value?: number;
-        fibLevel?: number;
-        message: string;
-        notifyApp: boolean;
-        playSound: boolean;
-        triggerFrequency: 'Only Once' | 'Once Per Bar' | 'Once Per Bar Close' | 'Once Per Minute';
-        indicatorId?: string;
-        alertConditionId?: string;
-        conditionParameters?: Record<string, any>;
-    }) => {
-        if (alertModalInfo.alertToEdit) {
-            // Update existing alert
-            const updatedAlert: PriceAlert = {
-                ...alertModalInfo.alertToEdit,
-                condition: settings.condition,
-                value: settings.value,
-                fibLevel: settings.fibLevel,
-                message: settings.message,
-                notifyApp: settings.notifyApp,
-                playSound: settings.playSound,
-                triggerFrequency: settings.triggerFrequency,
-                indicatorId: settings.indicatorId,
-                alertConditionId: settings.alertConditionId,
-                conditionParameters: settings.conditionParameters,
-            };
-            priceAlertService.updateAlert(updatedAlert.id, updatedAlert);
-            setAlerts((prev) => prev.map((a) => (a.id === updatedAlert.id ? updatedAlert : a)));
-        } else {
-            // Create new alert
-            const newAlert: PriceAlert = {
-                id: `alert-${Date.now()}`,
-                symbol: symbol,
-                drawingId:
-                    alertModalInfo.drawing?.id &&
-                    !alertModalInfo.drawing.id.startsWith('temp_alert')
-                        ? alertModalInfo.drawing.id
-                        : undefined,
-                condition: settings.condition,
-                value: settings.value,
-                fibLevel: settings.fibLevel,
-                message: settings.message,
-                triggered: false,
-                createdAt: Date.now(),
-                notifyApp: settings.notifyApp,
-                playSound: settings.playSound,
-                triggerFrequency: settings.triggerFrequency,
-                indicatorId: settings.indicatorId,
-                alertConditionId: settings.alertConditionId,
-                conditionParameters: settings.conditionParameters,
-            };
-            priceAlertService.saveAlert(newAlert);
-            setAlerts((prev) => [...prev, newAlert]);
+    const handleSaveAlert = async (updated: PriceAlert) => {
+        const result = await updateAlert(updated.id, updated);
+        if (result) {
+            setAlerts((prev) => prev.map((a) => (a.id === result.id ? result : a)));
         }
-        setAlertModalInfo({ visible: false, drawing: null, alertToEdit: null });
+        setPanelAlert(null);
+    };
+
+    const handleDeleteAlert = async (id: string) => {
+        await deleteAlert(id);
+        setAlerts((prev) => prev.filter((a) => a.id !== id));
+        setPanelAlert(null);
     };
 
     const handleEditAlert = (alert: PriceAlert) => {
-        const drawing = drawings.find((d) => d.id === alert.drawingId);
-        if (drawing) {
-            setAlertModalInfo({ visible: true, drawing, alertToEdit: alert });
+        const drawing = alert.drawingId
+            ? drawings.find((d) => d.id === alert.drawingId) || null
+            : null;
+
+        let indicatorOutputs: string[] | undefined;
+        let indicatorType: string | undefined;
+        if (alert.indicatorId) {
+            const ind = allActiveIndicators.find((i: any) => i.id === alert.indicatorId);
+            if (ind?.data) indicatorOutputs = Object.keys(ind.data);
+            indicatorType = ind?.type;
         }
+
+        setPanelAlert({
+            alert,
+            drawing,
+            indicatorId: alert.indicatorId,
+            indicatorType,
+            indicatorOutputs,
+        });
     };
 
     const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -7933,64 +7974,50 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const smX = timeToX(d.point.time);
                             const smY = yScale(d.point.price);
                             const smIsBuy = (d as any).signal === 'buy';
-                            const smColor = smIsBuy ? '#089981' : '#f23645';
-                            const smLabel = smIsBuy ? 'BUY' : 'SELL';
-                            const smFont = '"Inter","SF Pro Display",-apple-system,sans-serif';
-                            const smPriceStr =
-                                d.point.price >= 1000
-                                    ? d.point.price.toFixed(2)
-                                    : d.point.price.toFixed(4);
+                            const smSize = 6;
+                            const smCandleHalf = Math.max(xStep * 0.35, 4);
+                            const smColor = '#8b5cf6';
+
+                            // Find actual candle low/high
+                            let smCandleLow = d.point.price;
+                            let smCandleHigh = d.point.price;
+                            if (data.length > 0 && candleInterval > 0) {
+                                const smIdx = Math.round((d.point.time - data[0].time) / candleInterval);
+                                if (smIdx >= 0 && smIdx < data.length) {
+                                    smCandleLow = data[smIdx].low;
+                                    smCandleHigh = data[smIdx].high;
+                                }
+                            }
+
+                            // ▲ below candle low (BUY) or ▼ above candle high (SELL)
+                            // centered on smX (candle center)
+                            // + tiny ▶ on left side of candle at entry price
+                            const belowLow = yScale(smCandleLow) + 8;
+                            const aboveHigh = yScale(smCandleHigh) - 8;
+
                             return (
-                                <g key={key} pointerEvents="auto" cursor="move">
+                                <g key={key} pointerEvents="none">
                                     {smIsBuy ? (
+                                        /* ▲ centered below candle low */
                                         <polygon
-                                            points={`${smX},${smY} ${smX - 10},${smY + 18} ${smX + 10},${smY + 18}`}
+                                            points={`${smX},${belowLow} ${smX - smSize},${belowLow + smSize * 2} ${smX + smSize},${belowLow + smSize * 2}`}
                                             fill={smColor}
                                             shapeRendering="geometricPrecision"
                                         />
                                     ) : (
+                                        /* ▼ centered above candle high */
                                         <polygon
-                                            points={`${smX},${smY} ${smX - 10},${smY - 18} ${smX + 10},${smY - 18}`}
+                                            points={`${smX},${aboveHigh} ${smX - smSize},${aboveHigh - smSize * 2} ${smX + smSize},${aboveHigh - smSize * 2}`}
                                             fill={smColor}
                                             shapeRendering="geometricPrecision"
                                         />
                                     )}
-                                    <text
-                                        x={smX}
-                                        y={smIsBuy ? smY + 34 : smY - 24}
+                                    {/* Tiny ▶ on left side of candle at entry price */}
+                                    <polygon
+                                        points={`${smX - smCandleHalf - 9},${smY - 3} ${smX - smCandleHalf - 9},${smY + 3} ${smX - smCandleHalf - 4},${smY}`}
                                         fill={smColor}
-                                        fontSize="11"
-                                        fontWeight={700}
-                                        textAnchor="middle"
-                                        fontFamily={smFont}
-                                        className="pointer-events-none"
-                                        textRendering="optimizeLegibility"
-                                    >
-                                        {smLabel}
-                                    </text>
-                                    <text
-                                        x={smX}
-                                        y={smIsBuy ? smY - 8 : smY + 14}
-                                        fill={smColor}
-                                        fontSize="9"
-                                        textAnchor="middle"
-                                        fontFamily="monospace"
-                                        opacity={0.6}
-                                        className="pointer-events-none"
-                                    >
-                                        {smPriceStr}
-                                    </text>
-                                    {isSelected && (
-                                        <circle
-                                            cx={smX}
-                                            cy={smY}
-                                            r={5}
-                                            fill="#131722"
-                                            stroke={smColor}
-                                            strokeWidth={2}
-                                            shapeRendering="geometricPrecision"
-                                        />
-                                    )}
+                                        shapeRendering="geometricPrecision"
+                                    />
                                 </g>
                             );
                         }
@@ -8347,15 +8374,19 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             return allPoints.map((p) => `${p[0]},${p[1]}`).join(' ');
                         };
 
-                        // Get user style settings
-                        const indLineWidth = (indicator.settings as any)?.lineWidth || 2;
-                        const indLineStyle = (indicator.settings as any)?.lineStyle || 'solid';
-                        const indDash =
-                            indLineStyle === 'dashed'
-                                ? '6,3'
-                                : indLineStyle === 'dotted'
-                                  ? '2,2'
-                                  : undefined;
+                        // Get user style settings (indexed keys > legacy keys > kuriPlots > defaults)
+                        const indLineWidth =
+                            (indicator.settings as any)?.plot_0_linewidth ||
+                            (indicator.settings as any)?.lineWidth ||
+                            indicator.kuriPlots?.[0]?.linewidth ||
+                            2;
+                        const indLineStyle =
+                            (indicator.settings as any)?.plot_0_linestyle ||
+                            (indicator.settings as any)?.lineStyle ||
+                            'solid';
+                        const styleToDash = (s: string) =>
+                            s === 'dashed' ? '6,3' : s === 'dotted' ? '2,2' : undefined;
+                        const indDash = styleToDash(indLineStyle);
 
                         // Single-line indicators (moving averages, oscillators, VWAP, ATR, KURI_LINE, ADR + new MAs)
                         if (
@@ -8368,7 +8399,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 'HMA',
                                 'VWAP',
                                 'ATR',
-                                'KURI_LINE',
+                                'UNKNOWN_REMOVED' as any,
                                 'DEMA',
                                 'TEMA',
                                 'ALMA',
@@ -8405,7 +8436,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const seriesColors = (indicator.settings as any)?.seriesColors as
                                 | Record<string, string>
                                 | undefined;
-                            if (indicator.type === 'KURI_LINE' && seriesColors) {
+                            if (indicator.type === ('UNKNOWN_REMOVED' as any) && seriesColors) {
                                 const paths: React.ReactNode[] = [];
                                 dataKeys.forEach((key) => {
                                     const values = indicator.data[key] as (number | null)[];
@@ -8439,8 +8470,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                     key={indicator.id}
                                     d={path}
                                     stroke={
+                                        (indicator.settings as any)?.plot_0_color ||
                                         (indicator.settings as any)?.valueColor ||
                                         indicator.settings.color ||
+                                        indicator.kuriPlots?.[0]?.color ||
                                         '#2962FF'
                                     }
                                     strokeWidth={indLineWidth}
@@ -8453,11 +8486,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                         // Kuri Histogram / Columns
                         if (
-                            (indicator.type as any) === 'KURI_HISTOGRAM' ||
-                            (indicator.type as any) === 'KURI_COLUMNS'
+                            (indicator.type as any) === ('UNKNOWN_REMOVED' as any) ||
+                            (indicator.type as any) === ('UNKNOWN_REMOVED' as any)
                         ) {
                             const values = indicator.data.main || [];
-                            const zeroVal = yScale.domain()[0] > 0 ? yScale.domain()[0] : 0; // Baseline at 0 or bottom of scale
+                            const zeroVal = 0 /* removed */ > 0 ? 0 /* removed */ : 0; // Baseline at 0 or bottom of scale
                             const zeroY = yScale(zeroVal);
                             const barWidth = Math.max(
                                 1,
@@ -8502,7 +8535,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
 
                         // Kuri Area — line with filled region below
-                        if (indicator.type === 'KURI_AREA') {
+                        if (indicator.type === ('UNKNOWN_REMOVED' as any)) {
                             const values = indicator.data.main || [];
                             const path = buildPath(values);
                             // Build closed polygon for fill
@@ -8547,7 +8580,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
 
                         // Kuri Band — upper/lower/middle with fill
-                        if (indicator.type === 'KURI_BAND') {
+                        if (indicator.type === ('UNKNOWN_REMOVED' as any)) {
                             const upper = indicator.data.upper || [];
                             const lower = indicator.data.lower || [];
                             const middle = indicator.data.middle || [];
@@ -8565,13 +8598,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                     )}
                                     <path
                                         d={buildPath(upper)}
-                                        stroke={(indicator.settings as any)?.upperColor || color}
+                                        stroke={getPlotColorByTitle(indicator, 'Upper', color)}
                                         strokeWidth={indLineWidth}
                                         fill="none"
                                     />
                                     <path
                                         d={buildPath(lower)}
-                                        stroke={(indicator.settings as any)?.lowerColor || color}
+                                        stroke={getPlotColorByTitle(indicator, 'Lower', color)}
                                         strokeWidth={indLineWidth}
                                         fill="none"
                                     />
@@ -8589,7 +8622,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
 
                         // Kuri Markers — circles/triangles at data points
-                        if (indicator.type === 'KURI_MARKERS') {
+                        if (indicator.type === ('UNKNOWN_REMOVED' as any)) {
                             const values = indicator.data.main || [];
                             const color = indicator.settings.color || '#FF9800';
                             const markers: React.ReactNode[] = [];
@@ -8627,99 +8660,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
 
-                        // MACD: macd line + signal line + histogram bars
-                        if (indicator.type === 'MACD') {
-                            const macdLine = indicator.data.macd || indicator.data.main || [];
-                            const signalLine = indicator.data.signal || [];
-                            const histogram = indicator.data.histogram || [];
-
-                            const zeroVal = 0;
-                            const zeroY = yScale(zeroVal);
-                            const barWidth = Math.max(
-                                1,
-                                (indexToX(1) || 0) - (indexToX(0) || 0) - 2
-                            );
-
-                            return (
-                                <g key={indicator.id} pointerEvents="none">
-                                    {/* Histogram bars */}
-                                    {histogram.map((val: number | null, i: number) => {
-                                        if (
-                                            i < startIdx ||
-                                            i >= endIdx ||
-                                            val === null ||
-                                            val === undefined ||
-                                            isNaN(val)
-                                        )
-                                            return null;
-                                        const x =
-                                            (indexToX(i - view.startIndex) || 0) - barWidth / 2;
-                                        const y = yScale(val);
-                                        if (isNaN(y) || !isFinite(y) || isNaN(zeroY)) return null;
-                                        const height = Math.abs(y - zeroY);
-                                        const top = val >= 0 ? y : zeroY;
-                                        const color = val >= 0 ? '#26A69A' : '#EF5350';
-                                        return (
-                                            <rect
-                                                key={`h-${i}`}
-                                                x={x}
-                                                y={top}
-                                                width={barWidth}
-                                                height={Math.max(0.5, height)}
-                                                fill={color}
-                                                fillOpacity="0.5"
-                                            />
-                                        );
-                                    })}
-                                    {/* MACD line */}
-                                    <path
-                                        d={buildPath(macdLine)}
-                                        stroke={(indicator.settings as any)?.macdColor || '#2962FF'}
-                                        strokeWidth={indLineWidth}
-                                        strokeDasharray={indDash}
-                                        fill="none"
-                                    />
-                                    {/* Signal line */}
-                                    <path
-                                        d={buildPath(signalLine)}
-                                        stroke={
-                                            (indicator.settings as any)?.signalColor || '#FF6D00'
-                                        }
-                                        strokeWidth={indLineWidth}
-                                        strokeDasharray={indDash}
-                                        fill="none"
-                                    />
-                                </g>
-                            );
-                        }
-
-                        // Stochastic: %K line + %D line
-                        if (indicator.type === 'Stochastic') {
-                            const kLine = indicator.data.k || indicator.data.main || [];
-                            const dLine = indicator.data.d || [];
-
-                            return (
-                                <g key={indicator.id} pointerEvents="none">
-                                    {/* %K line */}
-                                    <path
-                                        d={buildPath(kLine)}
-                                        stroke={(indicator.settings as any)?.kColor || '#2962FF'}
-                                        strokeWidth={indLineWidth}
-                                        strokeDasharray={indDash}
-                                        fill="none"
-                                    />
-                                    {/* %D line */}
-                                    <path
-                                        d={buildPath(dLine)}
-                                        stroke={(indicator.settings as any)?.dColor || '#FF6D00'}
-                                        strokeWidth={indLineWidth}
-                                        strokeDasharray="4,2"
-                                        fill="none"
-                                    />
-                                </g>
-                            );
-                        }
-
                         if (
                             (indicator.type as string) === 'Bollinger Bands' ||
                             indicator.type === 'BB'
@@ -8733,45 +8673,36 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const lowerPath = buildPath(lower);
                             const middlePath = buildPath(middle);
 
+                            const baseColor = indicator.settings.color || '#2962FF';
+                            const upperColor = getPlotColorByTitle(indicator, 'Upper', baseColor);
+                            const lowerColor = getPlotColorByTitle(indicator, 'Lower', baseColor);
+                            const basisColor = getPlotColorByTitle(indicator, 'Basis', '#FF6D00');
+
                             return (
                                 <g key={indicator.id} pointerEvents="none">
                                     <polygon
                                         points={fillPoints}
-                                        fill={
-                                            (indicator.settings as any)?.upperColor ||
-                                            indicator.settings.color ||
-                                            '#2962FF'
-                                        }
+                                        fill={upperColor}
                                         fillOpacity="0.1"
                                         stroke="none"
                                     />
                                     <path
                                         d={upperPath}
-                                        stroke={
-                                            (indicator.settings as any)?.upperColor ||
-                                            indicator.settings.color ||
-                                            '#2962FF'
-                                        }
+                                        stroke={upperColor}
                                         strokeWidth={indLineWidth}
                                         strokeDasharray={indDash}
                                         fill="none"
                                     />
                                     <path
                                         d={lowerPath}
-                                        stroke={
-                                            (indicator.settings as any)?.lowerColor ||
-                                            indicator.settings.color ||
-                                            '#2962FF'
-                                        }
+                                        stroke={lowerColor}
                                         strokeWidth={indLineWidth}
                                         strokeDasharray={indDash}
                                         fill="none"
                                     />
                                     <path
                                         d={middlePath}
-                                        stroke={
-                                            (indicator.settings as any)?.middleColor || '#FF6D00'
-                                        }
+                                        stroke={basisColor}
                                         strokeWidth={indLineWidth}
                                         strokeDasharray={indDash}
                                         fill="none"
@@ -8781,29 +8712,37 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
 
-                        if (indicator.type === 'MA Ribbon') {
+                        if ((indicator.type as string) === 'MA Ribbon') {
                             const paths: React.ReactNode[] = [];
                             if (indicator.data) {
+                                let plotIdx = 0;
                                 Object.entries(indicator.data).forEach(([key, values]) => {
-                                    if (key.startsWith('ma_')) {
+                                    if (key.startsWith('MA #') || key.match(/^ma\d/)) {
                                         const lineValues = values as (number | null)[];
                                         const path = buildPath(lineValues);
                                         if (path) {
+                                            // Use per-plot color from .kuri, fall back to base color
+                                            const plotColor = getPlotColor(
+                                                indicator,
+                                                plotIdx,
+                                                '#2962FF'
+                                            );
+                                            const plotWidth =
+                                                (indicator.settings as any)?.[
+                                                    `plot_${plotIdx}_linewidth`
+                                                ] || 1;
                                             paths.push(
                                                 <path
                                                     key={`${indicator.id}-${key}`}
                                                     d={path}
-                                                    stroke={
-                                                        indicator.settings.ribbonBaseColor ||
-                                                        '#2962FF'
-                                                    }
-                                                    strokeWidth="1"
+                                                    stroke={plotColor}
+                                                    strokeWidth={plotWidth}
                                                     fill="none"
-                                                    strokeOpacity="0.6"
                                                     pointerEvents="none"
                                                 />
                                             );
                                         }
+                                        plotIdx++;
                                     }
                                 });
                             }
@@ -8812,13 +8751,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                         // Donchian Channels
                         if (
-                            indicator.type === 'DONCHIAN' ||
-                            indicator.type === 'DC' ||
+                            indicator.type === 'Donchian' ||
+                            (indicator.type as string) === 'DONCHIAN' ||
+                            (indicator.type as string) === 'DC' ||
                             (indicator.type as string) === 'Donchian Channels'
                         ) {
                             const upper = indicator.data.upper || [];
                             const lower = indicator.data.lower || [];
-                            const basis = indicator.data.basis || indicator.data.main || [];
+                            const basis =
+                                indicator.data.middle ||
+                                indicator.data.basis ||
+                                indicator.data.main ||
+                                [];
 
                             const fillPoints = buildFill(upper, lower);
                             return (
@@ -8853,8 +8797,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                         // Ichimoku Cloud
                         if (
-                            indicator.type === 'ICHIMOKU' ||
-                            indicator.type === 'Ichimoku' ||
+                            (indicator.type as string) === 'ICHIMOKU' ||
+                            (indicator.type as string) === 'Ichimoku' ||
                             (indicator.type as string) === 'Ichimoku Cloud'
                         ) {
                             const conversion = indicator.data.conversion || [];
@@ -8902,13 +8846,17 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                         // Keltner Channels
                         if (
-                            indicator.type === 'KELTNER' ||
-                            indicator.type === 'KC' ||
+                            (indicator.type as string) === 'KC' ||
+                            (indicator.type as string) === 'KC' ||
                             (indicator.type as string) === 'Keltner Channels'
                         ) {
                             const upper = indicator.data.upper || [];
                             const lower = indicator.data.lower || [];
-                            const basis = indicator.data.basis || indicator.data.main || [];
+                            const basis =
+                                indicator.data.middle ||
+                                indicator.data.basis ||
+                                indicator.data.main ||
+                                [];
                             const fillPoints = buildFill(upper, lower);
                             return (
                                 <g key={indicator.id} pointerEvents="none">
@@ -8940,7 +8888,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
 
-                        if (indicator.type === 'SuperTrend') {
+                        if (
+                            (indicator.type as string) === 'SuperTrend' ||
+                            (indicator.type as string) === 'Supertrend'
+                        ) {
                             const supertrend = indicator.data.supertrend || [];
                             const directions = indicator.data.direction || [];
 
@@ -8992,7 +8943,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
 
                         // Kuri Markers
-                        if ((indicator.type as any) === 'KURI_MARKERS') {
+                        if ((indicator.type as any) === ('UNKNOWN_REMOVED' as any)) {
                             const values = indicator.data.main || [];
                             const color = indicator.settings.color || '#2962FF';
                             return (
@@ -9021,14 +8972,192 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
 
-                        // If we reach here, the indicator type was not handled by any rendering branch
+                        // Generic fallback: render all Kuri plots as lines/fills
+                        // This ensures any indicator type not explicitly handled still renders
+                        // Skip this fallback if indicator has kuriPlots — let the
+                        // generic Kuri multi-plot renderer (below) handle it properly,
+                        // including plotshape/plotchar/plotarrow markers.
+                        const plots = indicator.kuriPlots || [];
+                        const dataKeys = Object.keys(indicator.data || {});
+                        if (plots.length === 0 && dataKeys.length > 0) {
+                            const fallbackPaths: React.ReactNode[] = [];
+                            {
+                                // No kuriPlots metadata — render each data key as a line
+                                dataKeys.forEach((key) => {
+                                    if (key === 'main' || key === 'value') return; // skip aliases
+                                    const values = indicator.data[key] as (number | null)[];
+                                    const path = buildPath(values);
+                                    if (path) {
+                                        fallbackPaths.push(
+                                            <path
+                                                key={`${indicator.id}-${key}`}
+                                                d={path}
+                                                stroke={indicator.settings.color || '#2962FF'}
+                                                strokeWidth={indLineWidth}
+                                                fill="none"
+                                                pointerEvents="none"
+                                            />
+                                        );
+                                    }
+                                });
+                                // If only main/value, render that
+                                if (fallbackPaths.length === 0) {
+                                    const mainData =
+                                        indicator.data.main ||
+                                        indicator.data.value ||
+                                        indicator.data[dataKeys[0]];
+                                    if (mainData) {
+                                        const path = buildPath(mainData as (number | null)[]);
+                                        if (path) {
+                                            fallbackPaths.push(
+                                                <path
+                                                    key={`${indicator.id}-main`}
+                                                    d={path}
+                                                    stroke={indicator.settings.color || '#2962FF'}
+                                                    strokeWidth={indLineWidth}
+                                                    fill="none"
+                                                    pointerEvents="none"
+                                                />
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            if (fallbackPaths.length > 0) {
+                                return (
+                                    <g key={indicator.id} pointerEvents="none">
+                                        {fallbackPaths}
+                                    </g>
+                                );
+                            }
+                        }
+
+                        // Generic Kuri multi-plot overlay renderer
+                        // Handles any Kuri-driven overlay indicator by reading kuriPlots
+                        if (indicator.kuriPlots && indicator.kuriPlots.length > 0) {
+                            const elements: React.ReactNode[] = [];
+                            indicator.kuriPlots.forEach((plot: any, pi: number) => {
+                                const pVisible = (indicator.settings as any)?.[
+                                    `plot_${pi}_visible`
+                                ];
+                                if (pVisible === false) return;
+                                const pColor =
+                                    (indicator.settings as any)?.[`plot_${pi}_color`] ??
+                                    plot.color ??
+                                    '#2962FF';
+                                const pWidth =
+                                    (indicator.settings as any)?.[`plot_${pi}_linewidth`] ??
+                                    plot.linewidth ??
+                                    2;
+                                const pLineStyle =
+                                    (indicator.settings as any)?.[`plot_${pi}_linestyle`] ??
+                                    'solid';
+                                const pDash = styleToDash(pLineStyle);
+                                const seriesData =
+                                    indicator.data[plot.title] ||
+                                    (pi === 0 ? indicator.data.main || indicator.data.value : null);
+                                if (!seriesData) return;
+
+                                const plotKind = plot.kind || 'plot';
+
+                                // plotshape / plotchar / plotarrow → SVG shape markers
+                                if (plotKind === 'plotshape' || plotKind === 'plotchar' || plotKind === 'plotarrow') {
+                                    const shapeStyle = plot.style || 'circle';
+                                    const shapeLocation = plot.location || 'abovebar';
+                                    const shapeText = plot.text || '';
+                                    const shapeTexts = plot.texts as (string | null)[] | null;
+                                    const shapeTextColor = plot.textcolor || pColor;
+                                    const sz = 5;
+                                    const offset = 14; // px offset from bar high/low
+                                    for (let i = startIdx; i < endIdx; i++) {
+                                        const val = seriesData[i] as any;
+                                        if (!val || val === null || (typeof val === 'number' && isNaN(val))) continue;
+                                        const x = indexToX(i - view.startIndex);
+                                        const candle = data[i];
+                                        if (!candle) continue;
+                                        let y: number;
+                                        if (shapeLocation === 'belowbar') {
+                                            y = yScale(candle.low) + offset;
+                                        } else if (shapeLocation === 'abovebar') {
+                                            y = yScale(candle.high) - offset;
+                                        } else if (typeof val === 'number' && val !== 1) {
+                                            y = yScale(val);
+                                        } else {
+                                            y = yScale(candle.high) - offset;
+                                        }
+                                        // Draw shape
+                                        let shapeSvg: React.ReactNode = null;
+                                        if (shapeStyle === 'triangleup' || shapeStyle === 'arrowup') {
+                                            shapeSvg = <polygon key={`${indicator.id}-sh-${pi}-${i}`} points={`${x},${y - sz} ${x - sz},${y + sz} ${x + sz},${y + sz}`} fill={pColor} />;
+                                        } else if (shapeStyle === 'triangledown' || shapeStyle === 'arrowdown') {
+                                            shapeSvg = <polygon key={`${indicator.id}-sh-${pi}-${i}`} points={`${x},${y + sz} ${x - sz},${y - sz} ${x + sz},${y - sz}`} fill={pColor} />;
+                                        } else if (shapeStyle === 'diamond') {
+                                            shapeSvg = <polygon key={`${indicator.id}-sh-${pi}-${i}`} points={`${x},${y - sz} ${x + sz},${y} ${x},${y + sz} ${x - sz},${y}`} fill={pColor} />;
+                                        } else if (shapeStyle === 'square') {
+                                            shapeSvg = <rect key={`${indicator.id}-sh-${pi}-${i}`} x={x - sz} y={y - sz} width={sz * 2} height={sz * 2} fill={pColor} />;
+                                        } else if (shapeStyle === 'cross' || shapeStyle === 'xcross') {
+                                            const d = shapeStyle === 'xcross'
+                                                ? `M${x - sz},${y - sz}L${x + sz},${y + sz}M${x + sz},${y - sz}L${x - sz},${y + sz}`
+                                                : `M${x - sz},${y}L${x + sz},${y}M${x},${y - sz}L${x},${y + sz}`;
+                                            shapeSvg = <path key={`${indicator.id}-sh-${pi}-${i}`} d={d} stroke={pColor} strokeWidth={1.5} fill="none" />;
+                                        } else {
+                                            shapeSvg = <circle key={`${indicator.id}-sh-${pi}-${i}`} cx={x} cy={y} r={sz} fill={pColor} />;
+                                        }
+                                        elements.push(shapeSvg);
+                                        // Render text label (e.g., "FR↑", "FB↓")
+                                        const barText = shapeTexts?.[i] || shapeText;
+                                        if (barText) {
+                                            const textY = shapeLocation === 'belowbar' ? y + sz + 10 : y - sz - 4;
+                                            elements.push(
+                                                <text
+                                                    key={`${indicator.id}-txt-${pi}-${i}`}
+                                                    x={x}
+                                                    y={textY}
+                                                    fill={shapeTextColor}
+                                                    fontSize={9}
+                                                    fontWeight="bold"
+                                                    fontFamily="sans-serif"
+                                                    textAnchor="middle"
+                                                    dominantBaseline={shapeLocation === 'belowbar' ? 'hanging' : 'auto'}
+                                                    pointerEvents="none"
+                                                >
+                                                    {barText}
+                                                </text>
+                                            );
+                                        }
+                                    }
+                                    return;
+                                }
+
+                                // Regular line plot
+                                const path = buildPath(seriesData as (number | null)[]);
+                                if (path) {
+                                    elements.push(
+                                        <path
+                                            key={`${indicator.id}-plot-${pi}`}
+                                            d={path}
+                                            stroke={pColor}
+                                            strokeWidth={pWidth}
+                                            strokeDasharray={pDash}
+                                            fill="none"
+                                            pointerEvents="none"
+                                        />
+                                    );
+                                }
+                            });
+                            if (elements.length > 0) {
+                                return <g key={indicator.id} pointerEvents="none">{elements}</g>;
+                            }
+                        }
+
+                        // Truly nothing to render — log warning
                         const renderWarnKey = `render_${indicator.id}_${indicator.type}`;
                         if (!loggedIndicatorWarnings.current.has(renderWarnKey)) {
                             loggedIndicatorWarnings.current.add(renderWarnKey);
                             addConsoleLog(
                                 'warn',
                                 'Render',
-                                `No rendering handler for indicator type="${indicator.type}" — "${indicator.kuriPlotTitle || 'unnamed'}" will not be drawn.`,
+                                `No rendering handler for indicator type="${indicator.type}" — "${indicator.type || 'unnamed'}" will not be drawn.`,
                                 `Data keys: [${Object.keys(indicator.data).join(', ')}], kuriOverlay: ${indicator.kuriOverlay}`
                             );
                         }
@@ -9043,7 +9172,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         addConsoleLog(
                             'error',
                             'Render',
-                            `Failed to render "${indicator.kuriPlotTitle || indicator.type}": ${e instanceof Error ? e.message : String(e)}`,
+                            `Failed to render "${indicator.type || indicator.type}": ${e instanceof Error ? e.message : String(e)}`,
                             `Indicator ID: ${indicator.id}`
                         );
                         if (onChartError) {
@@ -9057,6 +9186,117 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         return null;
                     }
                 })}
+
+                {/* ── Kuri Engine Drawings (lines, labels, boxes) ── */}
+                {overlayIndicators
+                    .filter((ind) => ind.kuriDrawings && ind.isVisible !== false)
+                    .map((ind) => {
+                        const d = ind.kuriDrawings!;
+                        const DASH_MAP: Record<string, string | undefined> = {
+                            dashed: '8 4',
+                            dotted: '2 4',
+                        };
+                        const SIZE_MAP: Record<string, number> = {
+                            tiny: 8,
+                            small: 10,
+                            normal: 12,
+                            large: 14,
+                            huge: 18,
+                        };
+                        // Kuri engine stores time in ms, chart uses seconds
+                        const msToChartTime = (ms: number) => ms / 1000;
+                        return (
+                            <g key={`kuri-drawings-${ind.id}`} className="pointer-events-none">
+                                {/* Lines */}
+                                {d.lines.map((ln) => {
+                                    const x1 = timeToX(msToChartTime(ln.x1));
+                                    const y1 = yScale(ln.y1);
+                                    const x2 = timeToX(msToChartTime(ln.x2));
+                                    const y2 = yScale(ln.y2);
+                                    // Skip off-screen lines
+                                    if (
+                                        (x1 < -200 && x2 < -200) ||
+                                        (x1 > chartDimensions.width + 200 &&
+                                            x2 > chartDimensions.width + 200)
+                                    )
+                                        return null;
+                                    return (
+                                        <line
+                                            key={ln.id}
+                                            x1={x1}
+                                            y1={y1}
+                                            x2={x2}
+                                            y2={y2}
+                                            stroke={ln.color}
+                                            strokeWidth={ln.width}
+                                            strokeDasharray={DASH_MAP[ln.style]}
+                                        />
+                                    );
+                                })}
+                                {/* Labels */}
+                                {d.labels.map((lb) => {
+                                    const x = timeToX(msToChartTime(lb.x));
+                                    const y = yScale(lb.y);
+                                    if (x < -200 || x > chartDimensions.width + 200) return null;
+                                    const fontSize = SIZE_MAP[lb.size] || 12;
+                                    const hasBg =
+                                        lb.bgcolor &&
+                                        lb.bgcolor !== 'transparent' &&
+                                        lb.bgcolor !== '#00000000';
+                                    const textLen = (lb.text?.length || 0) * fontSize * 0.6 + 8;
+                                    return (
+                                        <g key={lb.id}>
+                                            {hasBg && (
+                                                <rect
+                                                    x={x}
+                                                    y={y - fontSize - 2}
+                                                    width={textLen}
+                                                    height={fontSize + 6}
+                                                    rx={2}
+                                                    fill={lb.bgcolor}
+                                                />
+                                            )}
+                                            <text
+                                                x={x + 4}
+                                                y={y - 2}
+                                                fill={lb.textcolor}
+                                                fontSize={fontSize}
+                                                fontFamily="monospace"
+                                                dominantBaseline="auto"
+                                            >
+                                                {lb.text}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                                {/* Boxes */}
+                                {d.boxes.map((bx) => {
+                                    const x1 = timeToX(msToChartTime(bx.left));
+                                    const y1 = yScale(bx.top);
+                                    const x2 = timeToX(msToChartTime(bx.right));
+                                    const y2 = yScale(bx.bottom);
+                                    const rx = Math.min(x1, x2);
+                                    const ry = Math.min(y1, y2);
+                                    const rw = Math.abs(x2 - x1);
+                                    const rh = Math.abs(y2 - y1);
+                                    if (rx + rw < -200 || rx > chartDimensions.width + 200)
+                                        return null;
+                                    return (
+                                        <rect
+                                            key={bx.id}
+                                            x={rx}
+                                            y={ry}
+                                            width={rw}
+                                            height={rh}
+                                            fill={bx.bgcolor}
+                                            stroke={bx.borderColor}
+                                            strokeWidth={bx.borderWidth}
+                                        />
+                                    );
+                                })}
+                            </g>
+                        );
+                    })}
             </>
         );
     };
@@ -9076,8 +9316,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             </style>
             <div
                 ref={fullscreenContainerRef}
-                className="bg-black text-gray-300 flex flex-col h-full w-full overflow-hidden font-sans touch-none"
+                className="bg-black text-gray-300 flex flex-col h-full w-full overflow-hidden font-sans touch-none relative"
             >
+                {/* Indicator Editor — replaces chart when open */}
+                <IndicatorEditorPanel
+                    isOpen={isIndicatorEditorOpen}
+                    onToggle={handleToggleIndicatorEditor}
+                    onAddToChart={handleAddCustomIndicator}
+                    onScriptSaved={handleIndicatorSaved}
+                />
+
+                <div className={isIndicatorEditorOpen ? 'hidden' : 'flex flex-col flex-1 min-h-0'}>
+                {!readOnly && (
                 <ChartHeader
                     symbol={symbol}
                     onSymbolChange={props.onSymbolChange}
@@ -9117,9 +9367,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     onToggleMobileSidebar={onToggleMobileSidebar}
                     precision={chartSettings.symbol.precision}
                 />
+                )}
                 <div className="flex-1 flex min-h-0 relative">
-                    {/* LeftToolbar removed - drawing tools moved to BottomPanel */}
-
                     <div
                         ref={eventContainerRef}
                         onPointerDown={handlePointerDown}
@@ -9205,12 +9454,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         )}
                                     </svg>
 
-                                    {/* Kuri table overlays */}
-                                    {kuriTables.length > 0 && (
-                                        <KuriTableOverlay tables={kuriTables} />
-                                    )}
-
-                                    {selectedDrawingId && floatingToolbarPos && (
+                                    {selectedDrawingId && floatingToolbarPos && !readOnly && (
                                         <FloatingDrawingToolbar
                                             drawing={
                                                 drawings.find((d) => d.id === selectedDrawingId)!
@@ -9299,28 +9543,24 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                 ? editingText.y
                                                 : editingText.y - edH;
                                             return (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: edX,
-                                                        top: edY,
-                                                        width: edW,
-                                                        zIndex: 50,
-                                                    }}
-                                                >
+                                                <div className="absolute z-50 floating-editor-box">
+                                                    <style>{`
+                                                        .floating-editor-box { left: ${edX}px; top: ${edY}px; width: ${edW}px; }
+                                                        .floating-editor-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #c4b5f0; border-radius: 6px 0 0 6px; }
+                                                        .floating-editor-textarea {
+                                                            width: 100%; height: ${edH}px;
+                                                            padding: ${isCallout ? '8px 14px' : '10px 12px 10px 14px'};
+                                                            color: #eae6f4; font-size: ${fontSize}px; font-weight: 600;
+                                                            font-family: "Inter","SF Pro Display",-apple-system,sans-serif;
+                                                            background: #1e1b2e; border: 1.5px solid #c4b5f0;
+                                                            border-radius: ${isCallout ? 8 : 6}px; outline: none; resize: none; overflow: hidden;
+                                                            line-height: 1.5; box-shadow: 0 0 12px rgba(196,181,240,0.25), 0 4px 16px rgba(0,0,0,0.5);
+                                                            text-align: ${isCallout ? 'center' : 'left'};
+                                                        }
+                                                    `}</style>
                                                     {/* Accent bar for text note */}
                                                     {!isCallout && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                left: 0,
-                                                                top: 0,
-                                                                bottom: 0,
-                                                                width: 3,
-                                                                background: '#c4b5f0',
-                                                                borderRadius: '6px 0 0 6px',
-                                                            }}
-                                                        />
+                                                        <div className="floating-editor-accent" />
                                                     )}
                                                     <textarea
                                                         ref={(el) => {
@@ -9338,30 +9578,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                         title="Edit annotation"
                                                         placeholder="Type here..."
                                                         value={editingText.drawing.text}
-                                                        style={{
-                                                            width: '100%',
-                                                            height: edH,
-                                                            padding: isCallout
-                                                                ? '8px 14px'
-                                                                : '10px 12px 10px 14px',
-                                                            color: '#eae6f4',
-                                                            fontSize,
-                                                            fontWeight: 600,
-                                                            fontFamily:
-                                                                '"Inter","SF Pro Display",-apple-system,sans-serif',
-                                                            background: '#1e1b2e',
-                                                            border: '1.5px solid #c4b5f0',
-                                                            borderRadius: isCallout ? 8 : 6,
-                                                            outline: 'none',
-                                                            resize: 'none',
-                                                            overflow: 'hidden',
-                                                            lineHeight: 1.5,
-                                                            boxShadow:
-                                                                '0 0 12px rgba(196,181,240,0.25), 0 4px 16px rgba(0,0,0,0.5)',
-                                                            textAlign: isCallout
-                                                                ? 'center'
-                                                                : 'left',
-                                                        }}
+                                                        className="floating-editor-textarea"
                                                         onChange={(e) => {
                                                             const val = e.target.value;
                                                             setEditingText((prev) =>
@@ -9407,7 +9624,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         })()}
 
                                     {/* Chart Navigation - visible on all devices now */}
-                                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 opacity-0 hover:opacity-100 transition-opacity duration-300 p-6 pointer-events-none">
+                                    {!readOnly && <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 opacity-0 hover:opacity-100 transition-opacity duration-300 p-6 pointer-events-none">
                                         <div className="pointer-events-auto">
                                             <ChartNavigation
                                                 onZoom={(dir) =>
@@ -9434,7 +9651,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                 }
                                             />
                                         </div>
-                                    </div>
+                                    </div>}
                                 </div>
                                 <div
                                     className="w-16 flex-shrink-0 border-l border-[#2A2A2A] cursor-ns-resize"
@@ -9545,55 +9762,51 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             ref={indicatorPanelsContainerRef}
                             className="flex-shrink-0 overflow-hidden"
                         >
-                            {panelIndicators
-                                .filter((i) => i.isVisible !== false)
-                                .map((indicator) => (
-                                    <div
-                                        key={indicator.id}
-                                        className="h-40 border-t-2 border-[#2A2A2A] flex overflow-hidden"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <canvas
-                                                ref={(el) => {
-                                                    const currentRefs =
-                                                        indicatorCanvasRefs.current.get(
-                                                            indicator.id
-                                                        ) || { chart: null, yAxis: null };
+                            {panelIndicators.map((indicator) => (
+                                <div
+                                    key={indicator.id}
+                                    className={`h-40 border-t-2 border-[#2A2A2A] flex overflow-hidden ${indicator.isVisible === false ? 'hidden' : ''}`}
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <canvas
+                                            ref={(el) => {
+                                                const currentRefs = indicatorCanvasRefs.current.get(
+                                                    indicator.id
+                                                ) || { chart: null, yAxis: null };
+                                                indicatorCanvasRefs.current.set(indicator.id, {
+                                                    ...currentRefs,
+                                                    chart: el,
+                                                });
+                                            }}
+                                            className="w-full h-full block"
+                                        />
+                                    </div>
+                                    <div className="w-16 flex-shrink-0 border-l border-[#2A2A2A]">
+                                        <canvas
+                                            ref={(el) => {
+                                                const currentRefs = indicatorCanvasRefs.current.get(
+                                                    indicator.id
+                                                ) || { chart: null, yAxis: null };
+                                                if (el) {
                                                     indicatorCanvasRefs.current.set(indicator.id, {
                                                         ...currentRefs,
-                                                        chart: el,
+                                                        yAxis: el,
                                                     });
-                                                }}
-                                                className="w-full h-full block"
-                                            />
-                                        </div>
-                                        <div className="w-16 flex-shrink-0 border-l border-[#2A2A2A]">
-                                            <canvas
-                                                ref={(el) => {
-                                                    const currentRefs =
-                                                        indicatorCanvasRefs.current.get(
-                                                            indicator.id
-                                                        ) || { chart: null, yAxis: null };
-                                                    if (el) {
-                                                        indicatorCanvasRefs.current.set(
-                                                            indicator.id,
-                                                            { ...currentRefs, yAxis: el }
-                                                        );
-                                                    }
-                                                }}
-                                                className="w-full h-full block"
-                                            />
-                                        </div>
-                                        {!isMobile && rightPanel && (
-                                            <div
-                                                ref={(el) => {
-                                                    if (el) el.style.width = `${rightPanelWidth}px`;
-                                                }}
-                                                className="flex-shrink-0 bg-[#0f0f0f] border-l border-[#2A2A2A]"
-                                            />
-                                        )}
+                                                }
+                                            }}
+                                            className="w-full h-full block"
+                                        />
                                     </div>
-                                ))}
+                                    {!isMobile && rightPanel && (
+                                        <div
+                                            ref={(el) => {
+                                                if (el) el.style.width = `${rightPanelWidth}px`;
+                                            }}
+                                            className="flex-shrink-0 bg-[#0f0f0f] border-l border-[#2A2A2A]"
+                                        />
+                                    )}
+                                </div>
+                            ))}
                         </div>
                         <div className="h-[32px] flex border-t border-[#2A2A2A] flex-shrink-0">
                             <div
@@ -9620,7 +9833,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 />
                             )}
                         </div>
-                        {isBottomPanelOpen && (
+                        {isBottomPanelOpen && !readOnly && (
                             <BottomPanel
                                 isOpen={isBottomPanelOpen}
                                 onToggle={handleToggleBottomPanel}
@@ -9641,20 +9854,31 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 onRedo={handleRedo}
                                 canUndo={undoStack.length > 0}
                                 canRedo={redoStack.length > 0}
-                                consoleLogs={consoleLogs}
-                                onClearConsole={clearConsoleLogs}
                             />
                         )}
-                        <ActiveIndicatorsDisplay
+                        {!readOnly && <ActiveIndicatorsDisplay
                             indicators={allActiveIndicators}
-                            onEdit={setIndicatorToEdit}
+                            onEdit={openIndicatorSettings}
                             onRemove={handleRemoveIndicator}
                             onToggleVisibility={handleToggleIndicatorVisibility}
                             onToggleAllVisibility={handleToggleAllIndicatorsVisibility}
                             onCreateAlert={handleCreateIndicatorAlert}
-                        />
+                        />}
                     </div>
-                    {!isMobile && (
+                    {panelAlert && (
+                        <AlertSlidePanel
+                            alert={panelAlert.alert}
+                            drawing={panelAlert.drawing}
+                            symbol={symbol}
+                            indicatorId={panelAlert.indicatorId}
+                            indicatorType={panelAlert.indicatorType}
+                            indicatorOutputs={panelAlert.indicatorOutputs}
+                            onSave={handleSaveAlert}
+                            onDelete={handleDeleteAlert}
+                            onClose={() => setPanelAlert(null)}
+                        />
+                    )}
+                    {!isMobile && !readOnly && (
                         <RightToolbar
                             onTogglePanel={(panel) =>
                                 setRightPanel((p) => (p === panel ? null : panel))
@@ -9669,8 +9893,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             drawingTools={tools}
                             activeTool={activeTool}
                             onToolSelect={setActiveTool}
+                            onToggleIndicatorEditor={handleToggleIndicatorEditor}
                         />
                     )}
+                </div>
+
                 </div>
 
                 {isIndicatorPanelOpen && (
@@ -9680,8 +9907,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         onAdd={handleAddIndicator}
                         customScripts={props.customScripts}
                         onAddCustom={handleAddCustomIndicator}
-                        strategyVisibility={strategyVisibility}
-                        onToggleStrategy={onToggleStrategyVisibility}
                     />
                 )}
                 {indicatorToEdit && (
@@ -9699,40 +9924,23 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     />
                 )}
 
-                {alertModalInfo.visible &&
-                    (!!alertModalInfo.drawing || !!alertModalInfo.indicatorId) && (
-                        <CreateAlertModal
-                            symbol={props.symbol}
-                            drawing={
-                                alertModalInfo.drawing || ({ type: 'Horizontal Line' } as Drawing)
-                            }
-                            initialAlert={alertModalInfo.alertToEdit}
-                            indicatorId={alertModalInfo.indicatorId}
-                            indicatorType={alertModalInfo.indicatorType}
-                            onClose={() =>
-                                setAlertModalInfo({
-                                    visible: false,
-                                    drawing: null,
-                                    alertToEdit: null,
-                                })
-                            }
-                            onCreate={handleCreateAlertFromModal}
-                        />
-                    )}
+                {toastAlert && (
+                    <AlertToast
+                        alert={toastAlert}
+                        onCustomize={() => {
+                            handleEditAlert(toastAlert);
+                            setToastAlert(null);
+                        }}
+                        onDismiss={() => setToastAlert(null)}
+                    />
+                )}
                 {contextMenu?.visible && (
                     <ContextMenu
                         {...contextMenu}
                         symbol={props.symbol}
                         lockedTime={lockedVerticalLineTime}
                         onClose={() => setContextMenu(null)}
-                        onAddAlert={(price) => {
-                            // For simple price alert, we might want to create a temporary horizontal line or update Modal to support pure price alerts
-                            // For now, let's create a temporary invisible horizontal line?
-                            // Or better: Modify Modal to be more flexible.
-                            // Assuming Modal requires drawing for now based on previous code.
-                            // Actually, let's verify CreateAlertModal props.
-                            console.log('Add simple alert at', price);
-                        }}
+                        onAddAlert={handleAddAlertAtPrice}
                         onAddDrawingAlert={handleCreateDrawingAlert}
                         onOpenSettings={() => setSettingsModalOpen(true)}
                         onLockVerticalLine={onLockVerticalLine}
