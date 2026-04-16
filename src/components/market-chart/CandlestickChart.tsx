@@ -462,7 +462,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [rightPanel, setRightPanel] = useState<
         'watchlist' | 'alerts' | 'dataWindow' | 'orderPanel' | 'objectTree' | null
     >(null);
-    const [toastAlert, setToastAlert] = useState<PriceAlert | null>(null);
+    const [toastAlert, setToastAlert] = useState<{
+        alert: PriceAlert;
+        drawing?: Drawing | null;
+        indicatorId?: string;
+        indicatorType?: string;
+    } | null>(null);
     const [editingAlert, setEditingAlert] = useState<{
         alert: PriceAlert;
         drawing?: Drawing | null;
@@ -1640,7 +1645,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         );
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
-            setToastAlert(newAlert);
+            setToastAlert({ alert: newAlert, indicatorId: indicator.id, indicatorType: indicator.type });
         }
     };
 
@@ -3946,7 +3951,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         );
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
-            setToastAlert(newAlert);
+            setToastAlert({ alert: newAlert });
         }
     };
 
@@ -3959,7 +3964,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         const newAlert = await createAlertWithDefaults(symbol, drawing);
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
-            setToastAlert(newAlert);
+            setToastAlert({ alert: newAlert, drawing });
         }
     };
 
@@ -9912,8 +9917,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                 {toastAlert && !editingAlert && (
                     <AlertToast
-                        alert={toastAlert}
-                        onCustomize={() => handleEditAlert(toastAlert)}
+                        alert={toastAlert.alert}
+                        drawing={toastAlert.drawing}
+                        indicatorId={toastAlert.indicatorId}
+                        indicatorType={toastAlert.indicatorType}
+                        onCustomize={() => {
+                            setEditingAlert(toastAlert);
+                            setToastAlert(null);
+                        }}
                         onDismiss={() => setToastAlert(null)}
                     />
                 )}

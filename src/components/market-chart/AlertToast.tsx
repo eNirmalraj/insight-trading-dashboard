@@ -119,7 +119,14 @@ const AlertToast: React.FC<AlertToastProps> = ({
                     </svg>
                 </div>
                 <div>
-                    <div className="text-xs font-semibold text-[#e8e8e8]">Alert created</div>
+                    <div className="text-xs font-semibold text-[#e8e8e8]">
+                        Alert created
+                        {(drawing || isIndicatorAlert) && (
+                            <span className="ml-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded text-[#888]" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                {isIndicatorAlert ? indicatorType : drawing?.type}
+                            </span>
+                        )}
+                    </div>
                     <div className="text-[10px] text-[#555] mt-0.5">
                         {alert.symbol} — {conditionText}
                     </div>
