@@ -3952,7 +3952,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const handleCreateDrawingAlert = async (drawing: Drawing) => {
         const existing = alerts.find((a) => a.drawingId === drawing.id);
         if (existing) {
-            setPanelAlert({ alert: existing, drawing });
+            setEditingAlert({ alert: existing, drawing });
             return;
         }
         const newAlert = await createAlertWithDefaults(symbol, drawing);
