@@ -15,6 +15,20 @@ interface ActiveAlert {
     indicator_id: string | null;
     alert_condition_id: string | null;
     condition_parameters: any;
+    timeframe: string | null;
+}
+
+function timeframeToMs(timeframe?: string | null): number {
+    if (!timeframe) return 60_000;
+    const m = timeframe.match(/^(\d+)([mhdw])$/);
+    if (!m) return 60_000;
+    const n = parseInt(m[1], 10);
+    const unit = m[2];
+    if (unit === 'm') return n * 60_000;
+    if (unit === 'h') return n * 3_600_000;
+    if (unit === 'd') return n * 86_400_000;
+    if (unit === 'w') return n * 604_800_000;
+    return 60_000;
 }
 
 const latestPrices: Map<string, number> = new Map();
@@ -53,7 +67,7 @@ async function evaluateAlerts() {
     try {
         const { data: alerts, error } = await supabaseAdmin
             .from('price_alerts')
-            .select('id, symbol, condition, price, trigger_frequency, triggered_at, indicator_id, alert_condition_id, condition_parameters')
+            .select('id, symbol, condition, price, trigger_frequency, triggered_at, indicator_id, alert_condition_id, condition_parameters, timeframe')
             .eq('triggered', false)
             .is('drawing_id', null)
             .is('indicator_id', null);
@@ -83,11 +97,11 @@ async function evaluateAlerts() {
                     shouldDisable = true;
                     break;
                 case 'Once Per Minute':
-                case 'Once Per Bar':
-                    shouldFire = now - lastTriggered >= 60000;
+                    shouldFire = now - lastTriggered >= 60_000;
                     break;
+                case 'Once Per Bar':
                 case 'Once Per Bar Close':
-                    shouldFire = now - lastTriggered >= 60000;
+                    shouldFire = now - lastTriggered >= timeframeToMs(alert.timeframe);
                     break;
             }
 

@@ -37,6 +37,7 @@ const mapDbRowToAlert = (row: any): PriceAlert => ({
     indicatorId: row.indicator_id,
     alertConditionId: row.alert_condition_id,
     conditionParameters: row.condition_parameters,
+    timeframe: row.timeframe || '1m',
 });
 
 export const getAlerts = async (): Promise<PriceAlert[]> => {
@@ -109,6 +110,7 @@ export const createAlert = async (alertData: Partial<PriceAlert>): Promise<Price
                     indicator_id: alertData.indicatorId,
                     alert_condition_id: alertData.alertConditionId,
                     condition_parameters: alertData.conditionParameters,
+                    timeframe: alertData.timeframe || '1m',
                 },
             ])
             .select()
@@ -183,6 +185,7 @@ export const updateAlert = async (
                 indicator_id: updates.indicatorId,
                 alert_condition_id: updates.alertConditionId,
                 condition_parameters: updates.conditionParameters,
+                timeframe: updates.timeframe,
             })
             .eq('id', id)
             .select()
@@ -241,6 +244,8 @@ export const createAlertWithDefaults = async (
     conditionParameters?: Record<string, any>,
     /** For pure price alerts (no drawing) */
     rawPrice?: number,
+    /** Chart timeframe at creation (e.g. '1m', '5m', '1h') */
+    timeframe: string = '1m',
 ): Promise<PriceAlert | null> => {
     let condition: AlertConditionType = 'Crossing';
     let price = rawPrice || 0;
@@ -300,5 +305,6 @@ export const createAlertWithDefaults = async (
         indicatorId,
         alertConditionId,
         conditionParameters,
+        timeframe,
     });
 };

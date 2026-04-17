@@ -314,6 +314,8 @@ export interface PriceAlert {
     notifyApp: boolean;
     playSound: boolean;
     triggerFrequency: 'Only Once' | 'Once Per Bar' | 'Once Per Bar Close' | 'Once Per Minute';
+    /** Timeframe for bar-close detection (e.g. '1m', '5m', '15m', '1h', '4h', '1d'). Defaults to '1m'. */
+    timeframe?: string;
     lastTriggeredAt?: number;
 }
 

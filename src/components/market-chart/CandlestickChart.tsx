@@ -1641,7 +1641,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             indicator.id,
             indicator.type,
             firstCond?.id,
-            params
+            params,
+            undefined,
+            activeTimeframe,
         );
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
@@ -3948,6 +3950,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             undefined,
             undefined,
             price,     // raw price
+            activeTimeframe,
         );
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
@@ -3961,7 +3964,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             setEditingAlert({ alert: existing, drawing });
             return;
         }
-        const newAlert = await createAlertWithDefaults(symbol, drawing);
+        const newAlert = await createAlertWithDefaults(symbol, drawing, undefined, undefined, undefined, undefined, undefined, activeTimeframe);
         if (newAlert) {
             setAlerts((prev) => [...prev, newAlert]);
             setToastAlert({ alert: newAlert, drawing });

@@ -36,8 +36,23 @@ class AlertEngine {
 
     // Price tracking
     private lastPrices: Map<string, number> = new Map();
-    private lastBarMinutes: Map<string, number> = new Map();
+    // Keyed by `${symbol}:${timeframe}` to track bar boundaries per-timeframe
+    private lastBarIndices: Map<string, number> = new Map();
     private lastBarClosePrices: Map<string, number> = new Map();
+
+    /** Convert timeframe string to milliseconds. Defaults to 1 minute. */
+    private timeframeToMs(timeframe?: string): number {
+        if (!timeframe) return 60_000;
+        const m = timeframe.match(/^(\d+)([mhdw])$/);
+        if (!m) return 60_000;
+        const n = parseInt(m[1], 10);
+        const unit = m[2];
+        if (unit === 'm') return n * 60_000;
+        if (unit === 'h') return n * 3_600_000;
+        if (unit === 'd') return n * 86_400_000;
+        if (unit === 'w') return n * 604_800_000;
+        return 60_000;
+    }
 
     // Trigger notification listeners
     private triggerListeners: Set<AlertTriggerListener> = new Set();
@@ -183,32 +198,46 @@ class AlertEngine {
         const prevPrice = this.lastPrices.get(symbol);
         this.lastPrices.set(symbol, currentPrice);
 
-        // Bar close detection
-        const nowMinute = Math.floor(Date.now() / 60000);
-        const lastMinute = this.lastBarMinutes.get(symbol);
+        // ── Bar close detection per-timeframe ──
+        // Collect unique timeframes used by bar-close alerts for this symbol
+        const barCloseAlerts = this.activeAlerts.filter(
+            (a) =>
+                a.symbol.toUpperCase() === symbol &&
+                !a.triggered &&
+                a.triggerFrequency === 'Once Per Bar Close'
+        );
 
-        if (lastMinute === undefined) {
-            this.lastBarMinutes.set(symbol, nowMinute);
-            this.lastBarClosePrices.set(symbol, currentPrice);
+        const timeframesSeen = new Set<string>();
+        for (const a of barCloseAlerts) {
+            timeframesSeen.add(a.timeframe || '1m');
         }
 
-        if (lastMinute !== undefined && nowMinute > lastMinute) {
-            const closedPrice = prevPrice ?? currentPrice;
-            const prevClosedPrice = this.lastBarClosePrices.get(symbol);
-            const barCloseAlerts = this.activeAlerts.filter(
-                (a) =>
-                    a.symbol.toUpperCase() === symbol &&
-                    !a.triggered &&
-                    a.triggerFrequency === 'Once Per Bar Close'
-            );
-            for (const alert of barCloseAlerts) {
-                this.evaluateAlert(alert, symbol, closedPrice, prevClosedPrice);
+        for (const tf of timeframesSeen) {
+            const tfMs = this.timeframeToMs(tf);
+            const key = `${symbol}:${tf}`;
+            const nowBar = Math.floor(Date.now() / tfMs);
+            const lastBar = this.lastBarIndices.get(key);
+
+            if (lastBar === undefined) {
+                this.lastBarIndices.set(key, nowBar);
+                this.lastBarClosePrices.set(key, currentPrice);
+                continue;
             }
-            this.lastBarClosePrices.set(symbol, closedPrice);
-            this.lastBarMinutes.set(symbol, nowMinute);
+
+            if (nowBar > lastBar) {
+                const closedPrice = prevPrice ?? currentPrice;
+                const prevClosedPrice = this.lastBarClosePrices.get(key);
+                for (const alert of barCloseAlerts) {
+                    if ((alert.timeframe || '1m') === tf) {
+                        this.evaluateAlert(alert, symbol, closedPrice, prevClosedPrice);
+                    }
+                }
+                this.lastBarClosePrices.set(key, closedPrice);
+                this.lastBarIndices.set(key, nowBar);
+            }
         }
 
-        // Standard alerts (non bar-close)
+        // ── Standard alerts (non bar-close) ──
         const standardAlerts = this.activeAlerts.filter(
             (a) =>
                 a.symbol.toUpperCase() === symbol &&
@@ -275,8 +304,11 @@ class AlertEngine {
                     shouldDisable = true;
                     break;
                 case 'Once Per Minute':
+                    actualTrigger = now - lastTrigger >= 60_000;
+                    break;
                 case 'Once Per Bar':
-                    actualTrigger = now - lastTrigger >= 60000;
+                    // Throttle by the alert's timeframe (e.g. 5m → 5 minutes between triggers)
+                    actualTrigger = now - lastTrigger >= this.timeframeToMs(alert.timeframe);
                     break;
                 case 'Once Per Bar Close':
                     actualTrigger = true;

@@ -69,6 +69,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
     const [value, setValue] = useState(alert.value ?? 0);
     const [fibLevel] = useState(alert.fibLevel);
     const [trigger, setTrigger] = useState<TriggerFreq>(alert.triggerFrequency);
+    const [timeframe, setTimeframe] = useState(alert.timeframe || '1m');
     const [notifyApp, setNotifyApp] = useState(alert.notifyApp);
     const [playSound, setPlaySound] = useState(alert.playSound);
     const [selectedCondId, setSelectedCondId] = useState(alert.alertConditionId || '');
@@ -100,6 +101,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
             value: isChannel ? undefined : value,
             fibLevel,
             triggerFrequency: trigger,
+            timeframe,
             notifyApp,
             playSound,
         };
@@ -296,6 +298,23 @@ const AlertToast: React.FC<AlertToastProps> = ({
                         ))}
                     </div>
                 </div>
+
+                {/* Timeframe row — only relevant when trigger uses bars */}
+                {(trigger === 'Once Per Bar' || trigger === 'Once Per Bar Close') && (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Timeframe</span>
+                        <select
+                            title="Bar timeframe"
+                            className="flex-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#c4b5f0] font-medium appearance-none cursor-pointer"
+                            value={timeframe}
+                            onChange={(e) => setTimeframe(e.target.value)}
+                        >
+                            {['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'].map((tf) => (
+                                <option key={tf} value={tf} style={{ background: '#1a1a1e' }}>{tf}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {/* Actions row */}
                 <div className="flex items-center gap-1.5">
