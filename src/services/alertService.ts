@@ -1,5 +1,5 @@
 import { db } from './supabaseClient';
-import { PriceAlert, AlertConditionType, Drawing, HorizontalLineDrawing, TrendLineDrawing, RayDrawing, FibonacciRetracementDrawing } from '../components/market-chart/types';
+import { PriceAlert, AlertConditionType, Drawing, HorizontalLineDrawing, HorizontalRayDrawing, TrendLineDrawing, VerticalLineDrawing } from '../components/market-chart/types';
 
 export const isMockMode = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -245,7 +245,7 @@ export const createAlertWithDefaults = async (
     let condition: AlertConditionType = 'Crossing';
     let price = rawPrice || 0;
     let drawingId: string | undefined;
-    let fibLevel: number | undefined;
+    let targetTime: number | undefined;
 
     if (drawing) {
         drawingId = drawing.id;
@@ -253,19 +253,19 @@ export const createAlertWithDefaults = async (
             case 'Horizontal Line':
                 price = (drawing as HorizontalLineDrawing).price;
                 break;
+            case 'Horizontal Ray':
+                price = (drawing as HorizontalRayDrawing).start.price;
+                break;
             case 'Trend Line':
-            case 'Ray':
-                price = (drawing as TrendLineDrawing | RayDrawing).end.price;
+                price = (drawing as TrendLineDrawing).end.price;
                 break;
-            case 'Fibonacci Retracement': {
-                const fib = drawing as FibonacciRetracementDrawing;
-                fibLevel = 0.618;
-                price = fib.start.price + (fib.end.price - fib.start.price) * fibLevel;
-                break;
-            }
-            case 'Rectangle':
             case 'Parallel Channel':
                 condition = 'Entering Channel';
+                break;
+            case 'Vertical Line':
+                condition = 'Time Reached';
+                targetTime = (drawing as VerticalLineDrawing).time;
+                price = 0;
                 break;
         }
     }
@@ -274,22 +274,25 @@ export const createAlertWithDefaults = async (
     let message = '';
     if (indicatorType && alertConditionId) {
         message = `${symbol} ${indicatorType} alert`;
-    } else if (drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel') {
+    } else if (drawing?.type === 'Vertical Line') {
+        const date = targetTime ? new Date(targetTime * 1000).toLocaleString() : '';
+        message = `${symbol} Time Reached ${date}`;
+    } else if (drawing?.type === 'Parallel Channel') {
         message = `${symbol} ${condition} ${drawing.type}`;
-    } else if (drawing?.type === 'Fibonacci Retracement') {
-        message = `${symbol} ${condition} Fib ${fibLevel} (${priceStr})`;
     } else if (drawing) {
-        message = `${symbol} ${condition} ${drawing.type}`;
+        message = `${symbol} ${condition} ${drawing.type} (${priceStr})`;
     } else {
         message = `${symbol} Price ${condition} ${priceStr}`;
     }
 
+    // For Vertical Line, store targetTime in `value` field (repurposed as Unix seconds)
+    const alertValue = targetTime !== undefined ? targetTime : (price || undefined);
+
     return createAlert({
         symbol,
         condition,
-        value: price || undefined,
+        value: alertValue,
         drawingId,
-        fibLevel,
         message,
         notifyApp: true,
         playSound: false,

@@ -227,14 +227,21 @@ export class BinanceStreamManager {
                 const symbol = kline.s.toUpperCase();
                 const timeframe = kline.k.i;
 
-                // Only process if candle is closed
+                // Emit live price tick on EVERY kline update for SL/TP monitoring.
+                // kline.k.c is the current close price = last trade price.
+                const livePrice = parseFloat(kline.k.c);
+                if (!Number.isNaN(livePrice)) {
+                    eventBus.emitPriceTick(symbol, livePrice, livePrice);
+                }
+
+                // Process candle close for signal generation
                 if (kline.k.x) {
                     const candle: Candle = {
                         time: Math.floor(kline.k.t / 1000),
                         open: parseFloat(kline.k.o),
                         high: parseFloat(kline.k.h),
                         low: parseFloat(kline.k.l),
-                        close: parseFloat(kline.k.c),
+                        close: livePrice,
                         volume: parseFloat(kline.k.v),
                     };
 
@@ -447,6 +454,62 @@ export class BinanceStreamManager {
         this.shards = [];
         this.tearDownTickerShard();
         this.bookTickerSymbols.clear();
+    }
+
+    /**
+     * Ensure a symbol has at least a 1m kline stream for live price ticks.
+     * Used by the execution engine to guarantee SL/TP monitoring coverage
+     * for symbols that might not have an active strategy assignment.
+     * If the symbol already has any kline subscription, this is a no-op.
+     */
+    public async ensureKlineStream(symbol: string): Promise<void> {
+        const canonical = symbol.toUpperCase();
+        if (this.subscriptions.has(canonical) && this.subscriptions.get(canonical)!.size > 0) {
+            return; // Already has kline coverage
+        }
+        console.log(`[BinanceStream] Adding 1m kline for ${canonical} (SL/TP monitoring)`);
+        if (!this.subscriptions.has(canonical)) {
+            this.subscriptions.set(canonical, new Set());
+        }
+        this.subscriptions.get(canonical)!.add('1m');
+
+        // Add to an existing shard or create a new stream entry
+        const stream = `${canonical.toLowerCase()}@kline_1m`;
+        const lastShard = this.shards[this.shards.length - 1];
+        if (lastShard && lastShard.streams.length < this.STREAMS_PER_CONNECTION) {
+            // Add to last shard — schedule reconnect safely
+            lastShard.streams.push(stream);
+            if (lastShard.ws) {
+                try { lastShard.ws.removeAllListeners(); } catch {}
+                try {
+                    if (lastShard.ws.readyState === WebSocket.OPEN) lastShard.ws.terminate();
+                    else lastShard.ws.on('error', () => {}), lastShard.ws.close();
+                } catch {}
+                lastShard.ws = null;
+            }
+            this.connectShard(lastShard);
+        } else {
+            // Create a new shard
+            const newShard: StreamShard = {
+                id: this.shards.length + 1,
+                ws: null,
+                streams: [stream],
+                isConnected: false,
+                reconnectTimer: null,
+                reconnectAttempts: 0,
+            };
+            this.shards.push(newShard);
+            this.connectShard(newShard);
+        }
+    }
+
+    /**
+     * Check if a symbol has any active kline subscription.
+     */
+    public hasKlineStream(symbol: string): boolean {
+        const canonical = symbol.toUpperCase();
+        const tfs = this.subscriptions.get(canonical);
+        return !!tfs && tfs.size > 0;
     }
 
     /**

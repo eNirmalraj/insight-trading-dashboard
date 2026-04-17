@@ -2,12 +2,14 @@
 import React from 'react';
 import { Signal, SignalStatus, TradeDirection } from '../types';
 import { computeSignalPnl } from '../utils/signalPnl';
+import { StrategyWinRate } from '../utils/strategyStats';
 
 interface SignalRowProps {
     signal: Signal;
     currentPrice?: number;
     onShowChart: (signal: Signal) => void;
     onExecute: (signal: Signal) => void;
+    strategyWinRate?: StrategyWinRate;
 }
 
 const formatCreated = (timestamp: string | number | Date): string => {
@@ -28,7 +30,7 @@ const formatPrice = (price: number | undefined | null): string => {
     return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-const SignalRow: React.FC<SignalRowProps> = ({ signal, currentPrice, onShowChart, onExecute }) => {
+const SignalRow: React.FC<SignalRowProps> = ({ signal, currentPrice, onShowChart, onExecute, strategyWinRate }) => {
     const isBuy = signal.direction === TradeDirection.BUY;
     const { pct, ratio } = computeSignalPnl(signal, currentPrice);
 
@@ -137,6 +139,39 @@ const SignalRow: React.FC<SignalRowProps> = ({ signal, currentPrice, onShowChart
             {/* Created */}
             <td className="px-3 py-3 text-right font-mono text-[11px] text-gray-400 whitespace-nowrap">
                 {formatCreated(signal.timestamp)}
+            </td>
+
+            {/* Duration */}
+            <td className="px-3 py-3 text-right text-[11px] text-gray-400 whitespace-nowrap">
+                {(() => {
+                    const endTime = signal.closedAt
+                        ? new Date(signal.closedAt).getTime()
+                        : Date.now();
+                    const diff = endTime - new Date(signal.timestamp).getTime();
+                    const mins = Math.floor(diff / 60000);
+                    if (mins < 1) return '<1m';
+                    if (mins < 60) return `${mins}m`;
+                    const hrs = Math.floor(mins / 60);
+                    if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+                    const days = Math.floor(hrs / 24);
+                    return `${days}d ${hrs % 24}h`;
+                })()}
+            </td>
+
+            {/* Closed */}
+            <td className="px-3 py-3 text-right font-mono text-[11px] whitespace-nowrap">
+                {signal.closedAt ? (
+                    <span className="text-gray-400">
+                        {signal.closeReason && (
+                            <span className={signal.closeReason === 'TP' ? 'text-green-400' : 'text-red-400'}>
+                                {signal.closeReason}{' '}
+                            </span>
+                        )}
+                        {formatCreated(signal.closedAt)}
+                    </span>
+                ) : (
+                    <span className="text-gray-600">—</span>
+                )}
             </td>
 
             {/* Actions */}

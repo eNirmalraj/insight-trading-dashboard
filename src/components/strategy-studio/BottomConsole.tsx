@@ -149,6 +149,7 @@ export const BottomConsole: React.FC<BottomConsoleProps> = ({
         'all'
     );
     const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+    const [copied, setCopied] = React.useState(false);
 
     const filteredLogs = React.useMemo(() => {
         if (activeFilter === 'all') return logs;
@@ -396,6 +397,35 @@ export const BottomConsole: React.FC<BottomConsoleProps> = ({
                             Fix with AI
                         </button>
                     )}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const errorLogs = logs.filter((l) => l.type === 'error' || l.type === 'warn');
+                            const text = errorLogs.length === 0
+                                ? 'No errors'
+                                : errorLogs.map((l) => `[${l.type.toUpperCase()}]${l.line ? ` Line ${l.line}` : ''}: ${l.message}`).join('\n');
+                            navigator.clipboard.writeText(text).then(() => {
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 2000);
+                            });
+                        }}
+                        className={`transition-colors p-1 rounded hover:bg-white/5 flex items-center gap-1 ${copied ? 'text-emerald-400' : 'text-gray-500 hover:text-white'}`}
+                        title="Copy all errors & warnings"
+                    >
+                        {copied ? (
+                            <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-[10px]">Copied</span>
+                            </>
+                        ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        )}
+                    </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

@@ -111,44 +111,100 @@ const StepIndicators: React.FC<Props> = ({ model, update }) => {
         ));
     }, [setIndicators]);
 
+    // Check if a param value is linked to a User Input (starts with "$param:")
+    const isLinked = (val: any): boolean => typeof val === 'string' && val.startsWith('$param:');
+    const getLinkedVar = (val: any): string => isLinked(val) ? val.slice(7) : '';
+
+    // Compatible user inputs for a given param type
+    const compatibleUserInputs = (paramType: string) => {
+        return model.parameters.filter((p) => {
+            if (paramType === 'int' || paramType === 'float') return p.type === 'int' || p.type === 'float';
+            if (paramType === 'string') return p.type === 'string';
+            if (paramType === 'source') return p.type === 'source' || p.type === 'string';
+            if (paramType === 'bool') return p.type === 'bool';
+            return false;
+        });
+    };
+
     const renderParamInput = (ind: IndicatorInstance, param: ParsedParam) => {
         const val = ind.paramValues[param.varName];
+        const linked = isLinked(val);
+        const linkedVar = getLinkedVar(val);
+        const compatible = compatibleUserInputs(param.type);
+
         return (
             <div key={param.varName} className="flex items-center gap-2 py-1">
                 <span className="text-xs text-gray-400 w-28 flex-shrink-0 truncate">{param.title || param.varName}</span>
-                <div className="flex-1">
-                    {(param.type === 'int' || param.type === 'float') && (
-                        <input type="number" value={val} title={param.title}
-                            min={param.min} max={param.max}
-                            step={param.type === 'float' ? 0.1 : 1}
-                            onChange={(e) => updateParamValue(ind.id, param.varName, param.type === 'int' ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0)}
-                            className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none text-center" />
+                <div className="flex-1 flex items-center gap-1.5">
+                    {linked ? (
+                        // Linked to a User Input — show badge
+                        <div className="flex items-center gap-1.5 flex-1">
+                            <span className="text-[10px] text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded font-medium">
+                                {model.parameters.find((p) => p.varName === linkedVar)?.title || linkedVar}
+                            </span>
+                            <span className="text-[9px] text-gray-600 font-mono">{linkedVar}</span>
+                        </div>
+                    ) : (
+                        // Fixed value input
+                        <div className="flex-1">
+                            {(param.type === 'int' || param.type === 'float') && (
+                                <input type="number" value={val} title={param.title}
+                                    min={param.min} max={param.max}
+                                    step={param.type === 'float' ? 0.1 : 1}
+                                    onChange={(e) => updateParamValue(ind.id, param.varName, param.type === 'int' ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0)}
+                                    className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none text-center" />
+                            )}
+                            {param.type === 'source' && (
+                                <select value={val} title={param.title}
+                                    onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
+                                    className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
+                                    {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            )}
+                            {param.type === 'string' && param.options && (
+                                <select value={val} title={param.title}
+                                    onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
+                                    className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
+                                    {param.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                                </select>
+                            )}
+                            {param.type === 'string' && !param.options && (
+                                <input type="text" value={val} title={param.title}
+                                    onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
+                                    className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none" />
+                            )}
+                            {param.type === 'bool' && (
+                                <button type="button" title={param.title}
+                                    onClick={() => updateParamValue(ind.id, param.varName, !val)}
+                                    className={`w-8 h-4 rounded-full relative transition-colors ${val ? 'bg-[#2962FF]' : 'bg-gray-700'}`}>
+                                    <div className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform ${val ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                </button>
+                            )}
+                        </div>
                     )}
-                    {param.type === 'source' && (
-                        <select value={val} title={param.title}
-                            onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
-                            className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
-                            {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+
+                    {/* Link / Unlink toggle */}
+                    {compatible.length > 0 && (
+                        <select
+                            value={linked ? `$param:${linkedVar}` : '__fixed__'}
+                            title="Link to User Input or use fixed value"
+                            onChange={(e) => {
+                                if (e.target.value === '__fixed__') {
+                                    updateParamValue(ind.id, param.varName, param.defaultValue);
+                                } else {
+                                    updateParamValue(ind.id, param.varName, e.target.value);
+                                }
+                            }}
+                            className={`bg-[#1e222d] border rounded px-1.5 py-1 text-[10px] outline-none appearance-none flex-shrink-0 ${
+                                linked ? 'border-amber-500/30 text-amber-300' : 'border-white/[0.08] text-gray-500'
+                            }`}>
+                            <option value="__fixed__">Fixed</option>
+                            <optgroup label="Link to User Input">
+                                {compatible.map((p) => (
+                                    <option key={p.id} value={`$param:${p.varName}`}>{p.title || p.varName}</option>
+                                ))}
+                            </optgroup>
                         </select>
-                    )}
-                    {param.type === 'string' && param.options && (
-                        <select value={val} title={param.title}
-                            onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
-                            className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
-                            {param.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                    )}
-                    {param.type === 'string' && !param.options && (
-                        <input type="text" value={val} title={param.title}
-                            onChange={(e) => updateParamValue(ind.id, param.varName, e.target.value)}
-                            className="w-full bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-xs text-gray-200 focus:border-[#2962FF] outline-none" />
-                    )}
-                    {param.type === 'bool' && (
-                        <button type="button" title={param.title}
-                            onClick={() => updateParamValue(ind.id, param.varName, !val)}
-                            className={`w-8 h-4 rounded-full relative transition-colors ${val ? 'bg-[#2962FF]' : 'bg-gray-700'}`}>
-                            <div className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform ${val ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                        </button>
                     )}
                 </div>
                 <span className="text-[9px] text-gray-600 flex-shrink-0 w-14 text-right truncate">

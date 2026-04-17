@@ -6,23 +6,29 @@ const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
 const sanitize = (name: string): string =>
     name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
 
+// Resolve a param value: if linked ($param:varName), return the variable name; else return literal
+const pv = (val: any, fallback: any): string => {
+    if (typeof val === 'string' && val.startsWith('$param:')) return val.slice(7);
+    return String(val ?? fallback);
+};
+
 const KURI_FN: Record<string, (p: Record<string, any>) => string> = {
-    SMA: (p) => `kuri.sma(${p.source ?? 'close'}, ${p.length ?? 14})`,
-    EMA: (p) => `kuri.ema(${p.source ?? 'close'}, ${p.length ?? 14})`,
-    WMA: (p) => `kuri.wma(${p.source ?? 'close'}, ${p.length ?? 14})`,
-    HMA: (p) => `kuri.hma(${p.source ?? 'close'}, ${p.length ?? 14})`,
-    RSI: (p) => `kuri.rsi(${p.source ?? 'close'}, ${p.length ?? 14})`,
-    ATR: (p) => `kuri.atr(${p.length ?? 14})`,
-    BB: (p) => `kuri.bb(${p.source ?? 'close'}, ${p.length ?? 20}, ${p.mult ?? 2})`,
-    MACD: (p) => `kuri.macd(${p.source ?? 'close'}, ${p.fast ?? 12}, ${p.slow ?? 26}, ${p.signal ?? 9})`,
-    DC: (p) => `kuri.highest(high, ${p.length ?? 20})`,
-    Supertrend: (p) => `kuri.supertrend(${p.factor ?? 3}, ${p.length ?? 10})`,
-    ADX: (p) => `kuri.adx(${p.length ?? 14})`,
-    KC: (p) => `kuri.kc(${p.source ?? 'close'}, ${p.length ?? 20}, ${p.mult ?? 1.5})`,
-    Stoch: (p) => `kuri.stoch(${p.length ?? 14}, ${p.smoothK ?? 3}, ${p.smoothD ?? 3})`,
-    VWMA: (p) => `kuri.vwma(${p.source ?? 'close'}, ${p.length ?? 20})`,
-    CCI: (p) => `kuri.cci(${p.source ?? 'hlc3'}, ${p.length ?? 20})`,
-    MFI: (p) => `kuri.mfi(${p.length ?? 14})`,
+    SMA: (p) => `kuri.sma(${pv(p.source, 'close')}, ${pv(p.length, 14)})`,
+    EMA: (p) => `kuri.ema(${pv(p.source, 'close')}, ${pv(p.length, 14)})`,
+    WMA: (p) => `kuri.wma(${pv(p.source, 'close')}, ${pv(p.length, 14)})`,
+    HMA: (p) => `kuri.hma(${pv(p.source, 'close')}, ${pv(p.length, 14)})`,
+    RSI: (p) => `kuri.rsi(${pv(p.source, 'close')}, ${pv(p.length, 14)})`,
+    ATR: (p) => `kuri.atr(${pv(p.length, 14)})`,
+    BB: (p) => `kuri.bb(${pv(p.source, 'close')}, ${pv(p.length, 20)}, ${pv(p.mult, 2)})`,
+    MACD: (p) => `kuri.macd(${pv(p.source, 'close')}, ${pv(p.fast, 12)}, ${pv(p.slow, 26)}, ${pv(p.signal, 9)})`,
+    DC: (p) => `kuri.highest(high, ${pv(p.length, 20)})`,
+    Supertrend: (p) => `kuri.supertrend(${pv(p.factor, 3)}, ${pv(p.length, 10)})`,
+    ADX: (p) => `kuri.adx(${pv(p.length, 14)})`,
+    KC: (p) => `kuri.kc(${pv(p.source, 'close')}, ${pv(p.length, 20)}, ${pv(p.mult, 1.5)})`,
+    Stoch: (p) => `kuri.stoch(${pv(p.length, 14)}, ${pv(p.smoothK, 3)}, ${pv(p.smoothD, 3)})`,
+    VWMA: (p) => `kuri.vwma(${pv(p.source, 'close')}, ${pv(p.length, 20)})`,
+    CCI: (p) => `kuri.cci(${pv(p.source, 'hlc3')}, ${pv(p.length, 20)})`,
+    MFI: (p) => `kuri.mfi(${pv(p.length, 14)})`,
     OBV: () => `kuri.obv()`,
     Vol: () => `volume`,
     VWAP: () => `kuri.vwap()`,
@@ -41,6 +47,7 @@ function resolveToken(
     }
 
     // Operand resolution
+    if (v.startsWith('param:')) return v.split(':')[1]; // user-defined parameter variable
     if (v.startsWith('price:')) return v.split(':')[1];
     if (v.startsWith('hist:')) {
         const histParts = v.split(':');
@@ -142,20 +149,30 @@ function resolveToken(
         return String(token.valueNum ?? v.split(':')[1]);
     }
 
+    // ── Shared arg resolver for compound tokens ──
+    // Handles: 'ind' (next part = id), 'formula' (next part = name),
+    //          'value' (next part = number), or plain price field
+    const resolveCompoundArg = (parts: string[], startIdx: number): [string, number] => {
+        const p = parts[startIdx];
+        if (p === 'ind') {
+            const inst = model.indicators.find((i) => i.id === parts[startIdx + 1]);
+            return [inst ? sanitize(inst.name) : 'na', startIdx + 2];
+        }
+        if (p === 'formula') {
+            return [parts[startIdx + 1] || 'na', startIdx + 2];
+        }
+        if (p === 'value') {
+            return [parts[startIdx + 1] || '0', startIdx + 2];
+        }
+        return [p || 'close', startIdx + 1];
+    };
+
     // Crosses Above/Below: cross:<dir>:<srcA>:<srcB>
     if (v.startsWith('cross:')) {
         const cp = v.split(':');
         const dir = cp[1];
-        const resolveArg = (parts: string[], startIdx: number): [string, number] => {
-            if (parts[startIdx] === 'ind') {
-                const inst = model.indicators.find((i) => i.id === parts[startIdx + 1]);
-                return [inst ? sanitize(inst.name) : 'na', startIdx + 2];
-            }
-            if (parts[startIdx]?.startsWith('formula:')) return [parts[startIdx].split(':')[1], startIdx + 1];
-            return [parts[startIdx] || 'close', startIdx + 1];
-        };
-        const [a, nextIdx] = resolveArg(cp, 2);
-        const [b] = resolveArg(cp, nextIdx);
+        const [a, nextIdx] = resolveCompoundArg(cp, 2);
+        const [b] = resolveCompoundArg(cp, nextIdx);
         return dir === 'above' ? `kuri.crossover(${a}, ${b})` : `kuri.crossunder(${a}, ${b})`;
     }
 
@@ -163,15 +180,9 @@ function resolveToken(
     if (v.startsWith('math:')) {
         const mp = v.split(':');
         const mathFn = mp[1];
-        const resolveArg = (idx: number): string => {
-            if (mp[idx] === 'ind') { const inst = model.indicators.find((i) => i.id === mp[idx + 1]); return inst ? sanitize(inst.name) : 'na'; }
-            if (mp[idx]?.startsWith('formula:')) return mp[idx].split(':')[1];
-            return mp[idx] || 'close';
-        };
-        const a = resolveArg(2);
+        const [a, nextIdx] = resolveCompoundArg(mp, 2);
         if (mathFn === 'max' || mathFn === 'min') {
-            const bIdx = mp[2] === 'ind' ? 4 : 3;
-            const b = resolveArg(bIdx);
+            const [b] = resolveCompoundArg(mp, nextIdx);
             return `math.${mathFn}(${a}, ${b})`;
         }
         return `math.${mathFn}(${a})`;
@@ -180,38 +191,16 @@ function resolveToken(
     // Conditional: cond:ternary:<condA>:<op>:<condB>:<then>:<else>
     if (v.startsWith('cond:ternary')) {
         const cp = v.split(':');
-        const resolveArg = (idx: number): string => {
-            if (cp[idx]?.startsWith('ind')) { const inst = model.indicators.find((i) => i.id === cp[idx + 1]); return inst ? sanitize(inst.name) : 'na'; }
-            if (cp[idx]?.startsWith('formula')) return cp[idx].split(':')[1] || 'na';
-            if (cp[idx]?.startsWith('value')) return cp[idx].split(':')[1] || '0';
-            return cp[idx] || 'close';
-        };
-        const condA = resolveArg(2);
-        const op = cp[3] || '>';
-        const condB = resolveArg(4);
-        const thenV = resolveArg(5);
-        const elseV = resolveArg(6);
+        const [condA, i1] = resolveCompoundArg(cp, 2);
+        const op = cp[i1] || '>';
+        const [condB, i2] = resolveCompoundArg(cp, i1 + 1);
+        const [thenV, i3] = resolveCompoundArg(cp, i2);
+        const [elseV] = resolveCompoundArg(cp, i3);
         return `(${condA} ${op} ${condB} ? ${thenV} : ${elseV})`;
     }
 
     // na handling
     if (v === 'na:value') return 'na';
-    if (v.startsWith('na:check:')) {
-        const src = v.split(':')[2] || 'close';
-        const resolved = src.startsWith('ind:') ? (() => { const inst = model.indicators.find((i) => i.id === src.split(':')[1]); return inst ? sanitize(inst.name) : 'na'; })()
-            : src.startsWith('formula:') ? src.split(':')[1]
-            : src;
-        return `na(${resolved})`;
-    }
-    if (v.startsWith('na:replace:')) {
-        const parts = v.split(':');
-        const src = parts[2] || 'close';
-        const repl = parts[3] || '0';
-        const resolved = src.startsWith('ind:') ? (() => { const inst = model.indicators.find((i) => i.id === src.split(':')[1]); return inst ? sanitize(inst.name) : 'na'; })()
-            : src.startsWith('formula:') ? src.split(':')[1]
-            : src;
-        return `nz(${resolved}, ${repl})`;
-    }
 
     // Bar info
     if (v === 'barinfo:bar_index') return 'bar_index';
@@ -245,7 +234,34 @@ export const generateKuri = (model: IndicatorModel): string => {
     L.push('---');
     L.push('');
 
-    // 2. Indicator building blocks
+    // 2. User Inputs (parameters)
+    if (model.parameters && model.parameters.length > 0) {
+        L.push('// -- User Inputs --');
+        for (const p of model.parameters) {
+            const parts: string[] = [];
+            if (p.type === 'string') {
+                parts.push(q(String(p.defaultValue)));
+            } else {
+                parts.push(String(p.defaultValue));
+            }
+            if (p.title) parts.push(`title=${q(p.title)}`);
+            if ((p.type === 'int' || p.type === 'float') && p.min !== undefined) parts.push(`minval=${p.min}`);
+            if ((p.type === 'int' || p.type === 'float') && p.max !== undefined) parts.push(`maxval=${p.max}`);
+            if (p.options && p.options.length > 0) {
+                const optList = p.options.map((o) => p.type === 'string' ? q(o) : o).join(', ');
+                parts.push(`options=[${optList}]`);
+            }
+            if (p.tooltip && p.tooltip.trim()) {
+                // Preserve \n as literal backslash-n in the quoted string
+                const escaped = p.tooltip.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+                parts.push(`tooltip="${escaped}"`);
+            }
+            L.push(`${p.varName} = param.${p.type}(${parts.join(', ')})`);
+        }
+        L.push('');
+    }
+
+    // 3. Indicator building blocks
     if (model.indicators.length > 0) {
         L.push('// -- Indicator building blocks --');
         for (const inst of model.indicators) {
@@ -278,29 +294,27 @@ export const generateKuri = (model: IndicatorModel): string => {
             const formula = model.formulas.find((f) => f.id === p.formulaId);
             const formulaName = formula?.name ?? 'na';
 
-            const styleMap: Record<string, string> = {
-                solid: 'mark.style_solid',
-                dashed: 'mark.style_dashed',
-                dotted: 'mark.style_dotted',
-            };
-            const style = styleMap[p.lineStyle] || 'mark.style_solid';
+            // Kuri mark() syntax: mark(value, title="...", color=#HEX)
+            // No width, no style params — Kuri doesn't support them
+            // Colors must be unquoted: color=#2962FF not color="#2962FF"
+            const col = p.color.startsWith('#') ? p.color : `#${p.color}`;
 
             switch (p.kind) {
                 case 'line':
-                    L.push(`mark(${formulaName}, title=${q(p.title)}, color=${q(p.color)}, width=${p.width}, style=${style})`);
+                    L.push(`mark(${formulaName}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'level':
-                    L.push(`mark.level(${formulaName}, title=${q(p.title)}, color=${q(p.color)}, style=${style})`);
+                    L.push(`mark.level(${formulaName}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'histogram':
-                    L.push(`mark.bar(${formulaName}, title=${q(p.title)}, color=${q(p.color)})`);
+                    L.push(`mark.bar(${formulaName}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'area':
-                    L.push(`mark.area(${formulaName}, title=${q(p.title)}, color=${q(p.color)})`);
+                    L.push(`mark.area(${formulaName}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'marker': {
                     const loc = p.markerLocation === 'above' ? 'location.abovebar' : 'location.belowbar';
-                    L.push(`plotshape(${formulaName}, location=${loc}, color=${q(p.color)}, title=${q(p.title)})`);
+                    L.push(`plotshape(${formulaName}, location=${loc}, color=${col}, title=${q(p.title)})`);
                     break;
                 }
             }

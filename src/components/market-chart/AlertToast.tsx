@@ -1,7 +1,6 @@
 // src/components/market-chart/AlertToast.tsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { PriceAlert, AlertConditionType, Drawing, FibonacciRetracementDrawing } from './types';
-import { FIB_LEVELS } from './constants';
+import { PriceAlert, AlertConditionType, Drawing } from './types';
 import { getAlertConditions } from '../../data/indicatorAlertConditions';
 
 type TriggerFreq = PriceAlert['triggerFrequency'];
@@ -20,12 +19,20 @@ interface AlertToastProps {
 
 const COND_OPTIONS: AlertConditionType[] = ['Crossing', 'Crossing Up', 'Crossing Down', 'Greater Than', 'Less Than'];
 const CHANNEL_OPTIONS: AlertConditionType[] = ['Entering Channel', 'Exiting Channel'];
+const TIME_OPTIONS: AlertConditionType[] = ['Time Reached'];
 const TRIGS: { label: string; value: TriggerFreq }[] = [
     { label: 'Once', value: 'Only Once' },
     { label: 'Bar', value: 'Once Per Bar' },
     { label: 'Close', value: 'Once Per Bar Close' },
     { label: '1min', value: 'Once Per Minute' },
 ];
+
+/** Per-drawing-type conditions */
+const conditionsForDrawing = (type?: string): AlertConditionType[] => {
+    if (type === 'Parallel Channel') return CHANNEL_OPTIONS;
+    if (type === 'Vertical Line') return TIME_OPTIONS;
+    return COND_OPTIONS;
+};
 
 const AlertToast: React.FC<AlertToastProps> = ({
     alert,
@@ -52,14 +59,15 @@ const AlertToast: React.FC<AlertToastProps> = ({
             : alert.condition;
 
     const isIndicatorAlert = !!indicatorId && !!indicatorType;
-    const isChannel = drawing?.type === 'Rectangle' || drawing?.type === 'Parallel Channel';
-    const isDrawingAlert = !!drawing && !isChannel;
+    const isChannel = drawing?.type === 'Parallel Channel';
+    const isVerticalLine = drawing?.type === 'Vertical Line';
+    const isDrawingAlert = !!drawing && !isChannel && !isVerticalLine;
     const isPriceAlert = !drawing && !isIndicatorAlert;
-    const condOptions = isChannel ? CHANNEL_OPTIONS : COND_OPTIONS;
+    const condOptions = conditionsForDrawing(drawing?.type);
 
     const [condition, setCondition] = useState<AlertConditionType>(alert.condition);
     const [value, setValue] = useState(alert.value ?? 0);
-    const [fibLevel, setFibLevel] = useState(alert.fibLevel);
+    const [fibLevel] = useState(alert.fibLevel);
     const [trigger, setTrigger] = useState<TriggerFreq>(alert.triggerFrequency);
     const [notifyApp, setNotifyApp] = useState(alert.notifyApp);
     const [playSound, setPlaySound] = useState(alert.playSound);
@@ -243,6 +251,11 @@ const AlertToast: React.FC<AlertToastProps> = ({
                             {isDrawingAlert && (
                                 <span className="text-[10px] text-[#555] italic">{drawing?.type}</span>
                             )}
+                            {isVerticalLine && alert.value && (
+                                <span className="text-[10px] text-[#c4b5f0] font-mono">
+                                    {new Date(alert.value * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            )}
                         </>
                     )}
                 </div>
@@ -262,26 +275,6 @@ const AlertToast: React.FC<AlertToastProps> = ({
                         />
                     </div>
                 ))}
-
-                {/* Fib level */}
-                {!isIndicatorAlert && drawing?.type === 'Fibonacci Retracement' && (
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a4a52] w-12 flex-shrink-0">Fib</span>
-                        <select
-                            title="Fibonacci level"
-                            className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#ccc] appearance-none"
-                            value={fibLevel}
-                            onChange={(e) => {
-                                const lvl = parseFloat(e.target.value);
-                                setFibLevel(lvl);
-                                const fib = drawing as FibonacciRetracementDrawing;
-                                setValue(fib.start.price + (fib.end.price - fib.start.price) * lvl);
-                            }}
-                        >
-                            {FIB_LEVELS.map((l) => (<option key={l} value={l} style={{ background: '#1a1a1e' }}>Fib {l}</option>))}
-                        </select>
-                    </div>
-                )}
 
                 {/* Trigger row */}
                 <div className="flex items-center gap-1.5">

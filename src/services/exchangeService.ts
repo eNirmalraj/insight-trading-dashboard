@@ -26,41 +26,72 @@ export const addExchangeKey = async (
     } = await db().auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    const isMT5 = payload.exchange === 'mt5';
+    const isIndian = ['zerodha', 'angelone', 'upstox', 'dhan', 'fyers'].includes(payload.exchange);
+
+    const insertRow: Record<string, any> = {
+        user_id: user.id,
+        exchange: payload.exchange,
+        nickname: payload.nickname,
+        environment: payload.environment,
+        is_active: true,
+        permissions: [],
+        last_tested_at: null,
+        last_test_status: null,
+    };
+
+    if (isMT5) {
+        insertRow.api_key = payload.mt5_login || '';
+        insertRow.api_secret = payload.mt5_password || '';
+        insertRow.mt5_login = payload.mt5_login || '';
+        insertRow.mt5_password = payload.mt5_password || '';
+        insertRow.mt5_server = payload.mt5_server || '';
+    } else if (isIndian) {
+        insertRow.api_key = payload.api_key || payload.access_token || '';
+        insertRow.api_secret = payload.api_secret || '';
+        insertRow.client_id = payload.client_id || null;
+        insertRow.access_token = payload.access_token || null;
+        insertRow.totp_secret = payload.totp_secret || null;
+        insertRow.passphrase = payload.password || null; // Angel One MPIN stored in passphrase
+    } else {
+        insertRow.api_key = payload.api_key;
+        insertRow.api_secret = payload.api_secret;
+        insertRow.passphrase = payload.passphrase || null;
+    }
+
     const { data, error } = await db()
         .from('user_exchange_keys')
-        .insert({
-            user_id: user.id,
-            exchange: payload.exchange,
-            nickname: payload.nickname,
-            api_key: payload.api_key,
-            api_secret: payload.api_secret,
-            passphrase: payload.passphrase || null,
-            environment: payload.environment,
-            is_active: true,
-            permissions: [],
-            last_tested_at: null,
-            last_test_status: null,
-        })
+        .insert(insertRow)
         .select()
         .single();
 
     if (error) throw new Error(error.message);
 
-    // Ask backend to encrypt the stored keys (keys were saved in plain via RLS insert,
-    // backend re-encrypts them with the server-side encryption key)
+    // Ask backend to encrypt the stored keys
     try {
+        const encryptBody: Record<string, any> = { exchange_key_id: data.id };
+        if (isMT5) {
+            encryptBody.mt5_login = payload.mt5_login;
+            encryptBody.mt5_password = payload.mt5_password;
+            encryptBody.mt5_server = payload.mt5_server;
+        } else if (isIndian) {
+            encryptBody.api_key = payload.api_key;
+            encryptBody.api_secret = payload.api_secret;
+            encryptBody.client_id = payload.client_id;
+            encryptBody.access_token = payload.access_token;
+            encryptBody.totp_secret = payload.totp_secret;
+            encryptBody.passphrase = payload.password;
+        } else {
+            encryptBody.api_key = payload.api_key;
+            encryptBody.api_secret = payload.api_secret;
+            encryptBody.passphrase = payload.passphrase || null;
+        }
         await fetch('/api/exchange/encrypt-keys', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                exchange_key_id: data.id,
-                api_key: payload.api_key,
-                api_secret: payload.api_secret,
-                passphrase: payload.passphrase || null,
-            }),
+            body: JSON.stringify(encryptBody),
         });
     } catch {
-        // Non-blocking — keys still work unencrypted
         console.warn('Key encryption request failed (non-blocking)');
     }
 
@@ -142,6 +173,13 @@ export interface TestConnectionResult {
     latencyMs: number;
     permissions: string[];
     balancePreview: { asset: string; free: string }[];
+    accountInfo?: {
+        broker: string;
+        currency: string;
+        leverage: number;
+        name: string;
+        server: string;
+    } | null;
     error?: string;
 }
 
@@ -161,7 +199,7 @@ export const testExchangeConnection = async (
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ exchange_key_id: key.id }),
-            signal: AbortSignal.timeout(15_000),
+            signal: AbortSignal.timeout(90_000), // MT5 via MetaApi can take up to 60s on first connect
         });
 
         const latencyMs = Math.round(performance.now() - start);
@@ -178,11 +216,13 @@ export const testExchangeConnection = async (
         }
 
         const data = await response.json();
+        console.log('[Exchange Test] Backend response:', data);
         return {
             ok: true,
             latencyMs,
             permissions: data.permissions || [],
             balancePreview: data.balances?.slice(0, 5) || [],
+            accountInfo: data.accountInfo || null,
         };
     } catch (err: any) {
         return {

@@ -41,8 +41,31 @@ export interface AlertRow {
     condition: FormulaToken[];
 }
 
+export type ParamType = 'int' | 'float' | 'bool' | 'string';
+
+export interface ParameterDef {
+    id: string;
+    varName: string;            // identifier used in code: "sensitivity", "openType"
+    title: string;              // shown to user: "Sensitivity", "Open Type"
+    type: ParamType;
+    defaultValue: any;
+    min?: number;               // for int/float
+    max?: number;               // for int/float
+    options?: string[];         // for choice lists: ["Auto","Gap","Flat"] or ["10","20"]
+    tooltip?: string;           // help text shown on hover — supports \n for line breaks
+}
+
+// Friendly labels for param types (shown in dropdown)
+export const PARAM_TYPE_LABELS: Record<ParamType, string> = {
+    int: 'Whole Number',
+    float: 'Decimal Number',
+    bool: 'Yes / No Toggle',
+    string: 'Text Choice',
+};
+
 export interface IndicatorModel {
     info: { name: string; shortname: string; overlay: boolean };
+    parameters: ParameterDef[];
     indicators: IndicatorInstance[];
     formulas: Formula[];
     plots: PlotDef[];
@@ -51,6 +74,7 @@ export interface IndicatorModel {
 
 export const createEmptyModel = (): IndicatorModel => ({
     info: { name: 'My Indicator', shortname: 'MI', overlay: true },
+    parameters: [],
     indicators: [],
     formulas: [],
     plots: [],

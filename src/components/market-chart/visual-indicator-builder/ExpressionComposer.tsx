@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { IndicatorInstance, Formula, FormulaToken } from './types';
+import type { IndicatorInstance, Formula, FormulaToken, ParameterDef } from './types';
 import { OPERATOR_LIBRARY } from './types';
 
 /* ── Option shape ── */
@@ -13,8 +13,20 @@ interface OperandOption {
 export function buildOperandOptions(
     indicators: IndicatorInstance[],
     priorFormulas: Formula[],
+    parameters?: ParameterDef[],
 ): OperandOption[] {
     const opts: OperandOption[] = [];
+
+    // User-defined parameters (from Step 2)
+    if (parameters && parameters.length > 0) {
+        for (const p of parameters) {
+            opts.push({
+                value: `param:${p.varName}`,
+                label: p.title || p.varName,
+                group: 'User Inputs',
+            });
+        }
+    }
 
     // Price
     opts.push({ value: 'price:close', label: 'Close', group: 'Price' });
@@ -46,10 +58,8 @@ export function buildOperandOptions(
     // Condition (if-then-else)
     opts.push({ value: 'cond:ternary', label: 'If...Then...Else...', group: 'Condition' });
 
-    // Missing value handling
-    opts.push({ value: 'na:check', label: 'Is Missing? (na check)...', group: 'Missing Values' });
-    opts.push({ value: 'na:replace', label: 'Replace Missing With...', group: 'Missing Values' });
-    opts.push({ value: 'na:value', label: 'Empty / Missing (na)', group: 'Missing Values' });
+    // Missing value
+    opts.push({ value: 'na:value', label: 'Empty / No Data (na)', group: 'Special' });
 
 
     // Per indicator: outputs + levels
@@ -95,6 +105,7 @@ interface ExpressionComposerProps {
     onChange: (tokens: FormulaToken[]) => void;
     indicators: IndicatorInstance[];
     priorFormulas: Formula[];
+    parameters?: ParameterDef[];
 }
 
 const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
@@ -102,10 +113,11 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
     onChange,
     indicators,
     priorFormulas,
+    parameters,
 }) => {
     const options = useMemo(
-        () => buildOperandOptions(indicators, priorFormulas),
-        [indicators, priorFormulas],
+        () => buildOperandOptions(indicators, priorFormulas, parameters),
+        [indicators, priorFormulas, parameters],
     );
 
     // Ensure at least one operand token

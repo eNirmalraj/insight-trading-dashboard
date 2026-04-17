@@ -125,23 +125,38 @@ export const testConnection = async (exchangeKeyId: string): Promise<TestResult>
         const balance = await exchange.fetchBalance();
         const latencyMs = Math.round(performance.now() - start);
 
-        // Detect permissions from what the exchange reports
+        // Detect permissions from exchange-specific account info
         const permissions: string[] = ['Read'];
 
-        // Try to detect trading perms from exchange-specific API info
         try {
-            const apiPerms = await (exchange as any).sapiGetApiV3Account?.()
-                || await (exchange as any).privateGetAccount?.();
-            if (apiPerms) {
-                if (apiPerms.canTrade || apiPerms.permissions?.includes('SPOT'))
-                    permissions.push('Spot Trading');
-                if (apiPerms.permissions?.includes('FUTURES') || apiPerms.canTradeFutures)
+            if (row.exchange === 'binance') {
+                // Binance: GET /api/v3/account returns canTrade, canWithdraw, permissions[]
+                const accountInfo = await (exchange as any).privateGetAccount();
+                if (accountInfo) {
+                    if (accountInfo.canTrade) permissions.push('Spot Trading');
+                    if (accountInfo.permissions?.includes('MARGIN')) permissions.push('Margin');
+                    if (accountInfo.canWithdraw) permissions.push('Withdraw');
+                }
+                // Check futures separately
+                try {
+                    await (exchange as any).fapiPrivateGetAccount();
                     permissions.push('Futures');
-                if (apiPerms.canWithdraw)
-                    permissions.push('Withdraw');
+                } catch {
+                    // No futures permission or account not opened
+                }
+            } else if (row.exchange === 'bitget') {
+                // If fetchBalance succeeded, spot trading is enabled
+                permissions.push('Spot Trading');
+                // Check futures
+                try {
+                    await (exchange as any).privateMixGetAccountAccounts({ productType: 'umcbl' });
+                    permissions.push('Futures');
+                } catch {
+                    // No futures
+                }
             }
         } catch {
-            // Permission detection is best-effort; balance fetch already confirmed the key works
+            // Permission detection is best-effort — balance fetch already confirmed the key works
             permissions.push('Spot Trading');
         }
 

@@ -9,6 +9,18 @@ export default defineConfig(({ mode }) => {
             port: 3000,
             host: '0.0.0.0',
             proxy: {
+                '/api/exchange': {
+                    target: 'http://localhost:4000',
+                    changeOrigin: true,
+                },
+                '/api/oauth': {
+                    target: 'http://localhost:4000',
+                    changeOrigin: true,
+                },
+                '/api/trade': {
+                    target: 'http://localhost:4000',
+                    changeOrigin: true,
+                },
                 '/api/binance': {
                     target: 'https://api.binance.com',
                     changeOrigin: true,

@@ -126,7 +126,7 @@ const ContextMenu: React.FC<ContextMenuProps> = (props) => {
                 icon={<ClockIcon />}
                 onClick={() => handleAction(() => onAddAlert(price))}
             />
-            {props.drawing && props.onAddDrawingAlert && ['Horizontal Line', 'Horizontal Ray', 'Trend Line', 'Ray', 'Rectangle', 'Parallel Channel', 'Fibonacci Retracement'].includes(props.drawing.type) && (
+            {props.drawing && props.onAddDrawingAlert && ['Horizontal Line', 'Horizontal Ray', 'Trend Line', 'Parallel Channel', 'Vertical Line'].includes(props.drawing.type) && (
                 <MenuItem
                     label={`Add alert on ${props.drawing.type}`}
                     icon={<ClockIcon />}

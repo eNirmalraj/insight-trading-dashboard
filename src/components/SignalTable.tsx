@@ -2,12 +2,14 @@
 import React from 'react';
 import { Signal } from '../types';
 import SignalRow from './SignalRow';
+import { StrategyWinRate } from '../utils/strategyStats';
 
 interface SignalTableProps {
     signals: Signal[];
     currentPrices: Record<string, number>;
     onShowChart: (signal: Signal) => void;
     onExecute: (signal: Signal) => void;
+    strategyStats?: Map<string, StrategyWinRate>;
 }
 
 const SignalTable: React.FC<SignalTableProps> = ({
@@ -15,6 +17,7 @@ const SignalTable: React.FC<SignalTableProps> = ({
     currentPrices,
     onShowChart,
     onExecute,
+    strategyStats,
 }) => {
     if (signals.length === 0) {
         return (
@@ -65,6 +68,12 @@ const SignalTable: React.FC<SignalTableProps> = ({
                                 Created
                             </th>
                             <th className="px-3 py-3 text-[10px] uppercase tracking-wide text-gray-400 font-semibold text-right">
+                                Closed
+                            </th>
+                            <th className="px-3 py-3 text-[10px] uppercase tracking-wide text-gray-400 font-semibold text-right">
+                                Duration
+                            </th>
+                            <th className="px-3 py-3 text-[10px] uppercase tracking-wide text-gray-400 font-semibold text-right">
                                 Actions
                             </th>
                         </tr>
@@ -77,6 +86,7 @@ const SignalTable: React.FC<SignalTableProps> = ({
                                 currentPrice={currentPrices[signal.pair]}
                                 onShowChart={onShowChart}
                                 onExecute={onExecute}
+                                strategyWinRate={strategyStats?.get(signal.strategyId || signal.strategy || '')}
                             />
                         ))}
                     </tbody>

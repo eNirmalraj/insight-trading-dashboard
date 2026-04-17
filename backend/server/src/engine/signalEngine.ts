@@ -413,6 +413,9 @@ export async function startSignalEngine(): Promise<void> {
 
     assignments = await loadAssignments();
     console.log(`[SignalEngine] Loaded ${assignments.length} assignments`);
+    for (const a of assignments) {
+        console.log(`[SignalEngine]   → ${a.strategy_name} | TF=${a.timeframe} | symbols=${a.symbols.length} | id=${a.id.slice(0, 8)}`);
+    }
 
     if (assignments.length === 0) {
         console.log('[SignalEngine] No assignments — engine idle, will retry in 60s');

@@ -9,7 +9,7 @@ import {
     HorizontalRayDrawing,
     ParallelChannelDrawing,
     RectangleDrawing,
-    FibonacciRetracementDrawing,
+    VerticalLineDrawing,
 } from '../components/market-chart/types';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import {
@@ -123,7 +123,7 @@ class AlertEngine {
 
     // ── Price extraction for drawings ──
 
-    private getPriceAtTime(drawing: Drawing, time: number, fibLevel?: number): number | null {
+    private getPriceAtTime(drawing: Drawing, time: number): number | null {
         if (drawing.type === 'Horizontal Line') {
             return (drawing as HorizontalLineDrawing).price;
         }
@@ -144,12 +144,6 @@ class AlertEngine {
                 return null;
             }
             return d.start.price + ((d.end.price - d.start.price) / dt) * (time - d.start.time);
-        }
-        if (drawing.type === 'Fibonacci Retracement') {
-            const d = drawing as FibonacciRetracementDrawing;
-            if (!d.start || !d.end) return null;
-            const level = fibLevel ?? 0.618;
-            return d.start.price + (d.end.price - d.start.price) * level;
         }
         return null;
     }
@@ -331,6 +325,12 @@ class AlertEngine {
 
         const evalTime = Math.floor(Date.now() / 1000);
 
+        // Vertical Line: time-based alert — fires when evalTime reaches the line's time
+        if (alert.condition === 'Time Reached' && drawing.type === 'Vertical Line') {
+            const d = drawing as VerticalLineDrawing;
+            return evalTime >= d.time;
+        }
+
         if (alert.condition === 'Entering Channel' || alert.condition === 'Exiting Channel') {
             const range = this.getPriceRangeAtTime(drawing, evalTime);
             if (!range || prevPrice === undefined) return false;
@@ -341,7 +341,7 @@ class AlertEngine {
                 : wasInside && !isInside;
         }
 
-        const targetPrice = this.getPriceAtTime(drawing, evalTime, alert.fibLevel);
+        const targetPrice = this.getPriceAtTime(drawing, evalTime);
         if (targetPrice === null) return false;
         return this.checkCondition(alert.condition, currentPrice, prevPrice, targetPrice);
     }

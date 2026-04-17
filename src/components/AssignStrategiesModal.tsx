@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from './IconComponents';
 import { Watchlist } from '../types';
-import { STRATEGY_REGISTRY, BuiltInStrategyMeta } from '../strategies';
+import { STRATEGY_REGISTRY } from '../strategies';
 import { ParamEditorModal } from './strategy-studio/ParamEditorModal';
 import { RiskEditorModal, RiskSettings } from './strategy-studio/RiskEditorModal';
 import {
@@ -14,25 +14,39 @@ import {
 } from '../services/watchlistService';
 
 interface StrategyRow {
-    id: string;              // strategy_id (uuid or string for built-ins)
+    id: string;
     name: string;
     isBuiltIn: boolean;
     paramSchema: import('../strategies').ParamDef[];
 }
 
 interface AssignStrategiesModalProps {
-    watchlist: Watchlist;
+    watchlists: Watchlist[];
     onClose: () => void;
 }
 
+type Step = 'assigned' | 'pick' | 'configure';
+
+const AVAILABLE_TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1H', '4H', '1D', '1W'];
+
 const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
-    watchlist,
+    watchlists,
     onClose,
 }) => {
+    const [step, setStep] = useState<Step>('assigned');
     const [availableStrategies, setAvailableStrategies] = useState<StrategyRow[]>([]);
     const [assignments, setAssignments] = useState<WatchlistStrategyAssignment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [pendingAdd, setPendingAdd] = useState<StrategyRow | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    // Configure step state
+    const [selectedStrategy, setSelectedStrategy] = useState<StrategyRow | null>(null);
+    const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(['1H']);
+    const [selectedWatchlistId, setSelectedWatchlistId] = useState<string>(watchlists[0]?.id || '');
+    const [configParams, setConfigParams] = useState<Record<string, any>>({});
+    const [showParamEditor, setShowParamEditor] = useState(false);
+
+    // Edit/Risk state
     const [pendingEdit, setPendingEdit] = useState<{
         assignment: WatchlistStrategyAssignment;
         strategy: StrategyRow;
@@ -41,23 +55,14 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
         assignment: WatchlistStrategyAssignment;
         strategy: StrategyRow;
     } | null>(null);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // Load built-ins from the frontend registry and existing assignments from DB.
+    // Load strategies and ALL assignments across all watchlists
     useEffect(() => {
         let cancelled = false;
-
         const load = async () => {
             try {
-                // Built-in strategies from .kuri registry — map to uuid via the same
-                // uuidv5 scheme the backend uses, so strategy_id lines up.
-                // For now we don't have the uuidv5 helper on the frontend, so we
-                // rely on the scripts table: each built-in has is_builtin=true and
-                // the frontend fetches the resolved uuid via getStrategies().
                 const { getStrategies } = await import('../services/strategyService');
                 const dbStrategies = await getStrategies();
-
-                // Match DB rows to registry entries by NAME to pick up param schema.
                 const rows: StrategyRow[] = dbStrategies
                     .filter((s: any) => s.type === 'STRATEGY')
                     .map((s: any) => {
@@ -69,129 +74,128 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                             paramSchema: meta?.paramSchema || [],
                         };
                     });
-
                 if (cancelled) return;
                 setAvailableStrategies(rows);
 
-                const existing = await getWatchlistStrategies(watchlist.id);
+                // Load assignments from all watchlists
+                const allAssignments: WatchlistStrategyAssignment[] = [];
+                for (const wl of watchlists) {
+                    const existing = await getWatchlistStrategies(wl.id);
+                    allAssignments.push(...existing);
+                }
                 if (cancelled) return;
-                setAssignments(existing);
+                setAssignments(allAssignments);
             } catch (err) {
                 console.error('[AssignStrategiesModal] load failed:', err);
             } finally {
                 if (!cancelled) setIsLoading(false);
             }
         };
-
         load();
-        return () => {
-            cancelled = true;
-        };
-    }, [watchlist.id]);
+        return () => { cancelled = true; };
+    }, [watchlists]);
 
-    const assignmentsByStrategy = new Map<string, WatchlistStrategyAssignment[]>();
-    for (const a of assignments) {
-        const list = assignmentsByStrategy.get(a.strategyId) || [];
-        list.push(a);
-        assignmentsByStrategy.set(a.strategyId, list);
-    }
+    // --- Handlers ---
 
-    const handleAddClick = (strat: StrategyRow) => {
-        // If there are editable params, open the modal to collect them.
-        // Otherwise just create the assignment with empty params immediately.
-        if (strat.paramSchema.length > 0) {
-            setPendingAdd(strat);
-        } else {
-            void createAssignment(strat, {});
-        }
+    const handlePickStrategy = (strat: StrategyRow) => {
+        setSelectedStrategy(strat);
+        setSelectedTimeframes(['1H']);
+        setSelectedWatchlistId(watchlists[0]?.id || '');
+        setConfigParams({});
+        setStep('configure');
     };
 
-    const createAssignment = async (strat: StrategyRow, params: Record<string, any>) => {
+    const toggleTimeframe = (tf: string) => {
+        setSelectedTimeframes((prev) =>
+            prev.includes(tf) ? prev.filter((t) => t !== tf) : [...prev, tf]
+        );
+    };
+
+    const handleConfirmAssign = async () => {
+        if (!selectedStrategy || selectedTimeframes.length === 0 || !selectedWatchlistId) return;
+
+        // If strategy has params and user hasn't set them yet, open param editor
+        if (selectedStrategy.paramSchema.length > 0 && Object.keys(configParams).length === 0) {
+            setShowParamEditor(true);
+            return;
+        }
+
         setErrorMessage(null);
-        try {
-            const newId = await addWatchlistStrategy(
-                watchlist.id,
-                strat.id,
-                params,
-                '1H',
-                {}
-            );
-            const newAssignment: WatchlistStrategyAssignment = {
-                id: newId,
-                watchlistId: watchlist.id,
-                strategyId: strat.id,
-                params,
-                timeframe: '1H',
-                riskSettings: {},
-                lastError: null,
-                lastErrorAt: null,
-            };
-            setAssignments((prev) => [...prev, newAssignment]);
-        } catch (err: any) {
-            console.error('[AssignStrategiesModal] add failed:', err);
-            setErrorMessage(`Add failed: ${err?.message || String(err)}`);
+        for (const tf of selectedTimeframes) {
+            try {
+                const newId = await addWatchlistStrategy(
+                    selectedWatchlistId,
+                    selectedStrategy.id,
+                    configParams,
+                    tf,
+                    {}
+                );
+                const newAssignment: WatchlistStrategyAssignment = {
+                    id: newId,
+                    watchlistId: selectedWatchlistId,
+                    strategyId: selectedStrategy.id,
+                    params: configParams,
+                    timeframe: tf,
+                    riskSettings: {},
+                    lastError: null,
+                    lastErrorAt: null,
+                };
+                setAssignments((prev) => [...prev, newAssignment]);
+            } catch (err: any) {
+                setErrorMessage(`Failed (${tf}): ${err?.message || String(err)}`);
+            }
         }
+        setStep('assigned');
     };
 
-    const handleEditClick = (assignment: WatchlistStrategyAssignment) => {
-        const strat = availableStrategies.find((s) => s.id === assignment.strategyId);
+    const handleParamSave = (values: Record<string, any>) => {
+        setConfigParams(values);
+        setShowParamEditor(false);
+    };
+
+    const handleEditClick = (a: WatchlistStrategyAssignment) => {
+        const strat = availableStrategies.find((s) => s.id === a.strategyId);
         if (!strat) return;
-        setPendingEdit({ assignment, strategy: strat });
+        setPendingEdit({ assignment: a, strategy: strat });
     };
 
-    const updateAssignment = async (
-        assignment: WatchlistStrategyAssignment,
-        params: Record<string, any>
-    ) => {
-        setErrorMessage(null);
+    const updateAssignment = async (a: WatchlistStrategyAssignment, params: Record<string, any>) => {
         try {
-            await updateWatchlistStrategyParams(assignment.id, params);
-            setAssignments((prev) =>
-                prev.map((a) => (a.id === assignment.id ? { ...a, params } : a))
-            );
+            await updateWatchlistStrategyParams(a.id, params);
+            setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, params } : x)));
         } catch (err: any) {
-            console.error('[AssignStrategiesModal] update failed:', err);
             setErrorMessage(`Update failed: ${err?.message || String(err)}`);
         }
     };
 
-    const handleRemove = async (assignment: WatchlistStrategyAssignment) => {
-        setErrorMessage(null);
+    const handleRemove = async (a: WatchlistStrategyAssignment) => {
         try {
-            await removeWatchlistStrategy(assignment.id);
-            setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
+            await removeWatchlistStrategy(a.id);
+            setAssignments((prev) => prev.filter((x) => x.id !== a.id));
         } catch (err: any) {
-            console.error('[AssignStrategiesModal] remove failed:', err);
             setErrorMessage(`Remove failed: ${err?.message || String(err)}`);
         }
     };
 
-    const handleRiskClick = (assignment: WatchlistStrategyAssignment) => {
-        const strat = availableStrategies.find((s) => s.id === assignment.strategyId);
+    const handleRiskClick = (a: WatchlistStrategyAssignment) => {
+        const strat = availableStrategies.find((s) => s.id === a.strategyId);
         if (!strat) return;
-        setPendingRisk({ assignment, strategy: strat });
+        setPendingRisk({ assignment: a, strategy: strat });
     };
 
-    const updateRiskSettings = async (
-        assignment: WatchlistStrategyAssignment,
-        riskSettings: RiskSettings
-    ) => {
-        setErrorMessage(null);
+    const updateRiskSettings = async (a: WatchlistStrategyAssignment, rs: RiskSettings) => {
         try {
-            await updateWatchlistStrategyRiskSettings(assignment.id, riskSettings);
-            setAssignments((prev) =>
-                prev.map((a) => (a.id === assignment.id ? { ...a, riskSettings } : a))
-            );
+            await updateWatchlistStrategyRiskSettings(a.id, rs);
+            setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, riskSettings: rs } : x)));
         } catch (err: any) {
-            console.error('[AssignStrategiesModal] risk update failed:', err);
             setErrorMessage(`Risk update failed: ${err?.message || String(err)}`);
-            throw err; // re-throw so the modal's own error handler also fires
+            throw err;
         }
     };
 
-    const handleClose = () => {
-        onClose();
-    };
+    const getWatchlistName = (wlId: string) => watchlists.find((w) => w.id === wlId)?.name || 'Unknown';
+
+    // --- Render ---
 
     return (
         <>
@@ -199,12 +203,28 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                 <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl">
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-                        <div>
-                            <h3 className="text-lg font-bold text-white">Assign Strategies</h3>
-                            <p className="text-sm text-gray-400 mt-0.5">{watchlist.name}</p>
+                        <div className="flex items-center gap-3">
+                            {step !== 'assigned' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(step === 'configure' ? 'pick' : 'assigned')}
+                                    className="p-1 rounded-lg hover:bg-gray-700 text-gray-400"
+                                    aria-label="Go back"
+                                    title="Go back"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                            )}
+                            <h3 className="text-lg font-bold text-white">
+                                {step === 'assigned' && 'Assigned Strategies'}
+                                {step === 'pick' && 'Select Strategy'}
+                                {step === 'configure' && 'Configure'}
+                            </h3>
                         </div>
                         <button
-                            onClick={handleClose}
+                            onClick={onClose}
                             title="Close"
                             aria-label="Close"
                             className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors"
@@ -216,155 +236,212 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                     {/* Error banner */}
                     {errorMessage && (
                         <div className="mx-6 mt-4 px-4 py-3 rounded bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-2">
-                            <span className="flex-1">⚠ {errorMessage}</span>
-                            <button
-                                type="button"
-                                onClick={() => setErrorMessage(null)}
-                                className="text-red-200 hover:text-white"
-                                aria-label="Dismiss error"
-                            >
-                                ×
-                            </button>
+                            <span className="flex-1">{errorMessage}</span>
+                            <button type="button" onClick={() => setErrorMessage(null)} className="text-red-200 hover:text-white">x</button>
                         </div>
                     )}
 
                     {/* Body */}
                     <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
                         {isLoading ? (
-                            <div className="text-center py-8 text-gray-400">Loading strategies...</div>
-                        ) : (
+                            <div className="text-center py-8 text-gray-400">Loading...</div>
+                        ) : step === 'assigned' ? (
+                            /* ── STEP 1: Assigned list ── */
                             <>
-                                {/* Current assignments */}
-                                {assignments.length > 0 && (
-                                    <div className="mb-5">
-                                        <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">
-                                            Assigned ({assignments.length})
-                                        </h4>
-                                        <div className="space-y-2">
-                                            {assignments.map((a) => {
-                                                const strat = availableStrategies.find(
-                                                    (s) => s.id === a.strategyId
-                                                );
-                                                const paramsText =
-                                                    Object.keys(a.params || {}).length > 0
-                                                        ? Object.entries(a.params)
-                                                              .map(([k, v]) => `${k}:${v}`)
-                                                              .join(' · ')
-                                                        : 'defaults';
-                                                return (
-                                                    <div
-                                                        key={a.id}
-                                                        className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30"
-                                                    >
-                                                        <span className="text-sm font-medium text-white flex-1">
-                                                            {strat?.name || 'Unknown'}
-                                                            <span className="ml-2 text-xs text-blue-300">
-                                                                [{paramsText}]
-                                                            </span>
-                                                            {a.lastError && (
-                                                                <span
-                                                                    title={a.lastError}
-                                                                    className="ml-2 text-xs text-red-400 cursor-help"
-                                                                >
-                                                                    ⚠ error
-                                                                </span>
-                                                            )}
+                                {assignments.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-gray-400 text-sm mb-4">No strategies assigned yet.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 mb-4">
+                                        {assignments.map((a) => {
+                                            const strat = availableStrategies.find((s) => s.id === a.strategyId);
+                                            const paramsText =
+                                                Object.keys(a.params || {}).length > 0
+                                                    ? Object.entries(a.params).map(([k, v]) => `${k}:${v}`).join(' · ')
+                                                    : 'defaults';
+                                            return (
+                                                <div
+                                                    key={a.id}
+                                                    className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30"
+                                                >
+                                                    <span className="text-sm font-medium text-white flex-1 min-w-0">
+                                                        <span className="truncate">{strat?.name || 'Unknown'}</span>
+                                                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 border border-gray-600">
+                                                            {a.timeframe}
                                                         </span>
+                                                        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                                            {getWatchlistName(a.watchlistId)}
+                                                        </span>
+                                                        <span className="ml-2 text-xs text-blue-300">[{paramsText}]</span>
+                                                    </span>
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
                                                         {strat && strat.paramSchema.length > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleEditClick(a)}
-                                                                className="text-xs px-2 py-1 rounded bg-white/5 text-gray-300 hover:bg-white/10"
-                                                            >
-                                                                Params
-                                                            </button>
+                                                            <button type="button" onClick={() => handleEditClick(a)} className="text-[10px] px-2 py-1 rounded bg-white/5 text-gray-300 hover:bg-white/10">Params</button>
                                                         )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleRiskClick(a)}
-                                                            className="text-xs px-2 py-1 rounded bg-purple-500/10 text-purple-300 hover:bg-purple-500/20"
-                                                            title="Edit risk settings (SL/TP mode, lot size, leverage)"
-                                                        >
-                                                            Risk
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleRemove(a)}
-                                                            className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-300 hover:bg-red-500/20"
-                                                        >
-                                                            Remove
-                                                        </button>
+                                                        <button type="button" onClick={() => handleRiskClick(a)} className="text-[10px] px-2 py-1 rounded bg-purple-500/10 text-purple-300 hover:bg-purple-500/20">Risk</button>
+                                                        <button type="button" onClick={() => handleRemove(a)} className="text-[10px] px-2 py-1 rounded bg-red-500/10 text-red-300 hover:bg-red-500/20">Remove</button>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
-
-                                {/* Available to add */}
-                                <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">
-                                    Available
-                                </h4>
+                            </>
+                        ) : step === 'pick' ? (
+                            /* ── STEP 2: Pick a strategy ── */
+                            <>
                                 {availableStrategies.length === 0 ? (
-                                    <div className="text-center py-6">
+                                    <div className="text-center py-8">
                                         <p className="text-gray-400 text-sm">No strategies found.</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
                                         {availableStrategies.map((strat) => (
-                                            <div
+                                            <button
                                                 key={strat.id}
-                                                className="flex items-center gap-3 p-3 rounded-lg bg-gray-700/30 border border-transparent hover:bg-gray-700/50 transition-colors"
+                                                type="button"
+                                                onClick={() => handlePickStrategy(strat)}
+                                                className="w-full flex items-center gap-3 p-3 rounded-lg bg-gray-700/30 border border-transparent hover:bg-gray-700/50 hover:border-gray-600 transition-colors text-left"
                                             >
                                                 <span className="text-sm font-medium text-white flex-1">
                                                     {strat.name}
                                                     {strat.isBuiltIn && (
-                                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">
-                                                            Built-in
-                                                        </span>
+                                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">Built-in</span>
                                                     )}
                                                 </span>
-                                                <button
-                                                    onClick={() => handleAddClick(strat)}
-                                                    className="text-xs px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600"
-                                                >
-                                                    + Add
-                                                </button>
-                                            </div>
+                                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
                             </>
+                        ) : (
+                            /* ── STEP 3: Configure (timeframe + watchlist + params) ── */
+                            selectedStrategy && (
+                                <div className="space-y-5">
+                                    {/* Strategy name */}
+                                    <div className="text-center">
+                                        <p className="text-white font-bold text-base">{selectedStrategy.name}</p>
+                                        {selectedStrategy.isBuiltIn && (
+                                            <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">Built-in</span>
+                                        )}
+                                    </div>
+
+                                    {/* Timeframes */}
+                                    <div>
+                                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-2">Timeframes</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {AVAILABLE_TIMEFRAMES.map((tf) => (
+                                                <button
+                                                    key={tf}
+                                                    type="button"
+                                                    onClick={() => toggleTimeframe(tf)}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                                                        selectedTimeframes.includes(tf)
+                                                            ? 'bg-blue-500 border-blue-400 text-white'
+                                                            : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-700'
+                                                    }`}
+                                                >
+                                                    {tf}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Watchlist */}
+                                    <div>
+                                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-2">Watchlist</label>
+                                        <select
+                                            value={selectedWatchlistId}
+                                            onChange={(e) => setSelectedWatchlistId(e.target.value)}
+                                            title="Select watchlist"
+                                            aria-label="Select watchlist"
+                                            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {watchlists.map((wl) => (
+                                                <option key={wl.id} value={wl.id}>{wl.name} ({wl.items.length} symbols)</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Params preview */}
+                                    {selectedStrategy.paramSchema.length > 0 && (
+                                        <div>
+                                            <label className="block text-xs text-gray-400 uppercase tracking-wide mb-2">Parameters</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowParamEditor(true)}
+                                                className="w-full flex items-center justify-between bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
+                                            >
+                                                <span>
+                                                    {Object.keys(configParams).length > 0
+                                                        ? Object.entries(configParams).map(([k, v]) => `${k}: ${v}`).join(', ')
+                                                        : 'defaults (click to edit)'}
+                                                </span>
+                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )
                         )}
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-end px-6 py-4 border-t border-gray-700">
-                        <button
-                            onClick={handleClose}
-                            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors"
-                        >
-                            Done
-                        </button>
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+                        {step === 'assigned' ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setStep('pick')}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                                >
+                                    + Add Strategy
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors"
+                                >
+                                    Done
+                                </button>
+                            </>
+                        ) : step === 'configure' ? (
+                            <>
+                                <div />
+                                <button
+                                    type="button"
+                                    disabled={selectedTimeframes.length === 0 || !selectedWatchlistId}
+                                    onClick={handleConfirmAssign}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                >
+                                    Assign ({selectedTimeframes.length} TF)
+                                </button>
+                            </>
+                        ) : (
+                            <div />
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Param editor for ADDING a new assignment */}
-            {pendingAdd && (
+            {/* Param editor for configuring new assignment */}
+            {showParamEditor && selectedStrategy && (
                 <ParamEditorModal
                     isOpen
-                    onClose={() => setPendingAdd(null)}
-                    strategyName={pendingAdd.name}
-                    paramSchema={pendingAdd.paramSchema}
-                    initialValues={{}}
-                    onSave={(values) => {
-                        void createAssignment(pendingAdd, values);
-                    }}
+                    onClose={() => setShowParamEditor(false)}
+                    strategyName={selectedStrategy.name}
+                    paramSchema={selectedStrategy.paramSchema}
+                    initialValues={configParams}
+                    onSave={handleParamSave}
                 />
             )}
 
-            {/* Param editor for EDITING an existing assignment */}
+            {/* Param editor for editing existing assignment */}
             {pendingEdit && (
                 <ParamEditorModal
                     isOpen
@@ -378,12 +455,12 @@ const AssignStrategiesModal: React.FC<AssignStrategiesModalProps> = ({
                 />
             )}
 
-            {/* Risk editor for an existing assignment */}
+            {/* Risk editor */}
             {pendingRisk && (
                 <RiskEditorModal
                     isOpen
                     onClose={() => setPendingRisk(null)}
-                    assignmentLabel={`${pendingRisk.strategy.name} — ${pendingRisk.assignment.timeframe} — ${watchlist.name}`}
+                    assignmentLabel={`${pendingRisk.strategy.name} — ${pendingRisk.assignment.timeframe} — ${getWatchlistName(pendingRisk.assignment.watchlistId)}`}
                     initialSettings={pendingRisk.assignment.riskSettings as RiskSettings}
                     onSave={(settings) => updateRiskSettings(pendingRisk.assignment, settings)}
                 />

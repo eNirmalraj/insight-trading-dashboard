@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { IndicatorModel, createEmptyModel } from './types';
 import StepInfo from './steps/StepInfo';
+import StepParameters from './steps/StepParameters';
 import StepIndicators from './steps/StepIndicators';
 import StepLogic from './steps/StepLogic';
 import StepPlotting from './steps/StepPlotting';
 import StepAlerts from './steps/StepAlerts';
-import StepReview from './steps/StepReview';
 import { generateKuri } from './codegen';
 
 interface Props {
@@ -15,22 +15,25 @@ interface Props {
 
 const STEPS = [
     { num: 1, label: 'Info' },
-    { num: 2, label: 'Indicators' },
-    { num: 3, label: 'Logic & Math' },
-    { num: 4, label: 'Plotting' },
-    { num: 5, label: 'Alerts' },
-    { num: 6, label: 'Review' },
+    { num: 2, label: 'User Inputs' },
+    { num: 3, label: 'Indicators' },
+    { num: 4, label: 'Logic & Math' },
+    { num: 5, label: 'Plotting' },
+    { num: 6, label: 'Alerts' },
 ];
 
 const IndicatorVisualBuilder: React.FC<Props> = ({ onSourceChange }) => {
     const [step, setStep] = useState(1);
     const [model, setModel] = useState<IndicatorModel>(createEmptyModel());
+    const [codeCollapsed, setCodeCollapsed] = useState(false);
 
     const update = (patch: Partial<IndicatorModel>) => setModel((prev) => ({ ...prev, ...patch }));
 
+    const generatedCode = useMemo(() => generateKuri(model), [model]);
+
     useEffect(() => {
-        onSourceChange(generateKuri(model));
-    }, [model, onSourceChange]);
+        onSourceChange(generatedCode);
+    }, [generatedCode, onSourceChange]);
 
     return (
         <div className="flex flex-col h-full bg-[#09090b] text-white">
@@ -55,14 +58,65 @@ const IndicatorVisualBuilder: React.FC<Props> = ({ onSourceChange }) => {
                 ))}
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-                {step === 1 && <StepInfo model={model} update={update} />}
-                {step === 2 && <StepIndicators model={model} update={update} />}
-                {step === 3 && <StepLogic model={model} update={update} />}
-                {step === 4 && <StepPlotting model={model} update={update} />}
-                {step === 5 && <StepAlerts model={model} update={update} />}
-                {step === 6 && <StepReview model={model} />}
+            {/* Main: step content (left) + live code preview (right) */}
+            <div className="flex-1 flex min-h-0">
+                {/* Left — Step content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {step === 1 && <StepInfo model={model} update={update} />}
+                    {step === 2 && <StepParameters model={model} update={update} />}
+                    {step === 3 && <StepIndicators model={model} update={update} />}
+                    {step === 4 && <StepLogic model={model} update={update} />}
+                    {step === 5 && <StepPlotting model={model} update={update} />}
+                    {step === 6 && <StepAlerts model={model} update={update} />}
+                </div>
+
+                {/* Right — Live code preview */}
+                <div className={`border-l border-white/[0.06] bg-[#0b0b0f] flex flex-col transition-all ${codeCollapsed ? 'w-10' : 'w-[380px]'}`}>
+                    {/* Header */}
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] flex-shrink-0">
+                        {!codeCollapsed && (
+                            <>
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Live Preview</span>
+                            <button type="button"
+                                onClick={() => { navigator.clipboard.writeText(generatedCode); }}
+                                title="Copy code to clipboard"
+                                className="text-[10px] text-gray-500 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded transition-colors">
+                                Copy
+                            </button>
+                            </>
+                        )}
+                        <button type="button" onClick={() => setCodeCollapsed((c) => !c)}
+                            title={codeCollapsed ? 'Show code preview' : 'Hide code preview'}
+                            className="text-gray-500 hover:text-white transition-colors ml-auto">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                {codeCollapsed
+                                    ? <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                                    : <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                }
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Code */}
+                    {!codeCollapsed && (
+                        <div className="flex-1 overflow-y-auto p-3">
+                            <pre className="text-[11px] font-mono text-gray-300 leading-relaxed whitespace-pre-wrap break-all">
+                                {generatedCode}
+                            </pre>
+                        </div>
+                    )}
+
+                    {/* Stats footer */}
+                    {!codeCollapsed && (
+                        <div className="flex items-center gap-3 px-3 py-2 border-t border-white/[0.06] text-[9px] text-gray-500 flex-shrink-0">
+                            <span>{generatedCode.split('\n').length} lines</span>
+                            <span>{model.indicators.length} indicators</span>
+                            <span>{model.formulas.length} formulas</span>
+                            <span>{model.plots.length} plots</span>
+                            <span>{model.alerts.length} alerts</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Navigation */}

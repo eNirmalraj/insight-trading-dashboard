@@ -18,8 +18,8 @@ import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
 import Loader from '../components/Loader';
 import { getSignalStatistics } from '../services/signalService';
-import { saveFavoriteTimeframesToDB } from '../services/settingsService';
 import { useAuth } from '../context/AuthContext';
+import { computeStrategyStats, StrategyWinRate } from '../utils/strategyStats';
 
 // Market type detection helpers
 const getMarketType = (symbol: string): 'Crypto' | 'Forex' | 'Indian' | 'Unknown' => {
@@ -48,37 +48,12 @@ const isCryptoSymbol = (symbol: string): boolean => {
     return getMarketType(symbol) === 'Crypto';
 };
 
-const FilterSelect: React.FC<{
-    label: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-    options: string[];
-}> = ({ label, value, onChange, options }) => (
-    <div>
-        <label className="block text-xs text-gray-400 mb-1">{label}</label>
-        <select
-            title={label}
-            aria-label={label}
-            value={value}
-            onChange={onChange}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-            <option value="All">All</option>
-            {options.map((opt) => (
-                <option key={opt} value={opt}>
-                    {opt}
-                </option>
-            ))}
-        </select>
-    </div>
-);
 
 const Signals: React.FC = () => {
     const { user } = useAuth(); // Get auth user for Supabase sync
     const [signals, setSignals] = useState<Signal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isGeneratingSignals, setIsGeneratingSignals] = useState(false);
 
     const [isConnected, setIsConnected] = useState(false);
     const [signalStats, setSignalStats] = useState<any>(null);
@@ -100,12 +75,6 @@ const Signals: React.FC = () => {
         '1W',
         '1M',
     ];
-
-    // Favorite timeframes for Signal Engine
-    const [favoriteTimeframes, setFavoriteTimeframes] = useState<string[]>(() => {
-        const stored = localStorage.getItem('favoriteTimeframes');
-        return stored ? JSON.parse(stored) : ['1H', '4H'];
-    });
 
     const [strategyFilter, setStrategyFilter] = useState<string>('All');
     const [statusFilter, setStatusFilter] = useState<string>(SignalStatus.ACTIVE);
@@ -130,7 +99,6 @@ const Signals: React.FC = () => {
     const [customDateStart, setCustomDateStart] = useState<string>(''); // yyyy-mm-dd
     const [customDateEnd, setCustomDateEnd] = useState<string>('');
     const [showAssignModal, setShowAssignModal] = useState(false);
-    const [showTimeframeDropdown, setShowTimeframeDropdown] = useState<boolean>(false);
 
     const [executingSignal, setExecutingSignal] = useState<Signal | null>(null);
     const [openChartSignal, setOpenChartSignal] = useState<Signal | null>(null);
@@ -140,18 +108,6 @@ const Signals: React.FC = () => {
     const [currentPrices, setCurrentPrices] = useState<Record<string, number>>({});
 
     const navigate = ReactRouterDOM.useNavigate();
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (!target.closest('[data-timeframe-dropdown]')) {
-                setShowTimeframeDropdown(false);
-            }
-        };
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, []);
 
     const fetchData = useCallback(async (isBackground = false) => {
         try {
@@ -387,10 +343,8 @@ const Signals: React.FC = () => {
                 return wl.items.some((item) => item.symbol === s.pair);
             })
             .filter((s) => {
-                // Timeframe filter - 'All' shows all favorite timeframes
-                if (timeframeFilter === 'All') {
-                    return favoriteTimeframes.includes(s.timeframe);
-                }
+                // Timeframe filter - 'All' shows everything
+                if (timeframeFilter === 'All') return true;
                 return s.timeframe === timeframeFilter;
             })
             .filter((s) => {
@@ -433,7 +387,6 @@ const Signals: React.FC = () => {
         marketTypeFilter,
         timeframeFilter,
         symbolSearch,
-        favoriteTimeframes,
         watchlistFilter,
         watchlists,
         sortMode,
@@ -441,6 +394,9 @@ const Signals: React.FC = () => {
         customDateStart,
         customDateEnd,
     ]);
+
+    // Strategy win-rate stats computed from ALL signals (not just filtered)
+    const strategyStats = useMemo(() => computeStrategyStats(signals), [signals]);
 
     const addedToWatchlistPairs = useMemo(() => {
         const pairs = new Set<string>();
@@ -539,6 +495,7 @@ const Signals: React.FC = () => {
                     currentPrices={currentPrices}
                     onShowChart={handleShowChart}
                     onExecute={setExecutingSignal}
+                    strategyStats={strategyStats}
                 />
             );
         }
@@ -555,6 +512,7 @@ const Signals: React.FC = () => {
                         isAddedToWatchlist={addedToWatchlistPairs.has(signal.pair)}
                         currentPrice={currentPrices[signal.pair]}
                         onTogglePin={handleTogglePin}
+                        strategyWinRate={strategyStats.get(signal.strategyId || signal.strategy || '')}
                     />
                 ))}
             </div>
@@ -563,401 +521,276 @@ const Signals: React.FC = () => {
 
     return (
         <div className="space-y-6 p-6">
-            {/* Stats Summary Cards - Reactive to Filters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Active Signals</p>
-                    <p className="text-2xl font-bold text-white">
-                        {filteredSignals.filter((s) => s.status === SignalStatus.ACTIVE).length}
-                    </p>
-                </div>
-                <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Win Rate</p>
-                    <p className="text-2xl font-bold text-green-400">
-                        {(() => {
-                            const closedSignals = filteredSignals.filter(
-                                (s) => s.status === SignalStatus.CLOSED
-                            );
-                            let wins = 0,
-                                losses = 0;
-                            closedSignals.forEach((s) => {
-                                const pnl = (s as any).profit_loss ?? s.profitLoss;
-                                const reason = (s as any).close_reason ?? s.closeReason;
-                                if (typeof pnl === 'number') {
-                                    if (pnl > 0) wins++;
-                                    else if (pnl < 0) losses++;
-                                } else if (reason === 'TP') wins++;
-                                else if (reason === 'SL') losses++;
-                            });
-                            const total = wins + losses;
-                            return total > 0 ? ((wins / total) * 100).toFixed(1) : '0';
-                        })()}
-                        %
-                    </p>
-                </div>
-                <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Today's Signals</p>
-                    <p className="text-2xl font-bold text-white">
-                        {
-                            filteredSignals.filter(
-                                (s) =>
-                                    new Date(s.timestamp).toDateString() ===
-                                    new Date().toDateString()
-                            ).length
-                        }
-                    </p>
-                </div>
-                <div className="bg-card-bg rounded-xl p-4 border border-gray-700">
-                    <p className="text-xs text-gray-400 mb-1">Total Signals</p>
-                    <p className="text-2xl font-bold text-white">{filteredSignals.length}</p>
-                </div>
-            </div>
+            {/* Stats Summary Cards */}
+            {(() => {
+                const activeCount = filteredSignals.filter((s) => s.status === SignalStatus.ACTIVE).length;
+                const todayCount = filteredSignals.filter(
+                    (s) => new Date(s.timestamp).toDateString() === new Date().toDateString()
+                ).length;
+                const closedSignals = filteredSignals.filter((s) => s.status === SignalStatus.CLOSED);
+                let wins = 0, losses = 0;
+                closedSignals.forEach((s) => {
+                    const pnl = (s as any).profitLoss ?? (s as any).profit_loss;
+                    const reason = s.closeReason;
+                    if (typeof pnl === 'number') { if (pnl > 0) wins++; else if (pnl < 0) losses++; }
+                    else if (reason === 'TP') wins++;
+                    else if (reason === 'SL') losses++;
+                });
+                const decided = wins + losses;
+                const winRate = decided > 0 ? (wins / decided) * 100 : 0;
 
-            {/* Connection Status Banner */}
-            <div
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${isConnected ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
-            >
-                <span className={`relative flex h-2.5 w-2.5`}>
-                    <span
-                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}
-                    ></span>
-                    <span
-                        className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-                    ></span>
-                </span>
-                {isConnected
-                    ? 'Live Updates: Connected to Signal Engine'
-                    : 'Reconnecting to Live Stream...'}
-            </div>
+                return (
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/20 bg-blue-500/5">
+                            <span className="text-[10px] uppercase tracking-wider text-blue-300/70 font-semibold">Active</span>
+                            <span className="text-lg font-bold text-white">{activeCount}</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-500/20 bg-green-500/5">
+                            <span className="text-[10px] uppercase tracking-wider text-green-300/70 font-semibold">Win Rate</span>
+                            <span className={`text-lg font-bold ${winRate >= 50 ? 'text-green-400' : winRate > 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                                {winRate.toFixed(0)}%
+                            </span>
+                            <span className="text-[9px] text-gray-500 font-mono">{wins}W/{losses}L</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-purple-500/20 bg-purple-500/5">
+                            <span className="text-[10px] uppercase tracking-wider text-purple-300/70 font-semibold">Today</span>
+                            <span className="text-lg font-bold text-white">{todayCount}</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                            <span className="text-[10px] uppercase tracking-wider text-amber-300/70 font-semibold">Total</span>
+                            <span className="text-lg font-bold text-white">{filteredSignals.length}</span>
+                        </div>
 
-            {/* Generating Signals Banner */}
-            {isGeneratingSignals && (
-                <div className="bg-blue-600/20 border border-blue-500/50 rounded-lg p-3 flex items-center gap-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
-                    <span className="text-blue-300 text-sm">
-                        Generating signals from active strategies...
-                    </span>
-                </div>
-            )}
+                        <div className="flex-1" />
 
-            {/* Quick Filter Pills */}
-            <div className="bg-card-bg rounded-xl p-4 space-y-4">
-                {/* Top Filter Row: Status & Direction */}
-                <div className="flex flex-col md:flex-row gap-6">
-                    {/* Status Filter */}
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-2">Status</label>
-                        <div className="flex flex-wrap gap-2">
-                            {Object.values(SignalStatus).map((status) => (
-                                <button
-                                    key={status}
-                                    onClick={() => setStatusFilter(status)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                        statusFilter === status
-                                            ? 'bg-blue-500 text-white shadow-lg'
-                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
-                                >
-                                    {status}
-                                </button>
-                            ))}
+                        {/* Connection status */}
+                        <div className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border ${isConnected ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
+                            <span className="relative flex h-2 w-2">
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                                <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                            </span>
+                            <span className={`text-[10px] font-semibold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                                {isConnected ? 'Live' : 'Offline'}
+                            </span>
                         </div>
                     </div>
+                );
+            })()}
 
-                    {/* Direction Filter (Moved up) */}
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-2">Direction</label>
-                        <div className="flex flex-wrap gap-2">
-                            {['All', ...Object.values(TradeDirection)].map((direction) => (
-                                <button
-                                    key={direction}
-                                    onClick={() => setDirectionFilter(direction)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                        directionFilter === direction
-                                            ? direction === 'BUY'
-                                                ? 'bg-green-500 text-white shadow-lg'
-                                                : direction === 'SELL'
-                                                  ? 'bg-red-500 text-white shadow-lg'
-                                                  : 'bg-blue-500 text-white shadow-lg'
-                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
-                                >
-                                    {direction}
-                                </button>
-                            ))}
-                        </div>
+            {/* Filters */}
+            <div className="bg-card-bg rounded-xl border border-gray-700/50 overflow-hidden">
+                {/* Row 1: Status · Direction · Timeframe pills + Assign + Search + View toggle */}
+                <div className="px-4 py-3 flex flex-wrap items-center gap-3">
+                    {/* Status pills */}
+                    <div className="flex items-center gap-1 border-r border-gray-700 pr-3">
+                        {Object.values(SignalStatus).map((status) => (
+                            <button
+                                key={status}
+                                type="button"
+                                onClick={() => setStatusFilter(status)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                    statusFilter === status
+                                        ? 'bg-blue-500 text-white'
+                                        : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                                }`}
+                            >
+                                {status}
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Signal Timeframe Selector - Controls what engine scans */}
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-2">Signal Timeframe</label>
-                        <div className="flex flex-wrap gap-1.5">
-                            {['1m', '5m', '15m', '30m', '1H', '4H', '1D'].map((tf) => (
-                                <button
-                                    key={tf}
-                                    onClick={() => {
-                                        const updated = favoriteTimeframes.includes(tf)
-                                            ? favoriteTimeframes.filter((t) => t !== tf)
-                                            : [...favoriteTimeframes, tf];
-                                        setFavoriteTimeframes(updated);
-                                        localStorage.setItem(
-                                            'favoriteTimeframes',
-                                            JSON.stringify(updated)
-                                        );
-                                        if (user?.id) {
-                                            saveFavoriteTimeframesToDB(user.id, updated);
-                                        }
-                                    }}
-                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
-                                        favoriteTimeframes.includes(tf)
-                                            ? 'bg-yellow-500 text-black shadow-md'
-                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                    }`}
-                                    title={
-                                        favoriteTimeframes.includes(tf)
-                                            ? 'Click to remove from scan'
-                                            : 'Click to add to scan'
-                                    }
-                                >
-                                    <span className="text-xs">
-                                        {favoriteTimeframes.includes(tf) ? '★' : '☆'}
-                                    </span>
-                                    {tf}
-                                </button>
-                            ))}
-                        </div>
+                    {/* Direction pills */}
+                    <div className="flex items-center gap-1 border-r border-gray-700 pr-3">
+                        {['All', ...Object.values(TradeDirection)].map((dir) => (
+                            <button
+                                key={dir}
+                                type="button"
+                                onClick={() => setDirectionFilter(dir)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                    directionFilter === dir
+                                        ? dir === 'BUY'
+                                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                            : dir === 'SELL'
+                                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                              : 'bg-blue-500 text-white'
+                                        : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                                }`}
+                            >
+                                {dir}
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Assign Strategies Button */}
-                    <div className="flex items-end">
+                    {/* Timeframe pills */}
+                    <div className="flex items-center gap-1 border-r border-gray-700 pr-3">
                         <button
                             type="button"
-                            onClick={() => {
-                                if (watchlists.length === 0) {
-                                    alert('Create a watchlist first before assigning strategies.');
-                                    return;
-                                }
-                                setShowAssignModal(true);
-                            }}
-                            disabled={watchlists.length === 0}
-                            title={
-                                watchlists.length === 0
-                                    ? 'Create a watchlist first'
-                                    : watchlistFilter === 'All'
-                                      ? 'Assigns to the first watchlist — pick one in the Watchlist filter to target a specific one'
-                                      : 'Assign strategies to this watchlist'
-                            }
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                                watchlists.length === 0
-                                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                                    : 'bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30'
+                            onClick={() => setTimeframeFilter('All')}
+                            className={`px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                timeframeFilter === 'All'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                             }`}
                         >
-                            Assign Strategies
+                            All
                         </button>
+                        {['1m', '5m', '15m', '30m', '1H', '4H', '1D'].map((tf) => (
+                            <button
+                                key={tf}
+                                type="button"
+                                onClick={() => setTimeframeFilter(tf)}
+                                className={`px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                    timeframeFilter === tf
+                                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                        : 'text-gray-500 hover:text-white hover:bg-gray-700/50'
+                                }`}
+                            >
+                                {tf}
+                            </button>
+                        ))}
                     </div>
+
+                    {/* Date range pills */}
+                    <div className="flex items-center gap-1 border-r border-gray-700 pr-3">
+                        {([
+                            { id: 'all', label: 'All' },
+                            { id: 'today', label: 'Today' },
+                            { id: '7d', label: '7d' },
+                            { id: '30d', label: '30d' },
+                            { id: 'custom', label: 'Custom' },
+                        ] as const).map((r) => (
+                            <button
+                                type="button"
+                                key={r.id}
+                                onClick={() => setDateRange(r.id)}
+                                className={`px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                    dateRange === r.id
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        : 'text-gray-500 hover:text-white hover:bg-gray-700/50'
+                                }`}
+                            >
+                                {r.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Assign Strategies */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (watchlists.length === 0) {
+                                alert('Create a watchlist first before assigning strategies.');
+                                return;
+                            }
+                            setShowAssignModal(true);
+                        }}
+                        disabled={watchlists.length === 0}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                            watchlists.length === 0
+                                ? 'text-gray-500 cursor-not-allowed'
+                                : 'bg-purple-500/15 text-purple-400 border border-purple-500/30 hover:bg-purple-500/25'
+                        }`}
+                    >
+                        Assign Strategies
+                    </button>
                 </div>
 
-                {/* Combined Filter Row: Strategy, Market, Timeframe, Search */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                    <FilterSelect
-                        label="Strategy"
+                {/* Row 2: Dropdowns + Search + Sort + View toggle */}
+                <div className="px-4 py-2 border-t border-gray-700/50 flex flex-wrap items-center gap-3">
+                    {/* Strategy dropdown */}
+                    <select
+                        title="Strategy"
+                        aria-label="Strategy"
                         value={strategyFilter}
                         onChange={(e) => setStrategyFilter(e.target.value)}
-                        options={availableStrategies}
-                    />
-                    <FilterSelect
-                        label="Market Type"
+                        className="bg-gray-800/50 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="All">All Strategies</option>
+                        {availableStrategies.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                    </select>
+
+                    {/* Market dropdown */}
+                    <select
+                        title="Market"
+                        aria-label="Market"
                         value={marketTypeFilter}
                         onChange={(e) => setMarketTypeFilter(e.target.value)}
-                        options={['Crypto']}
-                    />
+                        className="bg-gray-800/50 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="All">All Markets</option>
+                        <option value="Crypto">Crypto</option>
+                    </select>
 
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-1">Watchlist</label>
-                        <select
-                            title="Watchlist"
-                            aria-label="Watchlist"
-                            value={watchlistFilter}
-                            onChange={(e) => setWatchlistFilter(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="All">All</option>
-                            {watchlists.map((wl) => (
-                                <option key={wl.id} value={wl.id}>
-                                    {wl.name} ({wl.items.length})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Sort dropdown */}
+                    <select
+                        id="signal-sort"
+                        title="Sort"
+                        aria-label="Sort"
+                        value={sortMode}
+                        onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                        className="bg-gray-800/50 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="pnl_desc">P&L high → low</option>
+                        <option value="pnl_asc">P&L low → high</option>
+                    </select>
 
-                    {/* Timeframe Filter Dropdown - Simple filter for viewing */}
-                    <div className="relative" data-timeframe-dropdown>
-                        <label className="block text-xs text-gray-400 mb-1">Timeframe Filter</label>
-                        <button
-                            onClick={() => setShowTimeframeDropdown(!showTimeframeDropdown)}
-                            className="w-full flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <span>
-                                {timeframeFilter === 'All'
-                                    ? `All (${favoriteTimeframes.join(', ')})`
-                                    : timeframeFilter}
-                            </span>
-                            <svg
-                                className="w-4 h-4 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                    {/* Symbol search */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search symbol..."
+                            value={symbolSearch}
+                            onChange={(e) => setSymbolSearch(e.target.value)}
+                            className="bg-gray-800/50 border border-gray-700 rounded-md pl-7 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-40"
+                        />
+                        <SearchIcon className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                        {symbolSearch && (
+                            <button
+                                type="button"
+                                onClick={() => setSymbolSearch('')}
+                                title="Clear search"
+                                aria-label="Clear search"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
-                        </button>
-
-                        {showTimeframeDropdown && (
-                            <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                                {/* All Favorites Option */}
-                                <div
-                                    onClick={() => {
-                                        setTimeframeFilter('All');
-                                        setShowTimeframeDropdown(false);
-                                    }}
-                                    className={`px-3 py-2 hover:bg-gray-700 cursor-pointer border-b border-gray-700 text-sm ${timeframeFilter === 'All' ? 'bg-blue-500/20 text-yellow-400' : 'text-gray-300'}`}
-                                >
-                                    ★ All ({favoriteTimeframes.join(', ')})
-                                </div>
-
-                                {ALL_TIMEFRAMES.map((tf) => (
-                                    <div
-                                        key={tf}
-                                        onClick={() => {
-                                            setTimeframeFilter(tf);
-                                            setShowTimeframeDropdown(false);
-                                        }}
-                                        className={`px-3 py-2 hover:bg-gray-700 cursor-pointer text-sm ${timeframeFilter === tf ? 'bg-blue-500/20 text-white' : 'text-gray-300'}`}
-                                    >
-                                        {favoriteTimeframes.includes(tf) ? `★ ${tf}` : tf}
-                                    </div>
-                                ))}
-                            </div>
+                                <CloseIcon className="w-3.5 h-3.5" />
+                            </button>
                         )}
                     </div>
 
-                    {/* Symbol Search */}
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-1">Search Symbol</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search symbol..."
-                                value={symbolSearch}
-                                onChange={(e) => setSymbolSearch(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                            <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                            {symbolSearch && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSymbolSearch('')}
-                                    title="Clear search"
-                                    aria-label="Clear search"
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                                >
-                                    <CloseIcon className="w-4 h-4" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Sort + Date Range row (Task 2 upgrades) */}
-                <div className="mt-4 flex flex-wrap items-end gap-4">
-                    {/* Sort dropdown */}
-                    <div className="flex-shrink-0">
-                        <label htmlFor="signal-sort" className="block text-xs text-gray-400 mb-1">
-                            Sort by
-                        </label>
-                        <select
-                            id="signal-sort"
-                            value={sortMode}
-                            onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
-                            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="newest">Newest first</option>
-                            <option value="oldest">Oldest first</option>
-                            <option value="pnl_desc">P&amp;L (high → low)</option>
-                            <option value="pnl_asc">P&amp;L (low → high)</option>
-                            <option value="profit_pct_desc">Profit % (high → low)</option>
-                            <option value="profit_pct_asc">Profit % (low → high)</option>
-                        </select>
-                    </div>
-
-                    {/* Date range presets */}
-                    <div className="flex-1">
-                        <label className="block text-xs text-gray-400 mb-1">Date range</label>
-                        <div className="flex flex-wrap gap-2">
-                            {([
-                                { id: 'all', label: 'All' },
-                                { id: 'today', label: 'Today' },
-                                { id: '7d', label: 'Last 7 days' },
-                                { id: '30d', label: 'Last 30 days' },
-                                { id: 'custom', label: 'Custom' },
-                            ] as const).map((r) => (
-                                <button
-                                    type="button"
-                                    key={r.id}
-                                    onClick={() => setDateRange(r.id)}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                        dateRange === r.id
-                                            ? 'bg-blue-500 text-white'
-                                            : 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
-                                    }`}
-                                >
-                                    {r.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Custom date pickers (only visible when dateRange === 'custom') */}
+                    {/* Custom date pickers */}
                     {dateRange === 'custom' && (
-                        <div className="flex items-end gap-2">
-                            <div>
-                                <label htmlFor="custom-date-start" className="block text-xs text-gray-400 mb-1">
-                                    From
-                                </label>
-                                <input
-                                    id="custom-date-start"
-                                    type="date"
-                                    value={customDateStart}
-                                    onChange={(e) => setCustomDateStart(e.target.value)}
-                                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="custom-date-end" className="block text-xs text-gray-400 mb-1">
-                                    To
-                                </label>
-                                <input
-                                    id="custom-date-end"
-                                    type="date"
-                                    value={customDateEnd}
-                                    onChange={(e) => setCustomDateEnd(e.target.value)}
-                                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-                        </div>
+                        <>
+                            <input
+                                type="date"
+                                title="From date"
+                                aria-label="From date"
+                                value={customDateStart}
+                                onChange={(e) => setCustomDateStart(e.target.value)}
+                                className="bg-gray-800/50 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <input
+                                type="date"
+                                title="To date"
+                                aria-label="To date"
+                                value={customDateEnd}
+                                onChange={(e) => setCustomDateEnd(e.target.value)}
+                                className="bg-gray-800/50 border border-gray-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </>
                     )}
 
-                    {/* View mode toggle — right aligned */}
-                    <div className="flex-shrink-0 ml-auto">
-                        <label className="block text-xs text-gray-400 mb-1">View</label>
-                        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-                    </div>
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* View mode toggle */}
+                    <ViewModeToggle mode={viewMode} onChange={setViewMode} />
                 </div>
             </div>
 
@@ -995,9 +828,7 @@ const Signals: React.FC = () => {
             {/* Assign Strategies Modal — writes directly to watchlist_strategies via its own CRUD */}
             {showAssignModal && watchlists.length > 0 && (
                 <AssignStrategiesModal
-                    watchlist={
-                        watchlists.find((w) => w.id === watchlistFilter) || watchlists[0]
-                    }
+                    watchlists={watchlists}
                     onClose={() => setShowAssignModal(false)}
                 />
             )}

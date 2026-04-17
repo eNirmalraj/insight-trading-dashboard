@@ -70,6 +70,7 @@ const StepAlerts: React.FC<Props> = ({ model, update }) => {
                                 onChange={(tokens) => updateCondition(a.id, tokens)}
                                 indicators={indicators}
                                 priorFormulas={formulas}
+                                parameters={model.parameters}
                             />
                         </div>
 

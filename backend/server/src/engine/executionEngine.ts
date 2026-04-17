@@ -56,9 +56,7 @@ function removeActive(execId: string, symbol: string): void {
     if (filtered.length === 0) {
         activeBySymbol.delete(symbol);
         // No more active executions for this symbol — stop streaming ticks.
-        binanceStream.unsubscribeBookTicker(symbol).catch((err) =>
-            console.error('[ExecutionEngine] unsubscribeBookTicker error:', err),
-        );
+        // No need to unsubscribe — SL/TP monitoring uses the kline stream directly.
     } else {
         activeBySymbol.set(symbol, filtered);
     }
@@ -198,7 +196,7 @@ async function handleNewSignal(payload: SignalCreatedPayload): Promise<void> {
         if (!exec) continue;
 
         addActive(exec);
-        await binanceStream.subscribeBookTicker(signal.symbol);
+        await binanceStream.ensureKlineStream(signal.symbol);
         await brokerAdapters.execute(exec);
     }
 
@@ -236,7 +234,7 @@ async function handleNewSignal(payload: SignalCreatedPayload): Promise<void> {
 
         if (exec) {
             addActive(exec);
-            await binanceStream.subscribeBookTicker(signal.symbol);
+            await binanceStream.ensureKlineStream(signal.symbol);
             await brokerAdapters.execute(exec);
         }
     }
@@ -301,6 +299,60 @@ async function handlePriceTick(payload: PriceTickPayload): Promise<void> {
         const closed = await closeExecution(exec.id, reason, hitPrice, pnl);
 
         if (closed) {
+            removeActive(exec.id, exec.symbol);
+            await brokerAdapters.onClose({
+                ...exec,
+                status: 'Closed',
+                close_reason: reason,
+                close_price: hitPrice,
+                profit_loss: pnl,
+                closed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            });
+        }
+    }
+}
+
+// ─── Candle-close SL/TP fallback ─────────────────────────────────
+// Runs on every CANDLE_CLOSED event. Uses the candle's high/low to check
+// if any active execution's SL/TP was hit during that candle. This catches
+// SL/TP hits even when the bookTicker shard is disconnected.
+
+async function handleCandleCloseSLTP(symbol: string, candle: Candle): Promise<void> {
+    const list = activeBySymbol.get(symbol);
+    if (!list || list.length === 0) return;
+
+    for (const exec of [...list]) {
+        let hitPrice: number | null = null;
+        let reason: CloseReason | null = null;
+
+        if (exec.direction === 'BUY') {
+            if (exec.stop_loss !== null && candle.low <= exec.stop_loss) {
+                hitPrice = exec.stop_loss;
+                reason = CloseReason.SL;
+            } else if (exec.take_profit !== null && candle.high >= exec.take_profit) {
+                hitPrice = exec.take_profit;
+                reason = CloseReason.TP;
+            }
+        } else {
+            if (exec.stop_loss !== null && candle.high >= exec.stop_loss) {
+                hitPrice = exec.stop_loss;
+                reason = CloseReason.SL;
+            } else if (exec.take_profit !== null && candle.low <= exec.take_profit) {
+                hitPrice = exec.take_profit;
+                reason = CloseReason.TP;
+            }
+        }
+
+        if (hitPrice === null || reason === null) continue;
+
+        const pnl = computePnL(exec, hitPrice);
+        const closed = await closeExecution(exec.id, reason, hitPrice, pnl);
+
+        if (closed) {
+            console.log(
+                `[ExecutionEngine] 🕯️ Candle-close SL/TP hit: ${exec.id.slice(0, 8)} ${symbol} ${reason} @ ${hitPrice}`,
+            );
             removeActive(exec.id, exec.symbol);
             await brokerAdapters.onClose({
                 ...exec,
@@ -400,9 +452,10 @@ async function replayMissedCandles(): Promise<void> {
 export async function prepareExecutionEngine(): Promise<void> {
     await replayMissedCandles();
 
-    // Subscribe to @bookTicker for every symbol still active after replay.
+    // Ensure every active execution's symbol has a kline stream for live price ticks.
+    // This handles the case where the assignment was removed but the execution is still open.
     for (const symbol of activeBySymbol.keys()) {
-        await binanceStream.subscribeBookTicker(symbol);
+        await binanceStream.ensureKlineStream(symbol);
     }
     console.log(`[ExecutionEngine] Prepared with ${activeBySymbol.size} active symbols`);
 }
@@ -426,6 +479,17 @@ export async function startExecutionEngine(): Promise<void> {
             await handlePriceTick(payload);
         } catch (err) {
             console.error('[ExecutionEngine] handlePriceTick error:', err);
+        }
+    });
+
+    // Fallback: check SL/TP on every candle close using the candle's high/low.
+    // This catches cases where the bookTicker shard is disconnected or ticks
+    // are not flowing. Runs at candle-close frequency (1m/5m/etc).
+    eventBus.on(EngineEvents.CANDLE_CLOSED, async (payload: { symbol: string; timeframe: string; candle: Candle }) => {
+        try {
+            await handleCandleCloseSLTP(payload.symbol, payload.candle);
+        } catch (err) {
+            console.error('[ExecutionEngine] handleCandleCloseSLTP error:', err);
         }
     });
 

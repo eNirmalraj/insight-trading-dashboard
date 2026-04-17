@@ -292,7 +292,8 @@ export type AlertConditionType =
     | 'Greater Than'
     | 'Less Than'
     | 'Entering Channel'
-    | 'Exiting Channel';
+    | 'Exiting Channel'
+    | 'Time Reached';
 
 export interface PriceAlert {
     id: string;

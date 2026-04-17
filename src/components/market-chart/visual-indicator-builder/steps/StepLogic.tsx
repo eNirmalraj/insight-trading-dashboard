@@ -77,6 +77,7 @@ const StepLogic: React.FC<Props> = ({ model, update }) => {
                                         onChange={(tokens) => updateFormulaTokens(f.id, tokens)}
                                         indicators={indicators}
                                         priorFormulas={priorFormulas}
+                                        parameters={model.parameters}
                                     />
                                 </div>
                                 <button type="button" onClick={() => removeFormula(f.id)} title="Remove formula"

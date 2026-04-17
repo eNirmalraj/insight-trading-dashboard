@@ -207,6 +207,7 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
     const [showOpenList, setShowOpenList] = useState(false);
     const [diagnosticCounts, setDiagnosticCounts] = useState({ errors: 0, warnings: 0 });
     const [editorMode, setEditorMode] = useState<'visual' | 'code'>('code');
+    const [visualGeneratedCode, setVisualGeneratedCode] = useState('');
 
     const editorRef = useRef<any>(null);
     const isResizingConsole = useRef(false);
@@ -327,13 +328,45 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
         }, 50);
     }, [scriptName, addLog]);
 
+    // Active source depends on mode — visual builder's generated code or code editor content
+    const activeSource = editorMode === 'visual' ? visualGeneratedCode : scriptContent;
+
     const handleCheck = useCallback(async (): Promise<boolean> => {
-        if (!scriptContent.trim()) { addLog('warn', 'Script is empty.'); return false; }
+        if (!activeSource.trim()) { addLog('warn', 'Script is empty.'); return false; }
         setIsChecking(true);
         try {
-            const diagnostics = await validateScript(scriptContent);
+            // 1. Kuri bridge compilation check
+            const diagnostics = await validateScript(activeSource);
             const errs = diagnostics.filter((d: any) => d.severity === 'error');
             const warns = diagnostics.filter((d: any) => d.severity === 'warning');
+
+            // 2. Basic syntax checks on the source itself (catches issues Kuri bridge misses)
+            // NOTE: Monaco markers are NOT used — Monaco treats .kuri as JS and produces false errors
+            const lines = activeSource.split('\n');
+            let inFrontmatter = false;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '---') { inFrontmatter = !inFrontmatter; continue; }
+                if (inFrontmatter || line === '' || line.startsWith('//')) continue;
+
+                // Check for unmatched parentheses
+                let depth = 0;
+                for (const ch of line) { if (ch === '(') depth++; if (ch === ')') depth--; }
+                if (depth !== 0) {
+                    errs.push({ severity: 'error', message: `Unmatched parentheses`, line: i + 1, column: 1 });
+                }
+
+                // Check for empty assignments
+                if (/^[a-zA-Z_]\w*\s*=$/.test(line)) {
+                    errs.push({ severity: 'error', message: `Empty assignment — missing right-hand value`, line: i + 1, column: line.length });
+                }
+
+                // Check for unknown request.security usage
+                if (line.includes('request.security') && !line.includes('"')) {
+                    warns.push({ severity: 'warning', message: `request.security timeframe should be a quoted string`, line: i + 1, column: 1 });
+                }
+            }
+
             setDiagnosticCounts({ errors: errs.length, warnings: warns.length });
             errs.forEach((e: any) => addLog('error', e.message, { line: e.line, column: e.column }));
             warns.forEach((w: any) => addLog('warn', w.message, { line: w.line, column: w.column }));
@@ -346,20 +379,20 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
             addLog('error', e.message);
             return false;
         } finally { setIsChecking(false); }
-    }, [scriptContent, addLog]);
+    }, [activeSource, addLog, _monaco]);
 
     const handleSave = useCallback(async (): Promise<string | null> => {
-        if (isBuiltIn || !scriptContent.trim()) return null;
+        if (isBuiltIn || !activeSource.trim()) return null;
         setIsSaving(true);
         try {
             if (!scriptName.trim()) throw new Error('Script name is empty.');
-            const isStrategy = /export\s+(const|let|var)\s+strategy\b/.test(scriptContent);
+            const isStrategy = /export\s+(const|let|var)\s+strategy\b/.test(activeSource);
             const id = await saveStrategy({
                 id: activeScriptId && !activeScriptId.startsWith('new-') && !activeScriptId.startsWith('builtin-') ? activeScriptId : undefined,
                 name: scriptName,
                 description: `Indicator: ${scriptName}`,
                 type: isStrategy ? 'STRATEGY' : 'INDICATOR',
-                scriptSource: scriptContent,
+                scriptSource: activeSource,
                 timeframe: '1h', symbolScope: [], indicators: [], entryRules: [], exitRules: [], isActive: true,
             });
             setActiveScriptId(id);
@@ -371,7 +404,7 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
             addLog('error', `Save failed: ${e.message}`);
             return null;
         } finally { setIsSaving(false); }
-    }, [scriptContent, scriptName, activeScriptId, isBuiltIn, addLog, onScriptSaved]);
+    }, [activeSource, scriptName, activeScriptId, isBuiltIn, addLog, onScriptSaved]);
 
     const handleAddToChart = useCallback(async () => {
         const ok = await handleCheck();
@@ -379,11 +412,11 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
         const savedId = await handleSave();
         if (!savedId) return;
         onAddToChart({
-            id: savedId, name: scriptName, type: 'INDICATOR', scriptSource: scriptContent,
+            id: savedId, name: scriptName, type: 'INDICATOR', scriptSource: activeSource,
             timeframe: '1h', symbolScope: [], entryRules: [], exitRules: [], indicators: [], isActive: true,
         });
         addLog('success', `"${scriptName}" added to chart!`);
-    }, [handleCheck, handleSave, scriptName, scriptContent, onAddToChart, addLog]);
+    }, [handleCheck, handleSave, scriptName, activeSource, onAddToChart, addLog]);
 
     // ── Don't render when closed ──
     if (!isOpen) return null;
@@ -422,9 +455,9 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                                     <button type="button" onClick={handleNewIndicator} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white">New Indicator</button>
                                     <button type="button" onClick={() => { setShowOpenList(true); setShowScriptMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white">Open...</button>
                                     <div className="h-px bg-white/10 my-1" />
-                                    <button type="button" onClick={() => { handleSave(); setShowScriptMenu(false); }} disabled={isBuiltIn || !scriptContent.trim()} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                    <button type="button" onClick={() => { handleSave(); setShowScriptMenu(false); }} disabled={isBuiltIn || !activeSource.trim()} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
                                     <button type="button" onClick={() => { setRenameValue(scriptName); setIsRenaming(true); setShowScriptMenu(false); setTimeout(() => { const el = document.getElementById('rename-input'); if (el) (el as HTMLInputElement).select(); }, 0); }} disabled={isBuiltIn || !activeScriptId} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">Rename...</button>
-                                    <button type="button" onClick={handleMakeCopy} disabled={!scriptContent.trim()} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">Make a copy...</button>
+                                    <button type="button" onClick={handleMakeCopy} disabled={!activeSource.trim()} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">Make a copy...</button>
                                 </div>
                             </>
                         )}
@@ -434,13 +467,13 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                     <div className="w-px h-4 bg-white/10 mx-1" />
 
                     {/* 3. Save button */}
-                    <button type="button" onClick={() => handleSave()} disabled={isSaving || isBuiltIn || !scriptContent.trim()}
+                    <button type="button" onClick={() => handleSave()} disabled={isSaving || isBuiltIn || !activeSource.trim()}
                         title="Save (Ctrl+S)" className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     </button>
 
                     {/* 4. Run button */}
-                    <button type="button" onClick={() => handleCheck()} disabled={isChecking || !scriptContent.trim()}
+                    <button type="button" onClick={() => handleCheck()} disabled={isChecking || !activeSource.trim()}
                         title="Check for errors (Ctrl+Enter)" className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Run
@@ -449,7 +482,7 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                     </button>
 
                     {/* 5. Add to chart button */}
-                    <button type="button" onClick={handleAddToChart} disabled={!scriptContent.trim() || isBuiltIn}
+                    <button type="button" onClick={handleAddToChart} disabled={!activeSource.trim() || isBuiltIn}
                         className="flex items-center gap-1 bg-[#2962FF] hover:bg-[#1e54e8] text-white px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                         Add to chart
@@ -464,7 +497,13 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                             className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${editorMode === 'visual' ? 'bg-[#2962FF] text-white' : 'text-gray-400 hover:text-white'}`}>
                             Visual
                         </button>
-                        <button type="button" onClick={() => setEditorMode('code')}
+                        <button type="button" onClick={() => {
+                                // When switching to Code: sync visual builder's generated code into the editor
+                                if (editorMode === 'visual' && visualGeneratedCode.trim()) {
+                                    setScriptContent(visualGeneratedCode);
+                                }
+                                setEditorMode('code');
+                            }}
                             className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${editorMode === 'code' ? 'bg-[#2962FF] text-white' : 'text-gray-400 hover:text-white'}`}>
                             Code
                         </button>
@@ -480,8 +519,7 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                 {/* ── VISUAL BUILDER ── */}
                 <div className={editorMode === 'visual' ? 'flex-1 min-h-0' : 'hidden'}>
                     <IndicatorVisualBuilder
-                        initialSource={scriptContent}
-                        onSourceChange={(s) => { setScriptContent(s); setIsDirty(true); }}
+                        onSourceChange={setVisualGeneratedCode}
                     />
                 </div>
 
@@ -489,7 +527,7 @@ const IndicatorEditorPanel: React.FC<IndicatorEditorPanelProps> = ({
                 <div className={editorMode === 'code' ? 'flex-1 min-h-0' : 'hidden'}>
                     <Editor
                         height="100%"
-                        language="typescript"
+                        language="plaintext"
                         theme="vs-dark"
                         value={scriptContent}
                         onChange={(value) => { if (value !== undefined) { setScriptContent(value); setIsDirty(true); } }}
