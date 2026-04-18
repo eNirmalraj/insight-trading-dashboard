@@ -3654,9 +3654,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 if (distSq(p, start) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'start' };
                 if (distSq(p, end) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'end' };
 
-                // Midpoint handle — check before trendline so it takes priority
-                const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-                if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
+                // Midpoint handle — only when selected, so first click selects rather than moves
+                if (selectedDrawingId === d.id) {
+                    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+                    if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
+                }
 
                 // Check trendline
                 if (distToSegmentSquared(p, start, end) < HITBOX_WIDTH ** 2) return { drawing: d };
