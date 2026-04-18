@@ -3654,6 +3654,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 if (distSq(p, start) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'start' };
                 if (distSq(p, end) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'end' };
 
+                // Midpoint handle — check before trendline so it takes priority
+                const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+                if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
+
                 // Check trendline
                 if (distToSegmentSquared(p, start, end) < HITBOX_WIDTH ** 2) return { drawing: d };
 
@@ -5239,6 +5243,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 }
                             }
                         }
+                    } else if (h === 'mid' && resized.type === 'Fibonacci Retracement') {
+                        // Translate both endpoints by the same delta relative to initial midpoint
+                        const init = interaction.initialDrawing as any;
+                        const initMidTime = (init.start.time + init.end.time) / 2;
+                        const initMidPrice = (init.start.price + init.end.price) / 2;
+                        const dTime = snappedPoint.time - initMidTime;
+                        const dPrice = snappedPoint.price - initMidPrice;
+                        resized.start = { time: init.start.time + dTime, price: init.start.price + dPrice };
+                        resized.end = { time: init.end.time + dTime, price: init.end.price + dPrice };
                     } else if (h === 'start' || h === 'end') {
                         // All range tools: update full point (both time + price)
                         if (h === 'start') resized.start = snappedPoint;
