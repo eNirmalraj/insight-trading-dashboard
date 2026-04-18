@@ -6200,11 +6200,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const leftTime = Math.min(d.start.time, d.end.time);
                             const rightTime = Math.max(d.start.time, d.end.time);
                             const timeAtLevel = (level: number) => leftTime + (rightTime - leftTime) * level;
-                            const formatGannDate = (unixSecs: number) =>
-                                new Date(unixSecs * 1000).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                });
+                            const formatGannDate = (unixSecs: number) => {
+                                const dt = new Date(unixSecs * 1000);
+                                const month = dt.toLocaleString('en-US', { month: 'short' });
+                                const day = String(dt.getDate()).padStart(2, '0');
+                                const hh = String(dt.getHours()).padStart(2, '0');
+                                const mm = String(dt.getMinutes()).padStart(2, '0');
+                                return `${month} ${day} ${hh}:${mm}`;
+                            };
 
                             // 8 handle positions
                             const midX = (x1 + x2) / 2;
