@@ -6011,10 +6011,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 useLogScale: false,
                             };
 
-                            const x_min = Math.min(x1, x2);
-                            const x_max = Math.max(x1, x2);
-                            const lineX1 = settings.extendLines ? 0 : x_min;
-                            const lineX2 = settings.extendLines ? chartDimensions.width : x_max;
+                            const xMin = Math.min(x1, x2);
+                            const xMax = Math.max(x1, x2);
+                            const lineX1 = settings.extendLines ? 0 : xMin;
+                            const lineX2 = settings.extendLines ? chartDimensions.width : xMax;
                             const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
 
                             const allLevels = settings.levels
@@ -6040,8 +6040,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                     {settings.showBackground &&
                                         coreLevels.slice(0, -1).map((l, i) => {
                                             const next = coreLevels[i + 1];
-                                            const ya = yScale(d.start.price + priceDiff * l.level);
-                                            const yb = yScale(d.start.price + priceDiff * next.level);
+                                            const ya = Math.round(yScale(d.start.price + priceDiff * l.level));
+                                            const yb = Math.round(yScale(d.start.price + priceDiff * next.level));
                                             const fy = Math.min(ya, yb);
                                             const fh = Math.abs(ya - yb);
                                             return (
@@ -6090,13 +6090,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                     x2={lineX2}
                                                     y2={ly}
                                                     stroke={l.color}
-                                                    strokeWidth={style.width}
+                                                    strokeWidth={1}
                                                     strokeOpacity={lineOpacity}
                                                     strokeDasharray={isExt ? '3 3' : undefined}
                                                 />
                                                 {/* Left label: ratio */}
                                                 <text
-                                                    x={x_min - 4}
+                                                    x={xMin - 4}
                                                     y={ly - 3}
                                                     fill={l.color}
                                                     fillOpacity={lineOpacity}
@@ -6108,7 +6108,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                 </text>
                                                 {/* Right label: price */}
                                                 <text
-                                                    x={x_max + 4}
+                                                    x={xMax + 4}
                                                     y={ly - 3}
                                                     fill={l.color}
                                                     fillOpacity={lineOpacity}
