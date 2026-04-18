@@ -5992,18 +5992,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
                         case 'Fibonacci Retracement': {
                             if (!d.start || !d.end) return null;
-                            const [x1, y1] = [timeToX(d.start.time), yScale(d.start.price)];
-                            const [x2, y2] = [timeToX(d.end.time), yScale(d.end.price)];
+                            const x1 = Math.round(timeToX(d.start.time));
+                            const y1 = Math.round(yScale(d.start.price));
+                            const x2 = Math.round(timeToX(d.end.time));
+                            const y2 = Math.round(yScale(d.end.price));
                             const priceDiff = d.end.price - d.start.price;
 
-                            // Default Settings fallback
                             const settings = d.style.fibSettings || {
-                                trendLine: {
-                                    visible: true,
-                                    color: style.color,
-                                    width: 1,
-                                    style: 'dashed',
-                                },
+                                trendLine: { visible: true, color: style.color, width: 1, style: 'dashed' as const },
                                 levels: FIB_LEVELS.map((l, i) => ({
                                     level: l,
                                     color: FIB_LEVEL_COLORS[i] || style.color,
@@ -6017,14 +6013,22 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                             const x_min = Math.min(x1, x2);
                             const x_max = Math.max(x1, x2);
-                            const width = x_max - x_min;
+                            const lineX1 = settings.extendLines ? 0 : x_min;
+                            const lineX2 = settings.extendLines ? chartDimensions.width : x_max;
+                            const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
 
-                            // Filter visible levels and sort
-                            const activeLevels = settings.levels
+                            const allLevels = settings.levels
                                 .filter((l) => l.visible)
                                 .sort((a, b) => a.level - b.level);
-                            const opacity =
-                                1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
+                            // Core levels (0–1) used for background fills only
+                            const coreLevels = allLevels.filter((l) => l.level >= 0 && l.level <= 1);
+
+                            // Midpoint of trend line in pixel space
+                            const midX = (x1 + x2) / 2;
+                            const midY = (y1 + y2) / 2;
+
+                            const nwse = (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2) ? 'nwse-resize' : 'nesw-resize';
+                            const nesw = nwse === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
 
                             return (
                                 <g
@@ -6032,38 +6036,28 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                     filter={isSelected ? 'url(#selectionGlow)' : 'none'}
                                     pointerEvents="auto"
                                 >
-                                    {/* Background Fills */}
+                                    {/* Background fills between core levels only */}
                                     {settings.showBackground &&
-                                        activeLevels.slice(0, -1).map((l, i) => {
-                                            const next = activeLevels[i + 1];
-                                            const y_start = yScale(
-                                                d.start.price + priceDiff * l.level
-                                            );
-                                            const y_end = yScale(
-                                                d.start.price + priceDiff * next.level
-                                            );
-                                            const h = Math.abs(y_start - y_end);
-                                            const y = Math.min(y_start, y_end);
-                                            // Use color of the *current* level for the band (standard TradingView behavior) or mix?
-                                            // TradingView uses the color of the level.
+                                        coreLevels.slice(0, -1).map((l, i) => {
+                                            const next = coreLevels[i + 1];
+                                            const ya = yScale(d.start.price + priceDiff * l.level);
+                                            const yb = yScale(d.start.price + priceDiff * next.level);
+                                            const fy = Math.min(ya, yb);
+                                            const fh = Math.abs(ya - yb);
                                             return (
                                                 <rect
                                                     key={`fill-${i}`}
-                                                    x={settings.extendLines ? 0 : x_min}
-                                                    y={y}
-                                                    width={
-                                                        settings.extendLines
-                                                            ? chartDimensions.width
-                                                            : width
-                                                    }
-                                                    height={h}
+                                                    x={lineX1}
+                                                    y={fy}
+                                                    width={lineX2 - lineX1}
+                                                    height={fh}
                                                     fill={l.color}
-                                                    fillOpacity={opacity * 0.5}
+                                                    fillOpacity={bgOpacity * 0.5}
                                                 />
                                             );
                                         })}
 
-                                    {/* Trend Line */}
+                                    {/* Trend line */}
                                     {settings.trendLine.visible && (
                                         <line
                                             x1={x1}
@@ -6082,68 +6076,63 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         />
                                     )}
 
-                                    {/* Grid Lines & Labels */}
-                                    {activeLevels.map((l, i) => {
+                                    {/* Level lines + dual labels */}
+                                    {allLevels.map((l, i) => {
                                         const price = d.start.price + priceDiff * l.level;
-                                        const y = yScale(price);
-                                        const textX = settings.extendLines
-                                            ? d.start.time < d.end.time
-                                                ? chartDimensions.width - 50
-                                                : 50 // Simplified
-                                            : d.start.time < d.end.time
-                                              ? x2 + 5
-                                              : x2 - 5;
-                                        const textAnchor =
-                                            d.start.time < d.end.time ? 'start' : 'end';
-                                        const label = `${l.level.toFixed(3)} (${formatPrice(price)})`;
-
+                                        const ly = Math.round(yScale(price));
+                                        const isExt = l.level < 0 || l.level > 1;
+                                        const lineOpacity = isExt ? 0.55 : 1;
                                         return (
-                                            <g key={`grid-${i}`}>
+                                            <g key={`lv-${i}`}>
                                                 <line
-                                                    x1={settings.extendLines ? 0 : x_min}
-                                                    y1={y}
-                                                    x2={
-                                                        settings.extendLines
-                                                            ? chartDimensions.width
-                                                            : x_max
-                                                    }
-                                                    y2={y}
+                                                    x1={lineX1}
+                                                    y1={ly}
+                                                    x2={lineX2}
+                                                    y2={ly}
                                                     stroke={l.color}
                                                     strokeWidth={style.width}
+                                                    strokeOpacity={lineOpacity}
+                                                    strokeDasharray={isExt ? '3 3' : undefined}
                                                 />
+                                                {/* Left label: ratio */}
                                                 <text
-                                                    x={textX}
-                                                    y={y - 4}
+                                                    x={x_min - 4}
+                                                    y={ly - 3}
                                                     fill={l.color}
+                                                    fillOpacity={lineOpacity}
                                                     fontSize="10"
-                                                    textAnchor={textAnchor}
-                                                    className="pointer-events-none"
+                                                    textAnchor="end"
+                                                    className="pointer-events-none select-none"
                                                 >
-                                                    {label}
+                                                    {l.level.toFixed(3)}
+                                                </text>
+                                                {/* Right label: price */}
+                                                <text
+                                                    x={x_max + 4}
+                                                    y={ly - 3}
+                                                    fill={l.color}
+                                                    fillOpacity={lineOpacity}
+                                                    fontSize="10"
+                                                    textAnchor="start"
+                                                    className="pointer-events-none select-none"
+                                                >
+                                                    {formatPrice(price)}
                                                 </text>
                                             </g>
                                         );
                                     })}
 
-                                    {isSelected &&
-                                        (() => {
-                                            const nwse =
-                                                (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2)
-                                                    ? 'nwse-resize'
-                                                    : 'nesw-resize';
-                                            const nesw =
-                                                nwse === 'nwse-resize'
-                                                    ? 'nesw-resize'
-                                                    : 'nwse-resize';
-                                            return (
-                                                <>
-                                                    {renderHandle(x1, y1, nwse)}
-                                                    {renderHandle(x2, y2, nwse)}
-                                                    {renderHandle(x1, y2, nesw)}
-                                                    {renderHandle(x2, y1, nesw)}
-                                                </>
-                                            );
-                                        })()}
+                                    {/* Handles when selected */}
+                                    {isSelected && (
+                                        <>
+                                            {renderHandle(x1, y1, nwse)}
+                                            {renderHandle(x2, y2, nwse)}
+                                            {renderHandle(x1, y2, nesw)}
+                                            {renderHandle(x2, y1, nesw)}
+                                            {/* Midpoint handle — drags entire drawing (interaction added in Task 3) */}
+                                            {renderHandle(midX, midY, 'move')}
+                                        </>
+                                    )}
                                 </g>
                             );
                         }
