@@ -5278,34 +5278,34 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     } else if (h === 'c4') {
                         resized.end = { ...resized.end, time: snappedPoint.time };
                         resized.start = { ...resized.start, price: snappedPoint.price };
-                    } else if (h === 'top') {
-                        // Move the high-price edge
+                    } else if (h === 'top' && resized.type === 'Gann Box') {
+                        // Move the high-price edge; ties go to `start` (strict < picks end)
                         const init = interaction.initialDrawing as any;
                         if (init.start.price >= init.end.price) {
                             resized.start = { ...resized.start, price: snappedPoint.price };
                         } else {
                             resized.end = { ...resized.end, price: snappedPoint.price };
                         }
-                    } else if (h === 'bottom') {
-                        // Move the low-price edge
+                    } else if (h === 'bottom' && resized.type === 'Gann Box') {
+                        // Move the low-price edge; strict < so `start` wins tie via the 'top' branch
                         const init = interaction.initialDrawing as any;
-                        if (init.start.price <= init.end.price) {
+                        if (init.start.price < init.end.price) {
                             resized.start = { ...resized.start, price: snappedPoint.price };
                         } else {
                             resized.end = { ...resized.end, price: snappedPoint.price };
                         }
-                    } else if (h === 'left') {
-                        // Move the earliest-time edge
+                    } else if (h === 'left' && resized.type === 'Gann Box') {
+                        // Move the earliest-time edge; ties go to `start`
                         const init = interaction.initialDrawing as any;
                         if (init.start.time <= init.end.time) {
                             resized.start = { ...resized.start, time: snappedPoint.time };
                         } else {
                             resized.end = { ...resized.end, time: snappedPoint.time };
                         }
-                    } else if (h === 'right') {
-                        // Move the latest-time edge
+                    } else if (h === 'right' && resized.type === 'Gann Box') {
+                        // Move the latest-time edge; strict > so `start` wins tie via the 'left' branch
                         const init = interaction.initialDrawing as any;
-                        if (init.start.time >= init.end.time) {
+                        if (init.start.time > init.end.time) {
                             resized.start = { ...resized.start, time: snappedPoint.time };
                         } else {
                             resized.end = { ...resized.end, time: snappedPoint.time };
