@@ -3767,6 +3767,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         if (distSq(p, c3) < hRadiusSq) return { drawing: d, handle: 'c3' };
                         if (distSq(p, c4) < hRadiusSq) return { drawing: d, handle: 'c4' };
 
+                        // Edge midpoint handles — Gann Box only
+                        if (d.type === 'Gann Box') {
+                            const mx = (start.x + end.x) / 2;
+                            const my = (start.y + end.y) / 2;
+                            const topY = Math.min(start.y, end.y);
+                            const botY = Math.max(start.y, end.y);
+                            const leftX = Math.min(start.x, end.x);
+                            const rightX = Math.max(start.x, end.x);
+                            if (distSq(p, { x: mx, y: topY }) < hRadiusSq) return { drawing: d, handle: 'top' };
+                            if (distSq(p, { x: mx, y: botY }) < hRadiusSq) return { drawing: d, handle: 'bottom' };
+                            if (distSq(p, { x: leftX, y: my }) < hRadiusSq) return { drawing: d, handle: 'left' };
+                            if (distSq(p, { x: rightX, y: my }) < hRadiusSq) return { drawing: d, handle: 'right' };
+                        }
+
                         const minX = Math.min(start.x, end.x);
                         const maxX = Math.max(start.x, end.x);
                         const minY = Math.min(start.y, end.y);
@@ -5264,6 +5278,38 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     } else if (h === 'c4') {
                         resized.end = { ...resized.end, time: snappedPoint.time };
                         resized.start = { ...resized.start, price: snappedPoint.price };
+                    } else if (h === 'top') {
+                        // Move the high-price edge
+                        const init = interaction.initialDrawing as any;
+                        if (init.start.price >= init.end.price) {
+                            resized.start = { ...resized.start, price: snappedPoint.price };
+                        } else {
+                            resized.end = { ...resized.end, price: snappedPoint.price };
+                        }
+                    } else if (h === 'bottom') {
+                        // Move the low-price edge
+                        const init = interaction.initialDrawing as any;
+                        if (init.start.price <= init.end.price) {
+                            resized.start = { ...resized.start, price: snappedPoint.price };
+                        } else {
+                            resized.end = { ...resized.end, price: snappedPoint.price };
+                        }
+                    } else if (h === 'left') {
+                        // Move the earliest-time edge
+                        const init = interaction.initialDrawing as any;
+                        if (init.start.time <= init.end.time) {
+                            resized.start = { ...resized.start, time: snappedPoint.time };
+                        } else {
+                            resized.end = { ...resized.end, time: snappedPoint.time };
+                        }
+                    } else if (h === 'right') {
+                        // Move the latest-time edge
+                        const init = interaction.initialDrawing as any;
+                        if (init.start.time >= init.end.time) {
+                            resized.start = { ...resized.start, time: snappedPoint.time };
+                        } else {
+                            resized.end = { ...resized.end, time: snappedPoint.time };
+                        }
                     } else if (typeof h === 'string' && h.startsWith('p')) {
                         const idx = parseInt(h.substring(1));
                         if (!isNaN(idx) && resized.type === 'Path') {
