@@ -6166,12 +6166,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const settings = d.style.gannSettings || {
                                 priceLevels: GANN_LEVELS.map((l, i) => ({
                                     level: l,
-                                    color: GANN_LEVEL_COLORS[i] || d.style.color,
+                                    color: GANN_LEVEL_COLORS[i] || style.color,
                                     visible: true,
                                 })),
                                 timeLevels: GANN_LEVELS.map((l, i) => ({
                                     level: l,
-                                    color: GANN_LEVEL_COLORS[i] || d.style.color,
+                                    color: GANN_LEVEL_COLORS[i] || style.color,
                                     visible: true,
                                 })),
                                 useLeftLabels: true,
@@ -6337,6 +6337,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         fill="none"
                                         stroke={style.color}
                                         strokeWidth={style.width}
+                                        strokeDasharray={strokeDasharray}
                                     />
 
                                     {/* 8-point resize handles when selected */}
@@ -6349,15 +6350,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         return (
                                             <>
                                                 {/* Corners */}
-                                                {renderHandle(x1, y1, nwse)}
-                                                {renderHandle(x2, y2, nwse)}
-                                                {renderHandle(x1, y2, nesw)}
-                                                {renderHandle(x2, y1, nesw)}
+                                                <g key="gh-c1">{renderHandle(x1, y1, nwse)}</g>
+                                                <g key="gh-c2">{renderHandle(x2, y2, nwse)}</g>
+                                                <g key="gh-c3">{renderHandle(x1, y2, nesw)}</g>
+                                                <g key="gh-c4">{renderHandle(x2, y1, nesw)}</g>
                                                 {/* Edge midpoints */}
-                                                {renderHandle(midX, topY, 'n-resize')}
-                                                {renderHandle(midX, botY, 's-resize')}
-                                                {renderHandle(leftX, midY, 'w-resize')}
-                                                {renderHandle(rightX, midY, 'e-resize')}
+                                                <g key="gh-n">{renderHandle(midX, topY, 'n-resize')}</g>
+                                                <g key="gh-s">{renderHandle(midX, botY, 's-resize')}</g>
+                                                <g key="gh-w">{renderHandle(leftX, midY, 'w-resize')}</g>
+                                                <g key="gh-e">{renderHandle(rightX, midY, 'e-resize')}</g>
                                             </>
                                         );
                                     })()}
