@@ -317,7 +317,7 @@ interface CandlestickChartProps {
 
 function normaliseDrawings(drawings: Drawing[]): Drawing[] {
     return drawings.map((d) => {
-        if (d.type === 'Fibonacci Retracement' && d.style.fibSettings) {
+        if (d.type === 'Fibonacci Retracement') {
             return {
                 ...d,
                 style: {
