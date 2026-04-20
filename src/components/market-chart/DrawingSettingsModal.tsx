@@ -12,6 +12,7 @@ import {
     GannLevel,
     FibSettings,
     FibLevel,
+    FibExtendMode,
 } from './types';
 
 interface DrawingSettingsModalProps {
@@ -53,27 +54,56 @@ const DefaultGannSettings: GannSettings = {
     backgroundTransparency: 0.95,
 };
 
-const DefaultFibSettings: FibSettings = {
-    trendLine: { visible: true, color: '#787B86', width: 1, style: 'dashed' },
+export const DefaultFibSettings: FibSettings = {
+    trendLine: { visible: true, color: '#A78BFA', width: 1, style: 'dashed' },
     levels: [
-        { level: -0.618, color: '#E91E63', visible: false },
-        { level: -0.272, color: '#9C27B0', visible: false },
-        { level: 0,      color: '#787B86', visible: true  },
-        { level: 0.236,  color: '#F44336', visible: true  },
-        { level: 0.382,  color: '#FF9800', visible: true  },
-        { level: 0.5,    color: '#4CAF50', visible: true  },
-        { level: 0.618,  color: '#2196F3', visible: true  },
-        { level: 0.786,  color: '#3F51B5', visible: true  },
-        { level: 1,      color: '#787B86', visible: true  },
-        { level: 1.272,  color: '#00BCD4', visible: false },
-        { level: 1.618,  color: '#9C27B0', visible: false },
-        { level: 2.618,  color: '#E91E63', visible: false },
+        { level: -0.618, color: '#F0ABFC', visible: false },
+        { level: -0.272, color: '#F0ABFC', visible: false },
+        { level: 0,      color: '#6366F1', visible: true  },
+        { level: 0.236,  color: '#A78BFA', visible: true  },
+        { level: 0.382,  color: '#8B5CF6', visible: true  },
+        { level: 0.5,    color: '#8B5CF6', visible: true  },
+        { level: 0.618,  color: '#C4B5F0', visible: true  },
+        { level: 0.705,  color: '#8B5CF6', visible: true  },
+        { level: 0.786,  color: '#A78BFA', visible: true  },
+        { level: 1,      color: '#6366F1', visible: true  },
+        { level: 1.272,  color: '#D8B4FE', visible: true  },
+        { level: 1.618,  color: '#D8B4FE', visible: true  },
+        { level: 2.618,  color: '#D8B4FE', visible: true  },
     ],
-    extendLines: false,
+    extendLines: 'right',
     showBackground: true,
-    backgroundTransparency: 0.85,
+    backgroundTransparency: 0.92,
     useLogScale: false,
+    snapToSwing: false,
+    reverse: false,
 };
+
+/**
+ * Normalise persisted FibSettings shapes. Handles migration from older schemas
+ * where `extendLines` was a boolean and `snapToSwing` / `reverse` didn't exist.
+ */
+export function normaliseFibSettings(raw: any): FibSettings {
+    if (!raw) return DefaultFibSettings;
+    const extendLines: FibExtendMode =
+        raw.extendLines === true ? 'both'
+        : raw.extendLines === false ? 'none'
+        : raw.extendLines === 'both' || raw.extendLines === 'right' || raw.extendLines === 'none'
+            ? raw.extendLines
+            : DefaultFibSettings.extendLines;
+    return {
+        trendLine: raw.trendLine ?? DefaultFibSettings.trendLine,
+        levels: Array.isArray(raw.levels) && raw.levels.length > 0
+            ? raw.levels
+            : DefaultFibSettings.levels,
+        extendLines,
+        showBackground: raw.showBackground ?? DefaultFibSettings.showBackground,
+        backgroundTransparency: raw.backgroundTransparency ?? DefaultFibSettings.backgroundTransparency,
+        useLogScale: raw.useLogScale ?? false,
+        snapToSwing: raw.snapToSwing ?? false,
+        reverse: raw.reverse ?? false,
+    };
+}
 
 export const DrawingSettingsModal: React.FC<DrawingSettingsModalProps> = ({
     isOpen,
@@ -333,140 +363,167 @@ export const DrawingSettingsModal: React.FC<DrawingSettingsModalProps> = ({
     const renderFibSettings = () => {
         const settings = localDrawing.style.fibSettings || DefaultFibSettings;
         return (
-            <div className="px-5 pb-5 space-y-4">
-                <div className="flex items-center justify-between h-9">
-                    <span className="text-[14px] text-[#B2B5BE]">Trend Line</span>
-                    <div className="flex items-center gap-3">
-                        <ColorPicker
-                            color={settings.trendLine.color}
-                            onChange={(c) =>
-                                updateFibSettings({
-                                    trendLine: { ...settings.trendLine, color: c },
-                                })
-                            }
-                        />
-                        <span className="w-px h-4 bg-[#2A2E39]" />
-                        <div className="flex gap-1">
-                            {[1, 2, 3].map((w) => (
-                                <button
-                                    key={w}
-                                    title={`Line Width ${w}px`}
-                                    onClick={() =>
-                                        updateFibSettings({
-                                            trendLine: { ...settings.trendLine, width: w },
-                                        })
-                                    }
-                                    className={`w-7 h-5 flex items-center justify-center rounded-[2px] ${settings.trendLine.width === w ? 'bg-[#2A2E39]' : 'hover:bg-[#2A2E39]'}`}
-                                >
-                                    <div
-                                        className={`w-4 rounded-full ${
-                                            settings.trendLine.width === w
-                                                ? 'bg-[#D1D4DC]'
-                                                : 'bg-[#787B86]'
-                                        } ${
-                                            w === 1
-                                                ? 'h-[1px]'
-                                                : w === 2
-                                                  ? 'h-[2px]'
-                                                  : w === 3
-                                                    ? 'h-[3px]'
-                                                    : 'h-[4px]'
-                                        }`}
-                                    />
-                                </button>
-                            ))}
-                        </div>
+            <div className="space-y-4">
+                {/* Trend line */}
+                <fieldset className="rounded border border-neutral-700 p-3">
+                    <legend className="px-1 text-xs font-medium text-neutral-400">Trend line</legend>
+                    <label className="flex items-center gap-2 text-sm">
                         <input
                             type="checkbox"
-                            title="Toggle Trend Line Visibility"
                             checked={settings.trendLine.visible}
                             onChange={(e) =>
                                 updateFibSettings({
                                     trendLine: { ...settings.trendLine, visible: e.target.checked },
                                 })
                             }
-                            className="ml-2 accent-[#2962FF] w-4 h-4 rounded-sm"
                         />
+                        Show trend line
+                    </label>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                        <label className="text-xs">
+                            Color
+                            <input
+                                type="color"
+                                value={settings.trendLine.color}
+                                onChange={(e) =>
+                                    updateFibSettings({
+                                        trendLine: { ...settings.trendLine, color: e.target.value },
+                                    })
+                                }
+                                className="mt-1 block h-8 w-full"
+                            />
+                        </label>
+                        <label className="text-xs">
+                            Width
+                            <select
+                                value={settings.trendLine.width}
+                                onChange={(e) =>
+                                    updateFibSettings({
+                                        trendLine: { ...settings.trendLine, width: Number(e.target.value) },
+                                    })
+                                }
+                                className="mt-1 block h-8 w-full rounded bg-neutral-800 px-1"
+                            >
+                                <option value={1}>1</option>
+                                <option value={2}>2</option>
+                                <option value={3}>3</option>
+                            </select>
+                        </label>
+                        <label className="text-xs">
+                            Style
+                            <select
+                                value={settings.trendLine.style}
+                                onChange={(e) =>
+                                    updateFibSettings({
+                                        trendLine: { ...settings.trendLine, style: e.target.value as FibSettings['trendLine']['style'] },
+                                    })
+                                }
+                                className="mt-1 block h-8 w-full rounded bg-neutral-800 px-1"
+                            >
+                                <option value="solid">Solid</option>
+                                <option value="dashed">Dashed</option>
+                                <option value="dotted">Dotted</option>
+                            </select>
+                        </label>
                     </div>
-                </div>
+                </fieldset>
 
-                <Separator />
-
-                <div className="space-y-1">
-                    {settings.levels.map((l, i) => (
-                        <div key={i} className="flex items-center h-9 gap-3">
-                            <input
-                                type="checkbox"
-                                title="Toggle Visibility"
-                                checked={l.visible}
-                                onChange={() => toggleFibLevel(i)}
-                                className="accent-[#2962FF] w-4 h-4 rounded-sm"
-                            />
-                            <ColorPicker
-                                color={l.color}
-                                onChange={(c) => updateFibLevelColor(i, c)}
-                            />
-                            <input
-                                type="number"
-                                title="Level Value"
-                                step="0.001"
-                                value={l.level}
-                                onChange={(e) => updateFibLevelValue(i, parseFloat(e.target.value))}
-                                className="flex-1 bg-[#131722] text-[13px] text-[#D1D4DC] border border-[#2A2E39] rounded px-2 py-1 text-right focus:border-[#2962FF] outline-none transition-colors h-[28px]"
-                            />
-                        </div>
-                    ))}
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between h-9">
-                    <span className="text-[14px] text-[#B2B5BE]">Use one color</span>
-                    <input
-                        type="checkbox"
-                        title="Use One Color"
-                        className="accent-[#2962FF] w-4 h-4 rounded-sm"
-                        disabled
-                    />
-                </div>
-                <div className="flex items-center justify-between h-9">
-                    <span className="text-[14px] text-[#B2B5BE]">Background</span>
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="range"
-                            title="Background Transparency"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={settings.backgroundTransparency}
-                            onChange={(e) =>
-                                updateFibSettings({
-                                    backgroundTransparency: parseFloat(e.target.value),
-                                })
-                            }
-                            className="w-24 h-1 bg-[#434651] appearance-none rounded-lg accent-[#2962FF] cursor-pointer"
-                        />
+                {/* Behaviour */}
+                <fieldset className="rounded border border-neutral-700 p-3">
+                    <legend className="px-1 text-xs font-medium text-neutral-400">Behaviour</legend>
+                    <label className="mb-2 flex items-center justify-between text-sm">
+                        <span>Extend lines</span>
+                        <select
+                            value={settings.extendLines}
+                            onChange={(e) => updateFibSettings({ extendLines: e.target.value as FibExtendMode })}
+                            className="h-8 rounded bg-neutral-800 px-2"
+                        >
+                            <option value="none">None</option>
+                            <option value="right">Right only</option>
+                            <option value="both">Both</option>
+                        </select>
+                    </label>
+                    <label className="mb-2 flex items-center gap-2 text-sm">
                         <input
                             type="checkbox"
-                            title="Show Background"
-                            checked={settings.showBackground}
-                            onChange={(e) =>
-                                updateFibSettings({ showBackground: e.target.checked })
-                            }
-                            className="accent-[#2962FF] w-4 h-4 rounded-sm"
+                            checked={settings.useLogScale}
+                            onChange={(e) => updateFibSettings({ useLogScale: e.target.checked })}
                         />
+                        Log scale
+                    </label>
+                    <label className="mb-2 flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={settings.snapToSwing}
+                            onChange={(e) => updateFibSettings({ snapToSwing: e.target.checked })}
+                        />
+                        Snap to swing on draw
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={settings.reverse}
+                            onChange={(e) => updateFibSettings({ reverse: e.target.checked })}
+                        />
+                        Reverse labels
+                    </label>
+                </fieldset>
+
+                {/* Background */}
+                <fieldset className="rounded border border-neutral-700 p-3">
+                    <legend className="px-1 text-xs font-medium text-neutral-400">Background</legend>
+                    <label className="mb-2 flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={settings.showBackground}
+                            onChange={(e) => updateFibSettings({ showBackground: e.target.checked })}
+                        />
+                        Show fills
+                    </label>
+                    <label className="block text-xs">
+                        Transparency
+                        <input
+                            type="range"
+                            min={0} max={1} step={0.01}
+                            value={settings.backgroundTransparency}
+                            onChange={(e) => updateFibSettings({ backgroundTransparency: Number(e.target.value) })}
+                            className="mt-1 block w-full"
+                        />
+                    </label>
+                </fieldset>
+
+                {/* Levels */}
+                <fieldset className="rounded border border-neutral-700 p-3">
+                    <legend className="px-1 text-xs font-medium text-neutral-400">Levels</legend>
+                    <div className="space-y-1">
+                        {settings.levels.map((lv, idx) => (
+                            <div key={lv.level} className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    title={`Toggle visibility for level ${lv.level.toFixed(3)}`}
+                                    checked={lv.visible}
+                                    onChange={(e) => {
+                                        const next = [...settings.levels];
+                                        next[idx] = { ...lv, visible: e.target.checked };
+                                        updateFibSettings({ levels: next });
+                                    }}
+                                />
+                                <span className="w-16 font-mono text-xs">{lv.level.toFixed(3)}</span>
+                                <input
+                                    type="color"
+                                    title={`Color for level ${lv.level.toFixed(3)}`}
+                                    value={lv.color}
+                                    onChange={(e) => {
+                                        const next = [...settings.levels];
+                                        next[idx] = { ...lv, color: e.target.value };
+                                        updateFibSettings({ levels: next });
+                                    }}
+                                    className="h-6 w-10"
+                                />
+                            </div>
+                        ))}
                     </div>
-                </div>
-                <div className="flex items-center justify-between h-9">
-                    <span className="text-[14px] text-[#B2B5BE]">Extend Lines</span>
-                    <input
-                        type="checkbox"
-                        title="Extend Lines"
-                        checked={settings.extendLines}
-                        onChange={(e) => updateFibSettings({ extendLines: e.target.checked })}
-                        className="accent-[#2962FF] w-4 h-4 rounded-sm"
-                    />
-                </div>
+                </fieldset>
             </div>
         );
     };

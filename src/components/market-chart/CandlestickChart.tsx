@@ -49,6 +49,7 @@ import {
 } from './constants';
 import { ChartError, toChartErrorFromString } from './errorUtils';
 import { convertKuriDrawings } from './kuriDrawingConverter';
+import { normaliseFibSettings } from './DrawingSettingsModal';
 import { KuriBridge, getKuriBridge } from '../../lib/kuri/kuri-bridge';
 import ChartHeader from './ChartHeader';
 import RightToolbar from './RightToolbar';
@@ -314,6 +315,21 @@ interface CandlestickChartProps {
     readOnly?: boolean;
 }
 
+function normaliseDrawings(drawings: Drawing[]): Drawing[] {
+    return drawings.map((d) => {
+        if (d.type === 'Fibonacci Retracement' && d.style.fibSettings) {
+            return {
+                ...d,
+                style: {
+                    ...d.style,
+                    fibSettings: normaliseFibSettings(d.style.fibSettings),
+                },
+            };
+        }
+        return d;
+    });
+}
+
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const {
         data,
@@ -385,7 +401,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         prevDataLength.current = data.length;
     }, [data.length]);
 
-    const [drawings, setDrawings] = useState<Drawing[]>(initialDrawings || []);
+    const [drawings, setDrawings] = useState<Drawing[]>(normaliseDrawings(initialDrawings || []));
 
     // Sync changes to parent
     useEffect(() => {
@@ -397,7 +413,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     // Update internal state when initialDrawings prop changes (e.g. symbol switch)
     useEffect(() => {
         if (initialDrawings) {
-            setDrawings(initialDrawings);
+            setDrawings(normaliseDrawings(initialDrawings));
         }
     }, [initialDrawings]);
 
