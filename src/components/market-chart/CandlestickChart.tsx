@@ -2536,12 +2536,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             1,
                             Math.abs(Math.round(yScale(d.open)) - Math.round(yScale(d.close)))
                         );
-                        const bodyX = Math.round(x - xStep * 0.35);
                         const widthMultiplier = chartSettings.symbol.candleBodyWidth ?? 1.0;
                         const bodyWidth = Math.max(
                             1,
                             Math.min(xStep, Math.round(xStep * 0.7 * widthMultiplier))
                         );
+                        const bodyX = Math.round(x - bodyWidth / 2);
 
                         if (chartSettings.symbol.showBody) {
                             chartContext.fillStyle = bodyColor;
