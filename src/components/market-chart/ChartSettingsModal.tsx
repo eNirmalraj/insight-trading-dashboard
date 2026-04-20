@@ -222,6 +222,32 @@ const SymbolSettingsComponent: React.FC<{
             </div>
         </div>
         <div>
+            <SectionTitle>Display</SectionTitle>
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="candleBodyWidth" className="text-gray-300">
+                        Candle width
+                    </label>
+                    <select
+                        id="candleBodyWidth"
+                        value={settings.candleBodyWidth}
+                        onChange={(e) => onChange('candleBodyWidth', Number(e.target.value))}
+                        className="bg-gray-700 border border-gray-600 rounded-md py-1 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value={0.5}>Thin (0.5×)</option>
+                        <option value={1.0}>Default (1.0×)</option>
+                        <option value={1.5}>Wide (1.5×)</option>
+                        <option value={2.0}>Extra wide (2.0×)</option>
+                    </select>
+                </div>
+                <CheckboxSettingRow
+                    label="Last price line"
+                    isChecked={settings.showLastPriceLine}
+                    onToggle={(checked) => onChange('showLastPriceLine', checked)}
+                />
+            </div>
+        </div>
+        <div>
             <SectionTitle>Data Modification</SectionTitle>
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
