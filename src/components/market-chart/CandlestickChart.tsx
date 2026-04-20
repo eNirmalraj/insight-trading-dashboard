@@ -131,7 +131,7 @@ interface HistoryState {
     chartType: 'Candle' | 'Line';
 }
 
-const getDefaultChartSettings = (symbol: string): ChartSettings => ({
+export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
     symbol: {
         showBody: true,
         showBorders: true,

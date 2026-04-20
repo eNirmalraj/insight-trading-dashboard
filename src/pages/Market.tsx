@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import CandlestickChart from '../components/CandlestickChart';
+import { getDefaultChartSettings } from '../components/market-chart/CandlestickChart';
 import type { ChartError } from '../components/market-chart/errorUtils';
 import { toChartErrorFromString } from '../components/market-chart/errorUtils';
 import {
@@ -32,6 +33,7 @@ import {
     loadMarketState,
     saveMarketState,
     loadChartSettings,
+    normaliseChartSettings,
     saveChartSettings,
 } from '../services/marketStateService';
 import { loadDrawings, saveDrawings } from '../services/chartDrawingService';
@@ -303,7 +305,12 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                 setActiveTimeframe(state.timeframe);
 
                 const settings = await loadChartSettings();
-                setInitialChartSettings(settings);
+                if (settings) {
+                    const defaults = getDefaultChartSettings(state.symbol);
+                    setInitialChartSettings(normaliseChartSettings(settings, defaults));
+                } else {
+                    setInitialChartSettings(settings);
+                }
 
                 // Load drawings for initial symbol/timeframe
                 // Note: savedState might be empty, so use defaults if needed, but we used them above

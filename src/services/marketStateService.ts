@@ -1,6 +1,6 @@
 // src/services/marketStateService.ts
 import { db, isSupabaseConfigured } from './supabaseClient';
-import { ChartSettings } from '../components/market-chart/types';
+import type { ChartSettings, SymbolSettings } from '../components/market-chart/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -78,6 +78,43 @@ export const saveMarketState = async (state: MarketState): Promise<void> => {
         console.error('Error saving market state:', error);
     }
 };
+
+/**
+ * Normalise persisted SymbolSettings by filling in missing fields with defaults.
+ * Handles forward-compatibility with rows saved before new fields were added.
+ */
+export function normaliseSymbolSettings(
+    raw: any,
+    defaults: SymbolSettings
+): SymbolSettings {
+    if (!raw || typeof raw !== 'object') return { ...defaults };
+    return {
+        ...defaults,
+        ...raw,
+        candleBodyWidth: typeof raw.candleBodyWidth === 'number'
+            ? raw.candleBodyWidth
+            : defaults.candleBodyWidth,
+        showLastPriceLine: typeof raw.showLastPriceLine === 'boolean'
+            ? raw.showLastPriceLine
+            : defaults.showLastPriceLine,
+    };
+}
+
+/**
+ * Normalise a full ChartSettings payload by running the sub-normalisers.
+ * Future sub-projects can extend this with more sub-shape normalisers.
+ */
+export function normaliseChartSettings(
+    raw: any,
+    defaults: ChartSettings
+): ChartSettings {
+    if (!raw || typeof raw !== 'object') return { ...defaults };
+    return {
+        ...defaults,
+        ...raw,
+        symbol: normaliseSymbolSettings(raw.symbol, defaults.symbol),
+    };
+}
 
 export const loadChartSettings = async (): Promise<ChartSettings | null> => {
     if (USE_MOCK || !isSupabaseConfigured()) {
