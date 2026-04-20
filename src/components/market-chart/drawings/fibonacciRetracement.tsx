@@ -76,19 +76,153 @@ export function renderFibonacci(
     key: string
 ): React.ReactElement | null {
     if (!d.start || !d.end) return null;
-    // Stub — real implementation in Task 3
-    const x1 = Math.round(ctx.timeToX(d.start.time));
-    const y1 = Math.round(ctx.yScale(d.start.price));
-    const x2 = Math.round(ctx.timeToX(d.end.time));
-    const y2 = Math.round(ctx.yScale(d.end.price));
+
+    const { timeToX, yScale, isSelected, chartDimensions, renderHandle, formatPrice, hoveredLevel } = ctx;
+
+    const x1 = Math.round(timeToX(d.start.time));
+    const y1 = Math.round(yScale(d.start.price));
+    const x2 = Math.round(timeToX(d.end.time));
+    const y2 = Math.round(yScale(d.end.price));
+
+    const settings = d.style.fibSettings;
+    if (!settings) return null;
+
+    const xMin = Math.min(x1, x2);
+    const xMax = Math.max(x1, x2);
+
+    // extendLines tri-state
+    const lineX1 =
+        settings.extendLines === 'both' ? 0 : xMin;
+    const lineX2 =
+        settings.extendLines === 'none' ? xMax : chartDimensions.width;
+
+    // Label x-positions clamped to canvas bounds so labels don't clip off-screen
+    const LABEL_PAD = 4;
+    const leftLabelX = Math.max(LABEL_PAD, xMin - LABEL_PAD);
+    const rightLabelX = Math.min(chartDimensions.width - LABEL_PAD, xMax + LABEL_PAD);
+
+    const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
+
+    const allLevels = [...settings.levels]
+        .filter((l) => l.visible)
+        .sort((a, b) => a.level - b.level);
+    const coreLevels = allLevels.filter((l) => l.level >= 0 && l.level <= 1);
+
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+
+    const useLog = settings.useLogScale;
+    const computeY = (level: number) => {
+        const price = priceAtFibLevel(d.start!.price, d.end!.price, level, useLog);
+        return Math.round(yScale(price));
+    };
+
+    const nwse =
+        (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2) ? 'nwse-resize' : 'nesw-resize';
+    const nesw = nwse === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
+
     return (
-        <g key={key}>
-            <line
-                x1={x1} y1={y1} x2={x2} y2={y2}
-                stroke="#A78BFA"
-                strokeWidth={1}
-                strokeDasharray="4 4"
-            />
+        <g
+            key={key}
+            filter={isSelected ? 'url(#selectionGlow)' : 'none'}
+            pointerEvents="auto"
+        >
+            {/* Background fills between consecutive core levels */}
+            {settings.showBackground &&
+                coreLevels.slice(0, -1).map((l, i) => {
+                    const next = coreLevels[i + 1];
+                    const ya = computeY(l.level);
+                    const yb = computeY(next.level);
+                    const fy = Math.min(ya, yb);
+                    const fh = Math.abs(ya - yb);
+                    return (
+                        <rect
+                            key={`fill-${i}`}
+                            x={lineX1}
+                            y={fy}
+                            width={lineX2 - lineX1}
+                            height={fh}
+                            fill={l.color}
+                            fillOpacity={bgOpacity * 0.5}
+                        />
+                    );
+                })}
+
+            {/* Trend line */}
+            {settings.trendLine.visible && (
+                <line
+                    x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={settings.trendLine.color}
+                    strokeWidth={settings.trendLine.width}
+                    strokeDasharray={
+                        settings.trendLine.style === 'dashed'
+                            ? '4 4'
+                            : settings.trendLine.style === 'dotted'
+                              ? '1 4'
+                              : undefined
+                    }
+                />
+            )}
+
+            {/* Level lines + dual labels */}
+            {allLevels.map((l, i) => {
+                const price = priceAtFibLevel(d.start!.price, d.end!.price, l.level, useLog);
+                const ly = Math.round(yScale(price));
+                const isExt = l.level < 0 || l.level > 1;
+                const isHovered = hoveredLevel === l.level;
+                const baseWidth = 1;
+                const strokeWidth = isHovered ? baseWidth * 1.2 : baseWidth;
+                const lineOpacity = isHovered ? 1 : isExt ? 0.7 : 0.9;
+
+                // Label direction-aware via `reverse` toggle
+                const labelLevel = settings.reverse ? 1 - l.level : l.level;
+                const ratioText = labelLevel.toFixed(3);
+
+                return (
+                    <g key={`lv-${i}`}>
+                        <line
+                            x1={lineX1} y1={ly} x2={lineX2} y2={ly}
+                            stroke={l.color}
+                            strokeWidth={strokeWidth}
+                            strokeOpacity={lineOpacity}
+                            strokeDasharray={isExt ? '3 3' : undefined}
+                        />
+                        {/* Left label: ratio (clamped) */}
+                        <text
+                            x={leftLabelX} y={ly - 3}
+                            fill={l.color}
+                            fillOpacity={lineOpacity}
+                            fontSize="10"
+                            textAnchor="end"
+                            className="pointer-events-none select-none"
+                        >
+                            {ratioText}
+                        </text>
+                        {/* Right label: price (clamped) */}
+                        <text
+                            x={rightLabelX} y={ly - 3}
+                            fill={l.color}
+                            fillOpacity={lineOpacity}
+                            fontSize="10"
+                            textAnchor="start"
+                            className="pointer-events-none select-none"
+                        >
+                            {formatPrice(price)}
+                        </text>
+                    </g>
+                );
+            })}
+
+            {/* Handles when selected */}
+            {isSelected && (
+                <>
+                    <g key="fh-start">{renderHandle(x1, y1, nwse)}</g>
+                    <g key="fh-end">{renderHandle(x2, y2, nwse)}</g>
+                    <g key="fh-c3">{renderHandle(x1, y2, nesw)}</g>
+                    <g key="fh-c4">{renderHandle(x2, y1, nesw)}</g>
+                    <g key="fh-mid">{renderHandle(midX, midY, 'move')}</g>
+                </>
+            )}
         </g>
     );
 }
