@@ -51,6 +51,8 @@ export interface FibLevel {
     visible: boolean;
 }
 
+export type FibExtendMode = 'both' | 'right' | 'none';
+
 export interface FibSettings {
     trendLine: {
         visible: boolean;
@@ -59,10 +61,12 @@ export interface FibSettings {
         style: LineStyle;
     };
     levels: FibLevel[];
-    extendLines: boolean;
+    extendLines: FibExtendMode;
     showBackground: boolean;
     backgroundTransparency: number;
     useLogScale: boolean;
+    snapToSwing: boolean;
+    reverse: boolean;
 }
 
 interface BaseDrawing {
