@@ -315,10 +315,46 @@ export function hitTestFibonacci(
 
 export function applyFibonacciResize(
     d: FibonacciRetracementDrawing,
-    _handle: FibHandle,
-    _snappedPoint: { time: number; price: number },
-    _initial: FibonacciRetracementDrawing
+    handle: FibHandle,
+    snappedPoint: { time: number; price: number },
+    initial: FibonacciRetracementDrawing
 ): FibonacciRetracementDrawing {
-    // Stub — real implementation in Task 5
-    return d;
+    if (!d.start || !d.end || !initial.start || !initial.end) return d;
+    const resized = { ...d, start: { ...d.start }, end: { ...d.end } };
+
+    switch (handle) {
+        case 'start':
+            resized.start = snappedPoint;
+            return resized;
+        case 'end':
+            resized.end = snappedPoint;
+            return resized;
+        case 'c3':
+            // Corner at (xStart, yEnd) → drag updates start.time + end.price
+            resized.start = { ...resized.start, time: snappedPoint.time };
+            resized.end = { ...resized.end, price: snappedPoint.price };
+            return resized;
+        case 'c4':
+            // Corner at (xEnd, yStart) → drag updates end.time + start.price
+            resized.end = { ...resized.end, time: snappedPoint.time };
+            resized.start = { ...resized.start, price: snappedPoint.price };
+            return resized;
+        case 'mid': {
+            // Midpoint drag translates both endpoints by the same delta.
+            // Use `initial` (frozen pre-drag snapshot) to prevent cumulative drift.
+            const initMidTime = (initial.start.time + initial.end.time) / 2;
+            const initMidPrice = (initial.start.price + initial.end.price) / 2;
+            const dTime = snappedPoint.time - initMidTime;
+            const dPrice = snappedPoint.price - initMidPrice;
+            resized.start = {
+                time: initial.start.time + dTime,
+                price: initial.start.price + dPrice,
+            };
+            resized.end = {
+                time: initial.end.time + dTime,
+                price: initial.end.price + dPrice,
+            };
+            return resized;
+        }
+    }
 }
