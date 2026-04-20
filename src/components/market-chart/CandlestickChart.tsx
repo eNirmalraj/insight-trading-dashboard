@@ -48,7 +48,7 @@ import {
 } from './constants';
 import { ChartError, toChartErrorFromString } from './errorUtils';
 import { convertKuriDrawings } from './kuriDrawingConverter';
-import { normaliseFibSettings } from './DrawingSettingsModal';
+import { normaliseFibSettings, DefaultFibSettings } from './DrawingSettingsModal';
 import { KuriBridge, getKuriBridge } from '../../lib/kuri/kuri-bridge';
 import ChartHeader from './ChartHeader';
 import RightToolbar from './RightToolbar';
@@ -4476,7 +4476,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         start: snappedPoint,
                         end: snappedPoint,
                         text: activeTool === 'Highlight Zone' ? '' : undefined,
-                        style: defaultStyle,
+                        style:
+                            activeTool === 'Fibonacci Retracement'
+                                ? { ...defaultStyle, fibSettings: DefaultFibSettings }
+                                : defaultStyle,
                         step: 1,
                     } as any;
                     break;
