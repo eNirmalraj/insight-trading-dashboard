@@ -87,6 +87,9 @@ export function renderFibonacci(
     const settings = d.style.fibSettings;
     if (!settings) return null;
 
+    const startPrice = d.start.price;
+    const endPrice = d.end.price;
+
     const xMin = Math.min(x1, x2);
     const xMax = Math.max(x1, x2);
 
@@ -101,7 +104,10 @@ export function renderFibonacci(
     const leftLabelX = Math.max(LABEL_PAD, xMin - LABEL_PAD);
     const rightLabelX = Math.min(chartDimensions.width - LABEL_PAD, xMax + LABEL_PAD);
 
-    const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
+    const rawTransparency = Number.isFinite(settings.backgroundTransparency)
+        ? settings.backgroundTransparency
+        : 0;
+    const bgOpacity = 1 - Math.max(0, Math.min(1, rawTransparency));
 
     const allLevels = [...settings.levels]
         .filter((l) => l.visible)
@@ -113,7 +119,7 @@ export function renderFibonacci(
 
     const useLog = settings.useLogScale;
     const computeY = (level: number) => {
-        const price = priceAtFibLevel(d.start!.price, d.end!.price, level, useLog);
+        const price = priceAtFibLevel(startPrice, endPrice, level, useLog);
         return Math.round(yScale(price));
     };
 
@@ -166,10 +172,10 @@ export function renderFibonacci(
 
             {/* Level lines + dual labels */}
             {allLevels.map((l, i) => {
-                const price = priceAtFibLevel(d.start!.price, d.end!.price, l.level, useLog);
+                const price = priceAtFibLevel(startPrice, endPrice, l.level, useLog);
                 const ly = Math.round(yScale(price));
                 const isExt = l.level < 0 || l.level > 1;
-                const isHovered = hoveredLevel === l.level;
+                const isHovered = hoveredLevel !== null && Math.abs(hoveredLevel - l.level) < 1e-9;
                 const baseWidth = 1;
                 const strokeWidth = isHovered ? baseWidth * 1.2 : baseWidth;
                 const lineOpacity = isHovered ? 1 : isExt ? 0.7 : 0.9;
