@@ -2537,7 +2537,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             Math.abs(Math.round(yScale(d.open)) - Math.round(yScale(d.close)))
                         );
                         const bodyX = Math.round(x - xStep * 0.35);
-                        const bodyWidth = Math.round(xStep * 0.7);
+                        const widthMultiplier = chartSettings.symbol.candleBodyWidth ?? 1.0;
+                        const bodyWidth = Math.max(
+                            1,
+                            Math.min(xStep, Math.round(xStep * 0.7 * widthMultiplier))
+                        );
 
                         if (chartSettings.symbol.showBody) {
                             chartContext.fillStyle = bodyColor;
@@ -2575,7 +2579,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     chartContext.stroke();
                 }
 
-                if (chartSettings.scalesAndLines.showLastPriceLabel && data.length > 0) {
+                if (chartSettings.symbol.showLastPriceLine && data.length > 0) {
                     const lastCandle = data[data.length - 1];
                     const prevCandle = data.length > 1 ? data[data.length - 2] : null;
                     const isUp = prevCandle ? lastCandle.close >= prevCandle.close : true;
