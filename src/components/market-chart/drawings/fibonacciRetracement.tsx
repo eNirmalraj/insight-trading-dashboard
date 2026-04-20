@@ -1,23 +1,32 @@
 import React from 'react';
-import { FibonacciRetracementDrawing } from '../types';
-import { HANDLE_RADIUS, HITBOX_WIDTH } from '../constants';
+import { FibonacciRetracementDrawing, LineStyle } from '../types';
 
-// Lavender palette (per spec §2)
-export const FIB_LAVENDER_PALETTE: Record<number, string> = {
-    [-0.618]: '#F0ABFC',
-    [-0.272]: '#F0ABFC',
-    0:       '#6366F1',
-    0.236:   '#A78BFA',
-    0.382:   '#8B5CF6',
-    0.5:     '#8B5CF6',
-    0.618:   '#C4B5F0',
-    0.705:   '#8B5CF6',
-    0.786:   '#A78BFA',
-    1:       '#6366F1',
-    1.272:   '#D8B4FE',
-    1.618:   '#D8B4FE',
-    2.618:   '#D8B4FE',
+// Lavender palette (per spec §2). Keys are level.toFixed(3) strings to
+// avoid float-key coercion issues (e.g. 0.1 + 0.2 ≠ 0.3).
+export const FIB_LAVENDER_PALETTE: Record<string, string> = {
+    '-0.618': '#F0ABFC',
+    '-0.272': '#F0ABFC',
+    '0.000':  '#6366F1',
+    '0.236':  '#A78BFA',
+    '0.382':  '#8B5CF6',
+    '0.500':  '#8B5CF6',
+    '0.618':  '#C4B5F0',
+    '0.705':  '#8B5CF6',
+    '0.786':  '#A78BFA',
+    '1.000':  '#6366F1',
+    '1.272':  '#D8B4FE',
+    '1.618':  '#D8B4FE',
+    '2.618':  '#D8B4FE',
 };
+
+/**
+ * Safe lookup against FIB_LAVENDER_PALETTE that handles floating-point
+ * level values by formatting to 3 decimal places before key lookup.
+ * Returns the fallback color when the level isn't in the palette.
+ */
+export function getFibLevelColor(level: number, fallback: string = '#A78BFA'): string {
+    return FIB_LAVENDER_PALETTE[level.toFixed(3)] ?? fallback;
+}
 
 export interface DrawingRenderContext {
     timeToX: (time: number) => number;
@@ -30,7 +39,7 @@ export interface DrawingRenderContext {
     style: {
         color: string;
         width: number;
-        lineStyle?: string;
+        lineStyle?: LineStyle;
     };
 }
 
