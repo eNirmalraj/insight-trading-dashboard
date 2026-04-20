@@ -43,7 +43,6 @@ import {
     HITBOX_WIDTH,
     HANDLE_RADIUS,
     SNAP_THRESHOLD,
-    FIB_LEVELS,
     GANN_LEVELS,
     GANN_LEVEL_COLORS,
 } from './constants';
@@ -122,15 +121,6 @@ const getIndicatorDefinition = (type: string) => {
     const found = findRegistryEntry(type);
     return found ? { name: found.name, shortname: found.shortname, overlay: found.overlay } : null;
 };
-
-const FIB_LEVEL_COLORS = [
-    'rgba(128, 0, 128, 0.2)', // Purple for 0-0.236
-    'rgba(0, 0, 255, 0.2)', // Blue for 0.236-0.382
-    'rgba(0, 128, 0, 0.2)', // Green for 0.382-0.5
-    'rgba(255, 255, 0, 0.2)', // Yellow for 0.5-0.618
-    'rgba(255, 165, 0, 0.2)', // Orange for 0.618-0.786
-    'rgba(255, 0, 0, 0.2)', // Red for 0.786-1
-];
 
 interface HistoryState {
     drawings: Drawing[];
@@ -1905,7 +1895,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             );
             commitStateAndApplyChanges((prev) => ({
                 ...prev,
-                drawings: loadedDrawings,
+                drawings: normaliseDrawings(loadedDrawings),
                 indicators: indicatorsWithData,
             }));
             setIsTemplateManagerOpen(false);
