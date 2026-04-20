@@ -506,7 +506,7 @@ export const DrawingSettingsModal: React.FC<DrawingSettingsModalProps> = ({
                     <div className="mb-3 text-[11px] font-bold text-[#787B86] uppercase tracking-wider">
                         Levels
                     </div>
-                    <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                         {settings.levels.map((lv, idx) => (
                             <div key={idx} className="flex items-center h-9 gap-3">
                                 <input
@@ -528,9 +528,12 @@ export const DrawingSettingsModal: React.FC<DrawingSettingsModalProps> = ({
                                         updateFibSettings({ levels: next });
                                     }}
                                 />
-                                <span className="flex-1 font-mono text-[13px] text-[#D1D4DC] text-right pr-1">
+                                <div
+                                    title="Level Value"
+                                    className="flex-1 bg-[#131722] text-[13px] text-[#D1D4DC] border border-[#2A2E39] rounded px-2 py-1 text-right h-[28px] flex items-center justify-end font-mono"
+                                >
                                     {lv.level.toFixed(3)}
-                                </span>
+                                </div>
                             </div>
                         ))}
                     </div>
