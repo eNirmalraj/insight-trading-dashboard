@@ -1,5 +1,6 @@
 import React from 'react';
 import { FibonacciRetracementDrawing, LineStyle } from '../types';
+import { HANDLE_RADIUS, HITBOX_WIDTH } from '../constants';
 
 // Lavender palette (per spec §2). Keys are level.toFixed(3) strings to
 // avoid float-key coercion issues (e.g. 0.1 + 0.2 ≠ 0.3).
@@ -68,6 +69,26 @@ export function priceAtFibLevel(
         return Math.exp(ls + (le - ls) * level);
     }
     return startPrice + (endPrice - startPrice) * level;
+}
+
+function distSq(a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
+
+function distToSegmentSquared(
+    p: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number }
+): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return distSq(p, a);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return distSq(p, { x: a.x + t * dx, y: a.y + t * dy });
 }
 
 export function renderFibonacci(
@@ -235,11 +256,60 @@ export function renderFibonacci(
 
 export function hitTestFibonacci(
     d: FibonacciRetracementDrawing,
-    _p: { x: number; y: number },
-    _ctx: DrawingHitContext
+    p: { x: number; y: number },
+    ctx: DrawingHitContext
 ): { drawing: FibonacciRetracementDrawing; handle?: FibHandle } | null {
     if (!d.start || !d.end) return null;
-    // Stub — real implementation in Task 4
+    const { timeToX, yScale, selectedDrawingId } = ctx;
+
+    const startPt = { x: timeToX(d.start.time), y: yScale(d.start.price) };
+    const endPt = { x: timeToX(d.end.time), y: yScale(d.end.price) };
+    const c3 = { x: startPt.x, y: endPt.y };
+    const c4 = { x: endPt.x, y: startPt.y };
+
+    const isActive = selectedDrawingId === d.id;
+    const hRadiusSq = (HANDLE_RADIUS + 6) ** 2;
+
+    // Corner handles (always tested, like Rectangle/Gann Box)
+    if (distSq(p, startPt) < hRadiusSq) return { drawing: d, handle: 'start' };
+    if (distSq(p, endPt) < hRadiusSq) return { drawing: d, handle: 'end' };
+    if (distSq(p, c3) < hRadiusSq) return { drawing: d, handle: 'c3' };
+    if (distSq(p, c4) < hRadiusSq) return { drawing: d, handle: 'c4' };
+
+    // Midpoint handle — only when active (selected), matches render behavior
+    if (isActive) {
+        const mid = { x: (startPt.x + endPt.x) / 2, y: (startPt.y + endPt.y) / 2 };
+        if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
+    }
+
+    // Trend line segment (body-click selects the drawing without a handle)
+    if (distToSegmentSquared(p, startPt, endPt) < HITBOX_WIDTH ** 2) {
+        return { drawing: d };
+    }
+
+    // Visible level lines within x-range (respects extendLines tri-state)
+    const settings = d.style.fibSettings;
+    if (settings) {
+        const xMin = Math.min(startPt.x, endPt.x);
+        const xMax = Math.max(startPt.x, endPt.x);
+        const testXMin = settings.extendLines === 'both' ? -Infinity : xMin;
+        const testXMax = settings.extendLines === 'none' ? xMax : Infinity;
+
+        for (const l of settings.levels) {
+            if (!l.visible) continue;
+            const price = priceAtFibLevel(
+                d.start.price,
+                d.end.price,
+                l.level,
+                settings.useLogScale
+            );
+            const ly = yScale(price);
+            if (Math.abs(p.y - ly) < HITBOX_WIDTH && p.x >= testXMin && p.x <= testXMax) {
+                return { drawing: d };
+            }
+        }
+    }
+
     return null;
 }
 
