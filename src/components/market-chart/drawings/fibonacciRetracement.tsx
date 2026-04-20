@@ -133,7 +133,6 @@ export function renderFibonacci(
     const allLevels = [...settings.levels]
         .filter((l) => l.visible)
         .sort((a, b) => a.level - b.level);
-    const coreLevels = allLevels.filter((l) => l.level >= 0 && l.level <= 1);
 
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
@@ -154,14 +153,15 @@ export function renderFibonacci(
             filter={isSelected ? 'url(#selectionGlow)' : 'none'}
             pointerEvents="auto"
         >
-            {/* Background fills between consecutive core levels */}
+            {/* Background fills between consecutive visible levels (core + extensions) */}
             {settings.showBackground &&
-                coreLevels.slice(0, -1).map((l, i) => {
-                    const next = coreLevels[i + 1];
+                allLevels.slice(0, -1).map((l, i) => {
+                    const next = allLevels[i + 1];
                     const ya = computeY(l.level);
                     const yb = computeY(next.level);
                     const fy = Math.min(ya, yb);
                     const fh = Math.abs(ya - yb);
+                    if (fh <= 0) return null;
                     return (
                         <rect
                             key={`fill-${i}`}
