@@ -6147,7 +6147,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 .filter((l) => l.visible)
                                 .sort((a, b) => a.level - b.level);
 
-                            const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
+                            // NaN-guarded transparency
+                            const rawTransparency = Number.isFinite(settings.backgroundTransparency)
+                                ? settings.backgroundTransparency
+                                : 0;
+                            const bgOpacity = 1 - Math.max(0, Math.min(1, rawTransparency));
 
                             // Price helpers — top of box = max price, bottom = min price
                             const topPrice = Math.max(d.start.price, d.end.price);
@@ -6175,24 +6179,63 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const leftX = bx;
                             const rightX = bx + bw;
 
+                            // Label collision avoidance — skip labels that would overlap the previous one
+                            const TIME_BOTTOM_LABEL_MIN_SPACING = 75; // px for "MMM DD HH:mm"
+                            const TIME_TOP_LABEL_MIN_SPACING = 28;    // px for "0.500"
+                            const PRICE_LABEL_MIN_SPACING = 12;        // px for 10px-tall labels
+                            const LABEL_PAD = 4;
+                            let lastTopX = -Infinity;
+                            let lastBottomX = -Infinity;
+                            const timeTopVisible = activeTimeLevels.map((l) => {
+                                if (l.level < 0 || l.level > 1) return false;
+                                const lx = bx + bw * l.level;
+                                const ok = lx - lastTopX >= TIME_TOP_LABEL_MIN_SPACING;
+                                if (ok) lastTopX = lx;
+                                return ok;
+                            });
+                            const timeBottomVisible = activeTimeLevels.map((l) => {
+                                if (l.level < 0 || l.level > 1) return false;
+                                const lx = bx + bw * l.level;
+                                const ok = lx - lastBottomX >= TIME_BOTTOM_LABEL_MIN_SPACING;
+                                if (ok) lastBottomX = lx;
+                                return ok;
+                            });
+                            let lastLeftY = -Infinity;
+                            let lastRightY = -Infinity;
+                            const priceLeftVisible = activePriceLevels.map((l) => {
+                                if (l.level < 0 || l.level > 1) return false;
+                                const ly = by + bh * l.level;
+                                const ok = ly - lastLeftY >= PRICE_LABEL_MIN_SPACING;
+                                if (ok) lastLeftY = ly;
+                                return ok;
+                            });
+                            const priceRightVisible = activePriceLevels.map((l) => {
+                                if (l.level < 0 || l.level > 1) return false;
+                                const ly = by + bh * l.level;
+                                const ok = ly - lastRightY >= PRICE_LABEL_MIN_SPACING;
+                                if (ok) lastRightY = ly;
+                                return ok;
+                            });
+
                             return (
                                 <g
                                     key={key}
                                     filter={isSelected ? 'url(#selectionGlow)' : 'none'}
                                     pointerEvents="auto"
                                 >
-                                    {/* Background fills */}
+                                    {/* Background fills (pixel-aligned) */}
                                     {settings.showBackground && (
                                         <>
                                             {activeTimeLevels.slice(0, -1).map((l, i) => {
                                                 const next = activeTimeLevels[i + 1];
-                                                const vx = bx + bw * l.level;
-                                                const vw = bw * (next.level - l.level);
+                                                const vxStart = Math.round(bx + bw * l.level);
+                                                const vxEnd = Math.round(bx + bw * next.level);
+                                                const vw = vxEnd - vxStart;
                                                 if (vw <= 0) return null;
                                                 return (
                                                     <rect
                                                         key={`t-fill-${i}`}
-                                                        x={vx}
+                                                        x={vxStart}
                                                         y={by}
                                                         width={vw}
                                                         height={bh}
@@ -6203,14 +6246,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                             })}
                                             {activePriceLevels.slice(0, -1).map((l, i) => {
                                                 const next = activePriceLevels[i + 1];
-                                                const hy = by + bh * l.level;
-                                                const hh = bh * (next.level - l.level);
+                                                const hyStart = Math.round(by + bh * l.level);
+                                                const hyEnd = Math.round(by + bh * next.level);
+                                                const hh = hyEnd - hyStart;
                                                 if (hh <= 0) return null;
                                                 return (
                                                     <rect
                                                         key={`p-fill-${i}`}
                                                         x={bx}
-                                                        y={hy}
+                                                        y={hyStart}
                                                         width={bw}
                                                         height={hh}
                                                         fill={l.color}
@@ -6221,10 +6265,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         </>
                                     )}
 
-                                    {/* Vertical time lines */}
+                                    {/* Vertical time lines + clamped, collision-aware labels */}
                                     {activeTimeLevels.map((l, i) => {
                                         const lx = Math.round(bx + bw * l.level);
                                         const dateStr = formatGannDate(timeAtLevel(l.level));
+                                        const topY_clamped = Math.max(LABEL_PAD + 8, by - 5);
+                                        const bottomY_clamped = Math.min(
+                                            chartDimensions.height - LABEL_PAD,
+                                            by + bh + 12
+                                        );
                                         return (
                                             <g key={`t-grid-${i}`}>
                                                 <line
@@ -6233,18 +6282,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                     strokeWidth={1}
                                                     strokeOpacity={0.8}
                                                 />
-                                                {settings.useTopLabels && l.level >= 0 && l.level <= 1 && (
+                                                {settings.useTopLabels && timeTopVisible[i] && (
                                                     <text
-                                                        x={lx} y={by - 5}
+                                                        x={lx} y={topY_clamped}
                                                         fill={l.color} fontSize={10} textAnchor="middle"
                                                         className="pointer-events-none select-none"
                                                     >
                                                         {l.level.toFixed(3)}
                                                     </text>
                                                 )}
-                                                {settings.useBottomLabels && l.level >= 0 && l.level <= 1 && (
+                                                {settings.useBottomLabels && timeBottomVisible[i] && (
                                                     <text
-                                                        x={lx} y={by + bh + 12}
+                                                        x={lx} y={bottomY_clamped}
                                                         fill={l.color} fontSize={9} textAnchor="middle"
                                                         className="pointer-events-none select-none"
                                                     >
@@ -6255,10 +6304,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                         );
                                     })}
 
-                                    {/* Horizontal price lines */}
+                                    {/* Horizontal price lines + clamped, collision-aware labels */}
                                     {activePriceLevels.map((l, i) => {
                                         const ly = Math.round(by + bh * l.level);
                                         const priceLabel = formatPrice(priceAtLevel(l.level));
+                                        const leftX_clamped = Math.max(LABEL_PAD, bx - 5);
+                                        const rightX_clamped = Math.min(
+                                            chartDimensions.width - LABEL_PAD,
+                                            bx + bw + 5
+                                        );
                                         return (
                                             <g key={`p-grid-${i}`}>
                                                 <line
@@ -6267,18 +6321,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                     strokeWidth={1}
                                                     strokeOpacity={0.8}
                                                 />
-                                                {settings.useLeftLabels && l.level >= 0 && l.level <= 1 && (
+                                                {settings.useLeftLabels && priceLeftVisible[i] && (
                                                     <text
-                                                        x={bx - 5} y={ly + 3}
+                                                        x={leftX_clamped} y={ly + 3}
                                                         fill={l.color} fontSize={10} textAnchor="end"
                                                         className="pointer-events-none select-none"
                                                     >
                                                         {priceLabel}
                                                     </text>
                                                 )}
-                                                {settings.useRightLabels && l.level >= 0 && l.level <= 1 && (
+                                                {settings.useRightLabels && priceRightVisible[i] && (
                                                     <text
-                                                        x={bx + bw + 5} y={ly + 3}
+                                                        x={rightX_clamped} y={ly + 3}
                                                         fill={l.color} fontSize={10} textAnchor="start"
                                                         className="pointer-events-none select-none"
                                                     >
