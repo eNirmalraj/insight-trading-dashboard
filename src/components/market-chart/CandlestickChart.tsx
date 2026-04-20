@@ -5372,6 +5372,42 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 }
                 break;
         }
+
+        // Update hoveredLevel for Fibonacci drawings (Task 7)
+        {
+            const p = { x: svgX, y: svgY };
+            let hovered: number | null = null;
+            for (const drawing of drawings) {
+                if (drawing.type !== 'Fibonacci Retracement' || !drawing.start || !drawing.end) continue;
+                const settings = drawing.style.fibSettings;
+                if (!settings) continue;
+                const xS = timeToX(drawing.start.time);
+                const xE = timeToX(drawing.end.time);
+                const xMin = Math.min(xS, xE);
+                const xMax = Math.max(xS, xE);
+                const extendFrom = settings.extendLines === 'both' ? -Infinity : xMin;
+                const extendTo =
+                    settings.extendLines === 'none' ? xMax : Infinity;
+                if (p.x < extendFrom || p.x > extendTo) continue;
+                for (const lv of settings.levels) {
+                    if (!lv.visible) continue;
+                    const price =
+                        settings.useLogScale && drawing.start.price > 0 && drawing.end.price > 0
+                            ? Math.exp(
+                                  Math.log(drawing.start.price) +
+                                      (Math.log(drawing.end.price) - Math.log(drawing.start.price)) * lv.level
+                              )
+                            : drawing.start.price + (drawing.end.price - drawing.start.price) * lv.level;
+                    const ly = yScale(price);
+                    if (Math.abs(p.y - ly) < HITBOX_WIDTH) {
+                        hovered = lv.level;
+                        break;
+                    }
+                }
+                if (hovered !== null) break;
+            }
+            if (hovered !== hoveredLevel) setHoveredLevel(hovered);
+        }
     };
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
