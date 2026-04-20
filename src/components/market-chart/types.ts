@@ -429,6 +429,8 @@ export interface SymbolSettings {
     colorBarsOnPrevClose: boolean;
     precision: string;
     timezone: string;
+    candleBodyWidth: number;     // 0.5–2.0 multiplier on default 0.7 body-to-slot ratio
+    showLastPriceLine: boolean;  // dashed horizontal line at last close
 }
 
 export interface StatusLineSettings {

@@ -145,6 +145,8 @@ const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         colorBarsOnPrevClose: false,
         precision: 'Default',
         timezone: 'Etc/UTC',
+        candleBodyWidth: 1.0,
+        showLastPriceLine: true,
     },
     statusLine: {
         showOhlc: true,
