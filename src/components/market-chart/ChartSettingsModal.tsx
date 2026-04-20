@@ -236,8 +236,8 @@ const SymbolSettingsComponent: React.FC<{
                     >
                         <option value={0.5}>Thin (0.5×)</option>
                         <option value={1.0}>Default (1.0×)</option>
-                        <option value={1.5}>Wide (1.5×)</option>
-                        <option value={2.0}>Extra wide (2.0×)</option>
+                        <option value={1.2}>Wide (1.2×)</option>
+                        <option value={1.4}>Extra wide (1.4×)</option>
                     </select>
                 </div>
                 <CheckboxSettingRow

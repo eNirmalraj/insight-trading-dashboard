@@ -2539,7 +2539,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         const widthMultiplier = chartSettings.symbol.candleBodyWidth ?? 1.0;
                         const bodyWidth = Math.max(
                             1,
-                            Math.min(xStep, Math.round(xStep * 0.7 * widthMultiplier))
+                            Math.min(Math.max(1, xStep - 1), Math.round(xStep * 0.7 * widthMultiplier))
                         );
                         const bodyX = Math.round(x - bodyWidth / 2);
 
