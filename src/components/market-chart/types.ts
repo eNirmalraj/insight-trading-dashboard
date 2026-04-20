@@ -67,6 +67,7 @@ export interface FibSettings {
     useLogScale: boolean;
     snapToSwing: boolean;
     reverse: boolean;
+    lineWidth: number;
 }
 
 interface BaseDrawing {

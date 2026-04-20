@@ -63,19 +63,20 @@ export const DefaultFibSettings: FibSettings = {
         { level: 0.382,  color: '#8B5CF6', visible: true  },
         { level: 0.5,    color: '#8B5CF6', visible: true  },
         { level: 0.618,  color: '#C4B5F0', visible: true  },
-        { level: 0.705,  color: '#8B5CF6', visible: true  },
+        { level: 0.705,  color: '#8B5CF6', visible: false },
         { level: 0.786,  color: '#A78BFA', visible: true  },
         { level: 1,      color: '#6366F1', visible: true  },
         { level: 1.272,  color: '#D8B4FE', visible: true  },
         { level: 1.618,  color: '#D8B4FE', visible: true  },
         { level: 2.618,  color: '#D8B4FE', visible: true  },
     ],
-    extendLines: 'right',
+    extendLines: 'none',
     showBackground: true,
     backgroundTransparency: 0.92,
     useLogScale: false,
     snapToSwing: false,
     reverse: false,
+    lineWidth: 2,
 };
 
 /**
@@ -109,6 +110,7 @@ export function normaliseFibSettings(raw: any): FibSettings {
         useLogScale: raw.useLogScale ?? DefaultFibSettings.useLogScale,
         snapToSwing: raw.snapToSwing ?? DefaultFibSettings.snapToSwing,
         reverse: raw.reverse ?? DefaultFibSettings.reverse,
+        lineWidth: typeof raw.lineWidth === 'number' ? raw.lineWidth : DefaultFibSettings.lineWidth,
     };
 }
 
@@ -426,6 +428,19 @@ export const DrawingSettingsModal: React.FC<DrawingSettingsModalProps> = ({
                         Behaviour
                     </div>
                     <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3 h-9">
+                            <span className="text-[14px] text-[#B2B5BE]">Line width</span>
+                            <select
+                                title="Level Line Width"
+                                value={settings.lineWidth}
+                                onChange={(e) => updateFibSettings({ lineWidth: Number(e.target.value) })}
+                                className="bg-[#131722] text-[13px] text-[#D1D4DC] border border-[#2A2E39] rounded px-2 py-1 focus:border-[#2962FF] outline-none transition-colors h-[28px]"
+                            >
+                                <option value={1}>1</option>
+                                <option value={2}>2</option>
+                                <option value={3}>3</option>
+                            </select>
+                        </div>
                         <div className="flex items-center justify-between gap-3 h-9">
                             <span className="text-[14px] text-[#B2B5BE]">Extend lines</span>
                             <select

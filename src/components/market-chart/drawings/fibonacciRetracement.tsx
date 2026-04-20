@@ -191,15 +191,14 @@ export function renderFibonacci(
                 />
             )}
 
-            {/* Level lines + dual labels */}
+            {/* Level lines + dual labels — all levels treated equally (no dashed/dimmed extensions) */}
             {allLevels.map((l, i) => {
                 const price = priceAtFibLevel(startPrice, endPrice, l.level, useLog);
                 const ly = Math.round(yScale(price));
-                const isExt = l.level < 0 || l.level > 1;
                 const isHovered = hoveredLevel !== null && Math.abs(hoveredLevel - l.level) < 1e-9;
-                const baseWidth = 1;
+                const baseWidth = settings.lineWidth ?? 2;
                 const strokeWidth = isHovered ? baseWidth * 1.2 : baseWidth;
-                const lineOpacity = isHovered ? 1 : isExt ? 0.7 : 0.9;
+                const lineOpacity = isHovered ? 1 : 0.9;
 
                 // Label direction-aware via `reverse` toggle
                 const labelLevel = settings.reverse ? 1 - l.level : l.level;
@@ -212,7 +211,6 @@ export function renderFibonacci(
                             stroke={l.color}
                             strokeWidth={strokeWidth}
                             strokeOpacity={lineOpacity}
-                            strokeDasharray={isExt ? '3 3' : undefined}
                         />
                         {/* Left label: ratio (clamped) */}
                         <text
