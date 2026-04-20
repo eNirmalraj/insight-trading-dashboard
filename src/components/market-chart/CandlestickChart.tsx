@@ -76,6 +76,7 @@ import {
     applyFibonacciResize,
     isFibHandle,
     priceAtFibLevel,
+    findNearestSwing,
     type DrawingRenderContext,
     type DrawingHitContext,
 } from './drawings/fibonacciRetracement';
@@ -5583,6 +5584,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 if (isTwoPointTool && hasDragged) {
                     // FINISH: Drag-and-Release
                     const { step, ...drawing } = currentDrawing;
+
+                    // Apply snap-to-swing for Fibonacci Retracement when enabled in settings
+                    if (
+                        drawing.type === 'Fibonacci Retracement' &&
+                        drawing.style.fibSettings?.snapToSwing &&
+                        drawing.start &&
+                        drawing.end
+                    ) {
+                        const snappedStart = findNearestSwing(data, drawing.start.time, 20);
+                        const snappedEnd = findNearestSwing(data, drawing.end.time, 20);
+                        if (snappedStart) drawing.start = snappedStart;
+                        if (snappedEnd) drawing.end = snappedEnd;
+                    }
+
                     commitDrawingChange((prev) => [...prev, drawing as Drawing]);
                     if (currentDrawing.type === 'Callout') {
                         const d = drawing as CalloutDrawing;

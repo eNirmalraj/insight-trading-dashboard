@@ -1,5 +1,5 @@
 import React from 'react';
-import { FibonacciRetracementDrawing, LineStyle } from '../types';
+import { FibonacciRetracementDrawing, LineStyle, Candle } from '../types';
 import { HANDLE_RADIUS, HITBOX_WIDTH } from '../constants';
 
 // Lavender palette (per spec §2). Keys are level.toFixed(3) strings to
@@ -357,4 +357,62 @@ export function applyFibonacciResize(
             return resized;
         }
     }
+}
+
+/**
+ * Find the nearest swing high/low candle within ±windowBars of anchorTime.
+ * A "swing" is a candle whose high is the extreme across a 5-bar centred window
+ * (for a swing high), or whose low is the extreme (for a swing low).
+ *
+ * Returns the matching candle's time and the high or low price (whichever made it a swing).
+ * If no swing is found within the window, returns null — the caller should fall back to
+ * the raw cursor position.
+ */
+export function findNearestSwing(
+    candles: Candle[],
+    anchorTime: number,
+    windowBars: number
+): { time: number; price: number } | null {
+    if (candles.length === 0) return null;
+
+    // Find the index nearest to anchorTime
+    let nearestIdx = 0;
+    let bestDelta = Math.abs(candles[0].time - anchorTime);
+    for (let i = 1; i < candles.length; i++) {
+        const delta = Math.abs(candles[i].time - anchorTime);
+        if (delta < bestDelta) {
+            bestDelta = delta;
+            nearestIdx = i;
+        }
+    }
+
+    const lo = Math.max(0, nearestIdx - windowBars);
+    const hi = Math.min(candles.length - 1, nearestIdx + windowBars);
+
+    // Candidate swings: local extrema over a 5-bar centred window (±2 bars on each side)
+    let best: { time: number; price: number; dist: number } | null = null;
+
+    for (let i = lo; i <= hi; i++) {
+        const wLo = Math.max(0, i - 2);
+        const wHi = Math.min(candles.length - 1, i + 2);
+
+        let isSwingHigh = true;
+        let isSwingLow = true;
+        for (let j = wLo; j <= wHi; j++) {
+            if (j === i) continue;
+            if (candles[j].high >= candles[i].high) isSwingHigh = false;
+            if (candles[j].low <= candles[i].low) isSwingLow = false;
+        }
+
+        const dist = Math.abs(candles[i].time - anchorTime);
+        if (isSwingHigh && (!best || dist < best.dist)) {
+            best = { time: candles[i].time, price: candles[i].high, dist };
+        }
+        if (isSwingLow && (!best || dist < best.dist)) {
+            best = { time: candles[i].time, price: candles[i].low, dist };
+        }
+    }
+
+    if (!best) return null;
+    return { time: best.time, price: best.price };
 }
