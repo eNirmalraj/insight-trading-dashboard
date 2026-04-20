@@ -69,6 +69,14 @@ import { SettingsIcon } from '../IconComponents';
 import { AlertMarkers } from './AlertMarkers';
 import { MobileDrawingToolsModal, MobileMoreMenu } from './mobile';
 import { useResponsive } from '../../hooks/useResponsive';
+import {
+    renderFibonacci,
+    hitTestFibonacci,
+    applyFibonacciResize,
+    isFibHandle,
+    type DrawingRenderContext,
+    type DrawingHitContext,
+} from './drawings/fibonacciRetracement';
 
 /** Extract and convert Kuri drawings from engine result */
 const extractKuriDrawings = (result: any) => {
@@ -396,6 +404,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [currentDrawing, setCurrentDrawing] = useState<CurrentDrawingState>(null);
     const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+    const [hoveredLevel, setHoveredLevel] = React.useState<number | null>(null);
 
     const [undoStack, setUndoStack] = useState<HistoryState[]>([]);
     const [redoStack, setRedoStack] = useState<HistoryState[]>([]);
@@ -3647,32 +3656,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     }
                 }
             } else if (d.type === 'Fibonacci Retracement') {
-                if (!d.start || !d.end) continue;
-                const start = { x: timeToX(d.start.time), y: yScale(d.start.price) };
-                const end = { x: timeToX(d.end.time), y: yScale(d.end.price) };
-
-                if (distSq(p, start) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'start' };
-                if (distSq(p, end) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'end' };
-
-                // Midpoint handle — only when selected, so first click selects rather than moves
-                if (selectedDrawingId === d.id) {
-                    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-                    if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
-                }
-
-                // Check trendline
-                if (distToSegmentSquared(p, start, end) < HITBOX_WIDTH ** 2) return { drawing: d };
-
-                // Check horizontal levels
-                const priceDiff = d.end.price - d.start.price;
-                for (const level of d.style.levels || FIB_LEVELS) {
-                    const y = yScale(d.start.price + priceDiff * level);
-                    const x_min = Math.min(start.x, end.x);
-                    const x_max = Math.max(start.x, end.x);
-                    if (Math.abs(p.y - y) < HITBOX_WIDTH && p.x >= x_min && p.x <= x_max) {
-                        return { drawing: d };
-                    }
-                }
+                const hitCtx: DrawingHitContext = { timeToX, yScale, selectedDrawingId };
+                const hit = hitTestFibonacci(d, p, hitCtx);
+                if (hit) return hit;
+                continue;
             } else if (d.type === 'Long Position' || d.type === 'Short Position') {
                 const pos = d as any;
                 if (!pos.entry || !pos.profit || !pos.stop) continue;
@@ -5174,7 +5161,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             }
             case 'resizing': {
                 if (interaction.type === 'resizing') {
-                    const resized = { ...interaction.initialDrawing } as any;
+                    let resized = { ...interaction.initialDrawing } as any;
                     const h = interaction.handle;
 
                     // Long/Short Position handles — unique names, checked BEFORE generic
@@ -5259,15 +5246,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 }
                             }
                         }
-                    } else if (h === 'mid' && resized.type === 'Fibonacci Retracement') {
-                        // Translate both endpoints by the same delta relative to initial midpoint
-                        const init = interaction.initialDrawing as any;
-                        const initMidTime = (init.start.time + init.end.time) / 2;
-                        const initMidPrice = (init.start.price + init.end.price) / 2;
-                        const dTime = snappedPoint.time - initMidTime;
-                        const dPrice = snappedPoint.price - initMidPrice;
-                        resized.start = { time: init.start.time + dTime, price: init.start.price + dPrice };
-                        resized.end = { time: init.end.time + dTime, price: init.end.price + dPrice };
+                    } else if (resized.type === 'Fibonacci Retracement' && isFibHandle(h)) {
+                        resized = applyFibonacciResize(
+                            resized,
+                            h,
+                            snappedPoint,
+                            interaction.initialDrawing as typeof resized
+                        );
                     } else if (h === 'start' || h === 'end') {
                         // All range tools: update full point (both time + price)
                         if (h === 'start') resized.start = snappedPoint;
@@ -6052,150 +6037,17 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
                         case 'Fibonacci Retracement': {
-                            if (!d.start || !d.end) return null;
-                            const x1 = Math.round(timeToX(d.start.time));
-                            const y1 = Math.round(yScale(d.start.price));
-                            const x2 = Math.round(timeToX(d.end.time));
-                            const y2 = Math.round(yScale(d.end.price));
-                            const priceDiff = d.end.price - d.start.price;
-
-                            const settings = d.style.fibSettings || {
-                                trendLine: { visible: true, color: style.color, width: 1, style: 'dashed' as const },
-                                levels: FIB_LEVELS.map((l, i) => ({
-                                    level: l,
-                                    color: FIB_LEVEL_COLORS[i] || style.color,
-                                    visible: true,
-                                })),
-                                extendLines: false,
-                                showBackground: true,
-                                backgroundTransparency: 0.85,
-                                useLogScale: false,
+                            const renderCtx: DrawingRenderContext = {
+                                timeToX,
+                                yScale,
+                                isSelected,
+                                chartDimensions,
+                                renderHandle,
+                                formatPrice,
+                                hoveredLevel,
+                                style,
                             };
-
-                            const xMin = Math.min(x1, x2);
-                            const xMax = Math.max(x1, x2);
-                            const lineX1 = settings.extendLines ? 0 : xMin;
-                            const lineX2 = settings.extendLines ? chartDimensions.width : xMax;
-                            const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
-
-                            const allLevels = settings.levels
-                                .filter((l) => l.visible)
-                                .sort((a, b) => a.level - b.level);
-                            // Core levels (0–1) used for background fills only
-                            const coreLevels = allLevels.filter((l) => l.level >= 0 && l.level <= 1);
-
-                            // Midpoint of trend line in pixel space
-                            const midX = (x1 + x2) / 2;
-                            const midY = (y1 + y2) / 2;
-
-                            const nwse = (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2) ? 'nwse-resize' : 'nesw-resize';
-                            const nesw = nwse === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
-
-                            return (
-                                <g
-                                    key={key}
-                                    filter={isSelected ? 'url(#selectionGlow)' : 'none'}
-                                    pointerEvents="auto"
-                                >
-                                    {/* Background fills between core levels only */}
-                                    {settings.showBackground &&
-                                        coreLevels.slice(0, -1).map((l, i) => {
-                                            const next = coreLevels[i + 1];
-                                            const ya = Math.round(yScale(d.start.price + priceDiff * l.level));
-                                            const yb = Math.round(yScale(d.start.price + priceDiff * next.level));
-                                            const fy = Math.min(ya, yb);
-                                            const fh = Math.abs(ya - yb);
-                                            return (
-                                                <rect
-                                                    key={`fill-${i}`}
-                                                    x={lineX1}
-                                                    y={fy}
-                                                    width={lineX2 - lineX1}
-                                                    height={fh}
-                                                    fill={l.color}
-                                                    fillOpacity={bgOpacity * 0.5}
-                                                />
-                                            );
-                                        })}
-
-                                    {/* Trend line */}
-                                    {settings.trendLine.visible && (
-                                        <line
-                                            x1={x1}
-                                            y1={y1}
-                                            x2={x2}
-                                            y2={y2}
-                                            stroke={settings.trendLine.color}
-                                            strokeWidth={settings.trendLine.width}
-                                            strokeDasharray={
-                                                settings.trendLine.style === 'dashed'
-                                                    ? '4 4'
-                                                    : settings.trendLine.style === 'dotted'
-                                                      ? '1 4'
-                                                      : undefined
-                                            }
-                                        />
-                                    )}
-
-                                    {/* Level lines + dual labels */}
-                                    {allLevels.map((l, i) => {
-                                        const price = d.start.price + priceDiff * l.level;
-                                        const ly = Math.round(yScale(price));
-                                        const isExt = l.level < 0 || l.level > 1;
-                                        const lineOpacity = isExt ? 0.55 : 1;
-                                        return (
-                                            <g key={`lv-${i}`}>
-                                                <line
-                                                    x1={lineX1}
-                                                    y1={ly}
-                                                    x2={lineX2}
-                                                    y2={ly}
-                                                    stroke={l.color}
-                                                    strokeWidth={1}
-                                                    strokeOpacity={lineOpacity}
-                                                    strokeDasharray={isExt ? '3 3' : undefined}
-                                                />
-                                                {/* Left label: ratio */}
-                                                <text
-                                                    x={xMin - 4}
-                                                    y={ly - 3}
-                                                    fill={l.color}
-                                                    fillOpacity={lineOpacity}
-                                                    fontSize="10"
-                                                    textAnchor="end"
-                                                    className="pointer-events-none select-none"
-                                                >
-                                                    {l.level.toFixed(3)}
-                                                </text>
-                                                {/* Right label: price */}
-                                                <text
-                                                    x={xMax + 4}
-                                                    y={ly - 3}
-                                                    fill={l.color}
-                                                    fillOpacity={lineOpacity}
-                                                    fontSize="10"
-                                                    textAnchor="start"
-                                                    className="pointer-events-none select-none"
-                                                >
-                                                    {formatPrice(price)}
-                                                </text>
-                                            </g>
-                                        );
-                                    })}
-
-                                    {/* Handles when selected */}
-                                    {isSelected && (
-                                        <>
-                                            {renderHandle(x1, y1, nwse)}
-                                            {renderHandle(x2, y2, nwse)}
-                                            {renderHandle(x1, y2, nesw)}
-                                            {renderHandle(x2, y1, nesw)}
-                                            {/* Midpoint handle — drags entire drawing (interaction added in Task 3) */}
-                                            {renderHandle(midX, midY, 'move')}
-                                        </>
-                                    )}
-                                </g>
-                            );
+                            return renderFibonacci(d, renderCtx, key);
                         }
                         case 'Gann Box': {
                             if (!d.start || !d.end) return null;
