@@ -75,6 +75,7 @@ import {
     hitTestFibonacci,
     applyFibonacciResize,
     isFibHandle,
+    priceAtFibLevel,
     type DrawingRenderContext,
     type DrawingHitContext,
 } from './drawings/fibonacciRetracement';
@@ -5391,13 +5392,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 if (p.x < extendFrom || p.x > extendTo) continue;
                 for (const lv of settings.levels) {
                     if (!lv.visible) continue;
-                    const price =
-                        settings.useLogScale && drawing.start.price > 0 && drawing.end.price > 0
-                            ? Math.exp(
-                                  Math.log(drawing.start.price) +
-                                      (Math.log(drawing.end.price) - Math.log(drawing.start.price)) * lv.level
-                              )
-                            : drawing.start.price + (drawing.end.price - drawing.start.price) * lv.level;
+                    const price = priceAtFibLevel(
+                        drawing.start.price,
+                        drawing.end.price,
+                        lv.level,
+                        settings.useLogScale
+                    );
                     const ly = yScale(price);
                     if (Math.abs(p.y - ly) < HITBOX_WIDTH) {
                         hovered = lv.level;
