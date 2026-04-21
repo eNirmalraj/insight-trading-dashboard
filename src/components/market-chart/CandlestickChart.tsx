@@ -36,6 +36,7 @@ import {
     CalloutDrawing,
     PathDrawing,
     BrushDrawing,
+    ChartType,
 } from './types';
 import {
     MIN_CANDLES,
@@ -128,7 +129,7 @@ interface HistoryState {
     view: { startIndex: number; visibleCandles: number };
     priceRange: { min: number; max: number } | null;
     isAutoScaling: boolean;
-    chartType: 'Candle' | 'Line';
+    chartType: ChartType;
 }
 
 export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
@@ -323,6 +324,21 @@ function normaliseDrawings(drawings: Drawing[]): Drawing[] {
         return d;
     });
 }
+
+const normaliseChartType = (raw: unknown): ChartType => {
+    if (raw === 'Candle' || raw === 'Candles') return 'Candles';
+    if (
+        raw === 'Bars' ||
+        raw === 'Hollow Candles' ||
+        raw === 'Heikin Ashi' ||
+        raw === 'Line' ||
+        raw === 'Area' ||
+        raw === 'Baseline'
+    ) {
+        return raw;
+    }
+    return 'Candles';
+};
 
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const {
@@ -644,7 +660,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const [floatingToolbarPos, setFloatingToolbarPos] = useState<{ x: number; y: number } | null>(
         null
     );
-    const [chartType, setChartType] = useState<'Candle' | 'Line'>('Candle');
+    const [chartType, setChartType] = useState<ChartType>('Candles');
     const [countdown, setCountdown] = useState<string | null>(null);
 
     const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
@@ -845,7 +861,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             }
         };
         fetchData();
-        const intervalId = setInterval(fetchData, 10000);
+        const intervalId = setInterval(fetchData, 60000);
         return () => clearInterval(intervalId);
     }, []);
 
@@ -1216,11 +1232,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         document.addEventListener('pointerup', handlePointerUp);
     };
 
-    // Load Chart Type from local storage
+    // Load Chart Type from local storage (with migration for legacy 'Candle' value)
     useEffect(() => {
         const savedType = localStorage.getItem('chart_type_preference');
-        if (savedType === 'Candle' || savedType === 'Line') {
-            setChartType(savedType);
+        if (savedType !== null) {
+            setChartType(normaliseChartType(savedType));
         }
     }, []);
 
@@ -2500,7 +2516,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     });
                 }
 
-                if (chartType === 'Candle') {
+                if (chartType === 'Candles') {
                     visibleData.forEach((d, i) => {
                         const dataIndex = startIdx + i;
                         const effectiveIndexInView = dataIndex - view.startIndex;
@@ -9375,7 +9391,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     chartType={chartType}
                     onToggleChartType={() => {
                         commitCurrentState();
-                        setChartType((t) => (t === 'Candle' ? 'Line' : 'Candle'));
+                        setChartType((t) => (t === 'Candles' ? 'Line' : 'Candles'));
                     }}
                     onSaveLayout={() => {
                         // Manual save immediately

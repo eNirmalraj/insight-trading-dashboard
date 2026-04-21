@@ -545,3 +545,12 @@ export interface ConsoleLog {
     details?: string;
     timestamp: Date;
 }
+
+export type ChartType =
+    | 'Bars'
+    | 'Candles'
+    | 'Hollow Candles'
+    | 'Heikin Ashi'
+    | 'Line'
+    | 'Area'
+    | 'Baseline';

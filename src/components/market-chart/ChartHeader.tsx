@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 // Note: ChartHeader receives isMobile as prop from parent (CandlestickChart)
-import { Candle } from './types';
+import { Candle, ChartType } from './types';
 import { useOutsideAlerter } from './hooks';
 import {
     ChevronDownIcon,
@@ -51,7 +51,7 @@ interface ChartHeaderProps {
     canUndo: boolean;
     canRedo: boolean;
     onToggleIndicators: () => void;
-    chartType: 'Candle' | 'Line';
+    chartType: ChartType;
     onToggleChartType: () => void;
     onSaveLayout: () => void;
     onToggleSettings: () => void;
@@ -336,7 +336,7 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                             <IndicatorIcon className="w-5 h-5" />
                         </HeaderButton>
                         <HeaderButton onClick={onToggleChartType} title="Chart Type">
-                            {chartType === 'Candle' ? (
+                            {chartType === 'Candles' ? (
                                 <CandlesIcon className="w-5 h-5" />
                             ) : (
                                 <LineChartIcon className="w-5 h-5" />
