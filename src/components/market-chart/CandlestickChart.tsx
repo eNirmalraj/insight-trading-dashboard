@@ -10350,29 +10350,56 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         lockPriceToBarRatio={chartSettings.scalesAndLines.lockPriceToBarRatio}
                         onAutoScaleToggle={() => setIsAutoScaling((v) => !v)}
                         onScaleTypeChange={(next) => {
-                            setChartSettings((prev) => ({
-                                ...prev,
-                                scalesAndLines: { ...prev.scalesAndLines, scaleType: next },
-                            }));
+                            setChartSettings((prev) => {
+                                const updated = {
+                                    ...prev,
+                                    scalesAndLines: { ...prev.scalesAndLines, scaleType: next },
+                                };
+                                try {
+                                    localStorage.setItem(
+                                        `chartSettings_${props.symbol}`,
+                                        JSON.stringify(updated)
+                                    );
+                                } catch {}
+                                return updated;
+                            });
                         }}
                         onReverseToggle={() => {
-                            setChartSettings((prev) => ({
-                                ...prev,
-                                scalesAndLines: {
-                                    ...prev.scalesAndLines,
-                                    reverseScale: !prev.scalesAndLines.reverseScale,
-                                },
-                            }));
+                            setChartSettings((prev) => {
+                                const updated = {
+                                    ...prev,
+                                    scalesAndLines: {
+                                        ...prev.scalesAndLines,
+                                        reverseScale: !prev.scalesAndLines.reverseScale,
+                                    },
+                                };
+                                try {
+                                    localStorage.setItem(
+                                        `chartSettings_${props.symbol}`,
+                                        JSON.stringify(updated)
+                                    );
+                                } catch {}
+                                return updated;
+                            });
                         }}
                         onLockToggle={() => {
                             const wasLocked = chartSettings.scalesAndLines.lockPriceToBarRatio;
-                            setChartSettings((prev) => ({
-                                ...prev,
-                                scalesAndLines: {
-                                    ...prev.scalesAndLines,
-                                    lockPriceToBarRatio: !prev.scalesAndLines.lockPriceToBarRatio,
-                                },
-                            }));
+                            setChartSettings((prev) => {
+                                const updated = {
+                                    ...prev,
+                                    scalesAndLines: {
+                                        ...prev.scalesAndLines,
+                                        lockPriceToBarRatio: !prev.scalesAndLines.lockPriceToBarRatio,
+                                    },
+                                };
+                                try {
+                                    localStorage.setItem(
+                                        `chartSettings_${props.symbol}`,
+                                        JSON.stringify(updated)
+                                    );
+                                } catch {}
+                                return updated;
+                            });
                             // When TURNING ON the lock, disable autoscale to prevent conflict.
                             if (!wasLocked) {
                                 setIsAutoScaling(false);
