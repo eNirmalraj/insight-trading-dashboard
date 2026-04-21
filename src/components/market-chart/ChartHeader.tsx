@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 // Note: ChartHeader receives isMobile as prop from parent (CandlestickChart)
-import { Candle, ChartType, StatusLineSettings } from './types';
+import { Candle, ChartType, StatusLineSettings, Indicator } from './types';
 import { useOutsideAlerter } from './hooks';
 import { getSymbolDescription } from './symbolDescriptions';
 import {
@@ -115,7 +115,37 @@ interface ChartHeaderProps {
     onToggleMobileSidebar: () => void;
     precision?: string;
     statusLineSettings: StatusLineSettings;
+    indicators: Indicator[];
+    onEditIndicator?: (id: string) => void;
 }
+
+const formatIndicatorTitle = (ind: Indicator): string => {
+    // Build "TYPE(param1,param2,...)". Skip non-numeric/non-string params.
+    const params = ind.settings && typeof ind.settings === 'object'
+        ? Object.values(ind.settings as Record<string, unknown>).filter(
+              (v) => typeof v === 'number' || typeof v === 'string'
+          )
+        : [];
+    if (params.length === 0) return String(ind.type);
+    return `${ind.type}(${params.join(',')})`;
+};
+
+const formatIndicatorLatestValue = (ind: Indicator): string => {
+    // ind.data is Record<string, (number | null)[]>. Use the first key with a
+    // numeric tail and return its last non-null value. Returns '—' if no data.
+    if (!ind.data || typeof ind.data !== 'object') return '—';
+    for (const key of Object.keys(ind.data)) {
+        const arr = ind.data[key];
+        if (!Array.isArray(arr)) continue;
+        for (let i = arr.length - 1; i >= 0; i--) {
+            const v = arr[i];
+            if (typeof v === 'number' && Number.isFinite(v)) {
+                return v.toFixed(Math.abs(v) >= 100 ? 2 : 4);
+            }
+        }
+    }
+    return '—';
+};
 
 const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
     const {
@@ -144,6 +174,8 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
         onToggleMobileSidebar,
         precision = 'Default',
         statusLineSettings,
+        indicators,
+        onEditIndicator,
     } = props;
     const ohlc = headerOhlc || { open: 0, high: 0, low: 0, close: 0, volume: 0 };
 
@@ -407,6 +439,28 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                         )}
                     </div>
                 )}
+
+                {headerOhlc &&
+                    (statusLineSettings.showIndicatorTitles || statusLineSettings.showIndicatorValues) &&
+                    indicators.length > 0 && (
+                        <div className="hidden md:flex items-center gap-3 ml-3 pl-3 border-l border-gray-700/50 text-xs font-mono font-medium text-gray-400">
+                            {indicators.map((ind) => (
+                                <span
+                                    key={ind.id}
+                                    className="cursor-pointer hover:text-white"
+                                    onClick={() => onEditIndicator?.(ind.id)}
+                                >
+                                    {statusLineSettings.showIndicatorTitles && (
+                                        <span className="text-gray-300">{formatIndicatorTitle(ind)}</span>
+                                    )}
+                                    {statusLineSettings.showIndicatorTitles && statusLineSettings.showIndicatorValues && ' '}
+                                    {statusLineSettings.showIndicatorValues && (
+                                        <span>{formatIndicatorLatestValue(ind)}</span>
+                                    )}
+                                </span>
+                            ))}
+                        </div>
+                    )}
             </div>
             <div className="flex items-center gap-2">
                 {statusLineSettings.showMarketStatus && (
