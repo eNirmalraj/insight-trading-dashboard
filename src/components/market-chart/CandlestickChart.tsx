@@ -2122,27 +2122,72 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         [xStep]
     );
     const yScale = useMemo(() => {
-        return (price: number) => {
-            if (priceRange.max === priceRange.min) return chartDimensions.height / 2;
-            return (
-                chartDimensions.height -
-                ((price - priceRange.min) / (priceRange.max - priceRange.min)) *
-                    chartDimensions.height
-            );
+        const { scaleType, reverseScale } = chartSettings.scalesAndLines;
+        const useLog = scaleType === 'Logarithmic' && priceRange.min > 0;
+        const effectiveScaleType: ScaleType =
+            scaleType === 'Logarithmic' && !useLog ? 'Linear' : scaleType;
+        const anchor = visibleData[0]?.close ?? priceRange.min;
+
+        const computeScaled = (p: number): number => {
+            if (effectiveScaleType === 'Logarithmic') return Math.log(Math.max(p, Number.EPSILON));
+            if (effectiveScaleType === 'Percent' && anchor > 0) return (p / anchor - 1) * 100;
+            return p;
         };
-    }, [chartDimensions.height, priceRange]);
-    const yToPrice = useMemo(
-        () =>
-            (y: number): number => {
-                if (priceRange.max === priceRange.min) return priceRange.min;
-                const chartHeight = chartDimensions.height;
-                if (chartHeight <= 0) return 0;
-                const priceRangeValue = priceRange.max - priceRange.min;
-                const price = priceRange.max - (y / chartHeight) * priceRangeValue;
-                return price;
-            },
-        [chartDimensions.height, priceRange]
-    );
+
+        const sMin = computeScaled(priceRange.min);
+        const sMax = computeScaled(priceRange.max);
+
+        return (price: number) => {
+            if (sMax === sMin) return chartDimensions.height / 2;
+            const sP = computeScaled(price);
+            const t = (sP - sMin) / (sMax - sMin);
+            return reverseScale
+                ? t * chartDimensions.height
+                : chartDimensions.height - t * chartDimensions.height;
+        };
+    }, [
+        chartDimensions.height,
+        priceRange,
+        chartSettings.scalesAndLines.scaleType,
+        chartSettings.scalesAndLines.reverseScale,
+        visibleData,
+    ]);
+    const yToPrice = useMemo(() => {
+        const { scaleType, reverseScale } = chartSettings.scalesAndLines;
+        const useLog = scaleType === 'Logarithmic' && priceRange.min > 0;
+        const effectiveScaleType: ScaleType =
+            scaleType === 'Logarithmic' && !useLog ? 'Linear' : scaleType;
+        const anchor = visibleData[0]?.close ?? priceRange.min;
+
+        const computeScaled = (p: number): number => {
+            if (effectiveScaleType === 'Logarithmic') return Math.log(Math.max(p, Number.EPSILON));
+            if (effectiveScaleType === 'Percent' && anchor > 0) return (p / anchor - 1) * 100;
+            return p;
+        };
+        const fromScaled = (s: number): number => {
+            if (effectiveScaleType === 'Logarithmic') return Math.exp(s);
+            if (effectiveScaleType === 'Percent' && anchor > 0) return anchor * (1 + s / 100);
+            return s;
+        };
+
+        const sMin = computeScaled(priceRange.min);
+        const sMax = computeScaled(priceRange.max);
+
+        return (y: number): number => {
+            if (priceRange.max === priceRange.min) return priceRange.min;
+            const chartHeight = chartDimensions.height;
+            if (chartHeight <= 0) return 0;
+            const t = reverseScale ? y / chartHeight : 1 - y / chartHeight;
+            const sP = sMin + t * (sMax - sMin);
+            return fromScaled(sP);
+        };
+    }, [
+        chartDimensions.height,
+        priceRange,
+        chartSettings.scalesAndLines.scaleType,
+        chartSettings.scalesAndLines.reverseScale,
+        visibleData,
+    ]);
     const timeToX = useMemo(
         () =>
             (time: number): number => {
@@ -2204,6 +2249,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     );
 
     const formatPrice = (price: number) => price.toFixed(price > 100 ? 2 : 5);
+    const formatScaleLabel = (price: number): string => {
+        if (chartSettings.scalesAndLines.scaleType !== 'Percent') return formatPrice(price);
+        const anchor = visibleData[0]?.close ?? 0;
+        if (anchor <= 0) return formatPrice(price);
+        const pct = (price / anchor - 1) * 100;
+        const sign = pct >= 0 ? '+' : '';
+        return `${sign}${pct.toFixed(2)}%`;
+    };
     const formatDate = (date: Date, format: string) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -2375,7 +2428,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         const firstLabel = Math.floor(priceRange.min / niceStep) * niceStep;
         for (let price = firstLabel; price < priceRange.max + niceStep; price += niceStep) {
             if (price >= priceRange.min) {
-                labels.push({ y: yScale(price), price: formatPrice(price) });
+                labels.push({ y: yScale(price), price: formatScaleLabel(price) });
             }
         }
         return labels;
