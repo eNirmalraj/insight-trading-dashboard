@@ -268,7 +268,6 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                         />
                     </div>
 
-
                     <div className="flex items-center gap-1">
                         {favoriteTimeframes.map((tf) => (
                             <button
