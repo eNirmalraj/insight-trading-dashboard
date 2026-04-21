@@ -37,6 +37,7 @@ import {
     PathDrawing,
     BrushDrawing,
     ChartType,
+    Candle,
 } from './types';
 import {
     MIN_CANDLES,
@@ -338,6 +339,15 @@ const normaliseChartType = (raw: unknown): ChartType => {
         return raw;
     }
     return 'Candles';
+};
+
+const hexToRgba = (hex: string, alpha: number): string => {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
@@ -2048,6 +2058,31 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         const end = Math.min(data.length, lastIndexToRender);
         return data.slice(start, end);
     }, [data, firstIndexToRender, lastIndexToRender]);
+    const heikinAshiData = useMemo<Candle[]>(() => {
+        if (data.length === 0) return [];
+        const out: Candle[] = new Array(data.length);
+        let prevHaOpen = (data[0].open + data[0].close) / 2;
+        let prevHaClose =
+            (data[0].open + data[0].high + data[0].low + data[0].close) / 4;
+        out[0] = {
+            ...data[0],
+            open: prevHaOpen,
+            close: prevHaClose,
+            high: Math.max(data[0].high, prevHaOpen, prevHaClose),
+            low: Math.min(data[0].low, prevHaOpen, prevHaClose),
+        };
+        for (let i = 1; i < data.length; i++) {
+            const c = data[i];
+            const haClose = (c.open + c.high + c.low + c.close) / 4;
+            const haOpen = (prevHaOpen + prevHaClose) / 2;
+            const haHigh = Math.max(c.high, haOpen, haClose);
+            const haLow = Math.min(c.low, haOpen, haClose);
+            out[i] = { ...c, open: haOpen, close: haClose, high: haHigh, low: haLow };
+            prevHaOpen = haOpen;
+            prevHaClose = haClose;
+        }
+        return out;
+    }, [data]);
     const candleInterval = useMemo(() => {
         if (data.length < 2) {
             const TIMEFRAME_INTERVALS: { [key: string]: number } = {
@@ -2516,12 +2551,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     });
                 }
 
-                if (chartType === 'Candles') {
-                    visibleData.forEach((d, i) => {
+                const renderCandlesLikePass = (renderData: Candle[], hollow: boolean) => {
+                    renderData.forEach((d, i) => {
                         const dataIndex = startIdx + i;
                         const effectiveIndexInView = dataIndex - view.startIndex;
                         const x = indexToX(effectiveIndexInView);
-                        const prevCandle = dataIndex > 0 ? data[dataIndex - 1] : null;
+                        const prevCandle = dataIndex > 0 ? renderData[i - 1] ?? data[dataIndex - 1] : null;
                         const isBullish =
                             chartSettings.symbol.colorBarsOnPrevClose && prevCandle
                                 ? d.close >= prevCandle.close
@@ -2560,8 +2595,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         const bodyX = Math.round(x - bodyWidth / 2);
 
                         if (chartSettings.symbol.showBody) {
-                            chartContext.fillStyle = bodyColor;
-                            chartContext.fillRect(bodyX, bodyY, bodyWidth, bodyHeight);
+                            // Hollow candles: only fill DOWN candles; up candles remain hollow
+                            if (!hollow || !isBullish) {
+                                chartContext.fillStyle = bodyColor;
+                                chartContext.fillRect(bodyX, bodyY, bodyWidth, bodyHeight);
+                            }
                         }
 
                         if (chartSettings.symbol.showBorders) {
@@ -2575,7 +2613,43 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             );
                         }
                     });
-                } else if (chartType === 'Line') {
+                };
+
+                const renderBarsPass = () => {
+                    const widthMultiplier = chartSettings.symbol.candleBodyWidth ?? 1.0;
+                    const bodyWidth = Math.max(
+                        1,
+                        Math.min(Math.max(1, xStep - 1), Math.round(xStep * 0.7 * widthMultiplier))
+                    );
+                    const tickLen = Math.max(1, Math.round(bodyWidth / 2));
+                    visibleData.forEach((d, i) => {
+                        const dataIndex = startIdx + i;
+                        const x = Math.round(indexToX(dataIndex - view.startIndex)) + 0.5;
+                        const prevCandle = dataIndex > 0 ? data[dataIndex - 1] : null;
+                        const isBullish =
+                            chartSettings.symbol.colorBarsOnPrevClose && prevCandle
+                                ? d.close >= prevCandle.close
+                                : d.close >= d.open;
+                        const color = isBullish
+                            ? chartSettings.symbol.bodyUpColor
+                            : chartSettings.symbol.bodyDownColor;
+                        chartContext.strokeStyle = color;
+                        chartContext.lineWidth = 1;
+
+                        chartContext.beginPath();
+                        chartContext.moveTo(x, Math.round(yScale(d.high)));
+                        chartContext.lineTo(x, Math.round(yScale(d.low)));
+                        const openY = Math.round(yScale(d.open)) + 0.5;
+                        chartContext.moveTo(x - tickLen, openY);
+                        chartContext.lineTo(x, openY);
+                        const closeY = Math.round(yScale(d.close)) + 0.5;
+                        chartContext.moveTo(x, closeY);
+                        chartContext.lineTo(x + tickLen, closeY);
+                        chartContext.stroke();
+                    });
+                };
+
+                const renderLinePass = () => {
                     chartContext.strokeStyle = '#3B82F6';
                     chartContext.lineWidth = 1.5;
                     chartContext.beginPath();
@@ -2593,6 +2667,125 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         }
                     });
                     chartContext.stroke();
+                };
+
+                const renderAreaPass = () => {
+                    if (visibleData.length === 0) return;
+                    const fillColor = chartSettings.symbol.bodyUpColor;
+                    const points: { x: number; y: number }[] = visibleData.map((d, i) => {
+                        const dataIndex = startIdx + i;
+                        const effectiveIndexInView = dataIndex - view.startIndex;
+                        return { x: indexToX(effectiveIndexInView), y: yScale(d.close) };
+                    });
+                    const chartBottomY = chartDimensions.height;
+
+                    chartContext.beginPath();
+                    chartContext.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) chartContext.lineTo(points[i].x, points[i].y);
+                    chartContext.lineTo(points[points.length - 1].x, chartBottomY);
+                    chartContext.lineTo(points[0].x, chartBottomY);
+                    chartContext.closePath();
+                    const grad = chartContext.createLinearGradient(0, points[0].y, 0, chartBottomY);
+                    grad.addColorStop(0, hexToRgba(fillColor, 0.3));
+                    grad.addColorStop(1, hexToRgba(fillColor, 0));
+                    chartContext.fillStyle = grad;
+                    chartContext.fill();
+
+                    chartContext.strokeStyle = fillColor;
+                    chartContext.lineWidth = 1.5;
+                    chartContext.beginPath();
+                    chartContext.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) chartContext.lineTo(points[i].x, points[i].y);
+                    chartContext.stroke();
+                };
+
+                const renderBaselinePass = () => {
+                    if (visibleData.length === 0) return;
+                    const baselinePrice = visibleData[0].close;
+                    const baselineY = yScale(baselinePrice);
+                    const upColor = chartSettings.symbol.bodyUpColor;
+                    const downColor = chartSettings.symbol.bodyDownColor;
+
+                    const points: { x: number; y: number }[] = visibleData.map((d, i) => {
+                        const dataIndex = startIdx + i;
+                        const effectiveIndexInView = dataIndex - view.startIndex;
+                        return { x: indexToX(effectiveIndexInView), y: yScale(d.close) };
+                    });
+
+                    for (let i = 0; i < points.length - 1; i++) {
+                        const a = points[i];
+                        const b = points[i + 1];
+                        const aAbove = a.y < baselineY;
+                        const bAbove = b.y < baselineY;
+
+                        const fillTrap = (
+                            p1: { x: number; y: number },
+                            p2: { x: number; y: number },
+                            color: string
+                        ) => {
+                            chartContext.beginPath();
+                            chartContext.moveTo(p1.x, p1.y);
+                            chartContext.lineTo(p2.x, p2.y);
+                            chartContext.lineTo(p2.x, baselineY);
+                            chartContext.lineTo(p1.x, baselineY);
+                            chartContext.closePath();
+                            chartContext.fillStyle = hexToRgba(color, 0.25);
+                            chartContext.fill();
+                        };
+
+                        if (aAbove === bAbove) {
+                            fillTrap(a, b, aAbove ? upColor : downColor);
+                        } else {
+                            const t = (baselineY - a.y) / (b.y - a.y);
+                            const xCross = a.x + t * (b.x - a.x);
+                            const cross = { x: xCross, y: baselineY };
+                            fillTrap(a, cross, aAbove ? upColor : downColor);
+                            fillTrap(cross, b, bAbove ? upColor : downColor);
+                        }
+                    }
+
+                    chartContext.save();
+                    chartContext.setLineDash([4, 4]);
+                    chartContext.strokeStyle = '#787B86';
+                    chartContext.lineWidth = 1;
+                    chartContext.beginPath();
+                    chartContext.moveTo(0, baselineY);
+                    chartContext.lineTo(chartDimensions.width, baselineY);
+                    chartContext.stroke();
+                    chartContext.restore();
+
+                    chartContext.strokeStyle = '#787B86';
+                    chartContext.lineWidth = 1.5;
+                    chartContext.beginPath();
+                    chartContext.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) chartContext.lineTo(points[i].x, points[i].y);
+                    chartContext.stroke();
+                };
+
+                switch (chartType) {
+                    case 'Candles':
+                        renderCandlesLikePass(visibleData, false);
+                        break;
+                    case 'Hollow Candles':
+                        renderCandlesLikePass(visibleData, true);
+                        break;
+                    case 'Bars':
+                        renderBarsPass();
+                        break;
+                    case 'Heikin Ashi': {
+                        const haVisible = heikinAshiData.slice(startIdx, startIdx + visibleData.length);
+                        renderCandlesLikePass(haVisible, false);
+                        break;
+                    }
+                    case 'Line':
+                        renderLinePass();
+                        break;
+                    case 'Area':
+                        renderAreaPass();
+                        break;
+                    case 'Baseline':
+                        renderBaselinePass();
+                        break;
                 }
 
                 if (chartSettings.symbol.showLastPriceLine && data.length > 0) {
