@@ -388,11 +388,23 @@ const PriceScaleContextMenu: React.FC<PriceScaleContextMenuProps> = ({
     const check = (active: boolean) => (active ? '☑' : '☐');
     const rowClass =
         'flex items-center w-full px-3 py-2 text-sm text-left text-gray-300 hover:bg-gray-800 transition-colors';
+
+    // Price scale lives on the right side of the chart — anchor menu's RIGHT edge to
+    // the click point so it opens leftward (into the chart) instead of overflowing.
+    // Vertically clamp so it doesn't extend past the viewport bottom or top.
+    const MENU_WIDTH = 220;
+    const MENU_HEIGHT_EST = 290; // 1 + 3 + 2 buttons (~36px each) + 2 dividers + py-1 padding
+    const PADDING = 4;
+    const right = Math.max(PADDING, window.innerWidth - x);
+    const top = Math.max(
+        PADDING,
+        Math.min(y, window.innerHeight - MENU_HEIGHT_EST - PADDING)
+    );
     return (
         <div
             ref={ref}
-            style={{ position: 'fixed', top: y, left: x, zIndex: 50 }}
-            className="bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-lg py-1 min-w-[220px]"
+            style={{ position: 'fixed', top, right, zIndex: 50, width: MENU_WIDTH }}
+            className="bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-lg py-1"
         >
             <button
                 className={rowClass}
