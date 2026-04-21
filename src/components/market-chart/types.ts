@@ -441,6 +441,8 @@ export interface StatusLineSettings {
     showIndicatorValues: boolean;
 }
 
+export type ScaleType = 'Linear' | 'Logarithmic' | 'Percent';
+
 export interface ScalesAndLinesSettings {
     showLastPriceLabel: boolean;
     showPriceLabels: boolean;
@@ -451,6 +453,9 @@ export interface ScalesAndLinesSettings {
     showCrosshair: boolean;
     dateFormat: string;
     timeFormat: string;
+    scaleType: ScaleType;
+    reverseScale: boolean;
+    lockPriceToBarRatio: boolean;
 }
 
 export interface CanvasSettings {

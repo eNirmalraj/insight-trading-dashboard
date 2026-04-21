@@ -1,6 +1,6 @@
 // src/services/marketStateService.ts
 import { db, isSupabaseConfigured } from './supabaseClient';
-import type { ChartSettings, SymbolSettings } from '../components/market-chart/types';
+import type { ChartSettings, SymbolSettings, ScalesAndLinesSettings } from '../components/market-chart/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -100,6 +100,29 @@ export function normaliseSymbolSettings(
     };
 }
 
+export function normaliseScalesAndLinesSettings(
+    raw: any,
+    defaults: ScalesAndLinesSettings
+): ScalesAndLinesSettings {
+    if (!raw || typeof raw !== 'object') return { ...defaults };
+    return {
+        ...defaults,
+        ...raw,
+        scaleType:
+            raw.scaleType === 'Linear' ||
+            raw.scaleType === 'Logarithmic' ||
+            raw.scaleType === 'Percent'
+                ? raw.scaleType
+                : defaults.scaleType,
+        reverseScale:
+            typeof raw.reverseScale === 'boolean' ? raw.reverseScale : defaults.reverseScale,
+        lockPriceToBarRatio:
+            typeof raw.lockPriceToBarRatio === 'boolean'
+                ? raw.lockPriceToBarRatio
+                : defaults.lockPriceToBarRatio,
+    };
+}
+
 /**
  * Normalise a full ChartSettings payload by running the sub-normalisers.
  * Future sub-projects can extend this with more sub-shape normalisers.
@@ -113,6 +136,7 @@ export function normaliseChartSettings(
         ...defaults,
         ...raw,
         symbol: normaliseSymbolSettings(raw.symbol, defaults.symbol),
+        scalesAndLines: normaliseScalesAndLinesSettings(raw.scalesAndLines, defaults.scalesAndLines),
     };
 }
 

@@ -37,6 +37,7 @@ import {
     PathDrawing,
     BrushDrawing,
     ChartType,
+    ScaleType,
 } from './types';
 import {
     MIN_CANDLES,
@@ -166,6 +167,9 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showCrosshair: true,
         dateFormat: 'DD-MM-YYYY',
         timeFormat: 'hh:mm',
+        scaleType: 'Linear',
+        reverseScale: false,
+        lockPriceToBarRatio: false,
     },
     canvas: {
         backgroundType: 'solid',
