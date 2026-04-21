@@ -130,11 +130,22 @@ const formatIndicatorTitle = (ind: Indicator): string => {
     return `${ind.type}(${params.join(',')})`;
 };
 
+// Preferred series keys for compound indicators — picks the conventional
+// "primary" line (e.g. middle for BB, macd for MACD, value for single-line).
+// Falls back to insertion order if none of these keys exist.
+const PRIMARY_INDICATOR_KEYS = ['value', 'middle', 'basis', 'macd', 'sma', 'ma', 'main'];
+
 const formatIndicatorLatestValue = (ind: Indicator): string => {
-    // ind.data is Record<string, (number | null)[]>. Use the first key with a
-    // numeric tail and return its last non-null value. Returns '—' if no data.
+    // ind.data is Record<string, (number | null)[]>. Try preferred keys first
+    // (so Bollinger Bands shows the basis, not the upper band); fall back to
+    // insertion order. Returns '—' if no data.
     if (!ind.data || typeof ind.data !== 'object') return '—';
-    for (const key of Object.keys(ind.data)) {
+    const dataKeys = Object.keys(ind.data);
+    const orderedKeys = [
+        ...PRIMARY_INDICATOR_KEYS.filter((k) => dataKeys.includes(k)),
+        ...dataKeys.filter((k) => !PRIMARY_INDICATOR_KEYS.includes(k)),
+    ];
+    for (const key of orderedKeys) {
         const arr = ind.data[key];
         if (!Array.isArray(arr)) continue;
         for (let i = arr.length - 1; i >= 0; i--) {
