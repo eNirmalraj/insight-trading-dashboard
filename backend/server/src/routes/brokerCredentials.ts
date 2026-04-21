@@ -1,5 +1,7 @@
 // backend/server/src/routes/brokerCredentials.ts
-// REST routes for managing user exchange credentials (Phase 1: Binance).
+// REST routes for managing user exchange credentials across all 8 brokers
+// (Binance, Bitget, MT5, Zerodha, Angel One, Upstox, Dhan, Fyers).
+// Consolidated onto user_exchange_keys_v2 as of the broker-connect rebuild.
 
 import type { Request, Response, Router } from 'express';
 import express from 'express';
@@ -108,6 +110,9 @@ function validateCreate(b: CreateBody): { field?: string; error?: string } {
         if (!b.mt5Server) return { field: 'mt5Server', error: 'mt5Server required' };
     } else if (INDIAN_BROKERS_DIRECT.includes(b.broker)) {
         if (!b.apiKey) return { field: 'apiKey', error: 'apiKey required' };
+        if (b.broker === 'angelone' && !b.passphrase) {
+            return { field: 'passphrase', error: 'MPIN required for Angel One' };
+        }
     } else if (INDIAN_BROKERS_OAUTH.includes(b.broker)) {
         // OAuth brokers go through /oauth/:broker/callback, not direct POST.
         return { field: 'broker', error: `${b.broker} must use OAuth flow (/oauth/${b.broker}/start)` };

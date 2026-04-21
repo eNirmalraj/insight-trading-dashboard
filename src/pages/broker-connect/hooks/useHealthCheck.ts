@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { testBrokerBatch, testBrokerCredential } from '../../../services/brokerCredentialService';
 
-export type HealthStatus = 'connected' | 'disconnected' | 'untested' | 'testing';
+export type HealthStatus = 'connected' | 'disconnected' | 'untested' | 'testing' | 'paused';
 
 export interface HealthEntry {
     status: HealthStatus;
@@ -11,7 +11,7 @@ export interface HealthEntry {
 
 export function useHealthCheck(credIds: string[]) {
     const [map, setMap] = useState<Map<string, HealthEntry>>(new Map());
-    const didInitialRef = useRef(false);
+    const testedIdsRef = useRef<Set<string>>(new Set());
 
     const runBatch = useCallback(async (ids: string[]) => {
         if (ids.length === 0) return;
@@ -34,11 +34,14 @@ export function useHealthCheck(credIds: string[]) {
         });
     }, []);
 
+    // Track which ids we've already tested. When a new id appears, batch-test
+    // only the untested ones so we don't re-hit brokers that already reported.
     useEffect(() => {
-        if (didInitialRef.current) return;
         if (credIds.length === 0) return;
-        didInitialRef.current = true;
-        void runBatch(credIds);
+        const untested = credIds.filter((id) => !testedIdsRef.current.has(id));
+        if (untested.length === 0) return;
+        for (const id of untested) testedIdsRef.current.add(id);
+        void runBatch(untested);
     }, [credIds, runBatch]);
 
     const testOne = useCallback(async (id: string) => {

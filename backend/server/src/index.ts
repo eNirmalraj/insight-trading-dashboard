@@ -10,7 +10,6 @@ import {
     startSignalEngine,
     getSignalEngineStatus,
 } from './engine/signalEngine';
-import { executeTradeOrder, TradeOrder } from './services/tradeAdapter';
 import { supabaseAdmin } from './services/supabaseAdmin';
 import brokerCredentialsRouter from './routes/brokerCredentials';
 import executeSignalRouter from './routes/executeSignal';
@@ -37,23 +36,6 @@ app.get('/engine/status', (req, res) => {
         engine: getSignalEngineStatus(),
         execution: getExecutionEngineStatus(),
     });
-});
-
-// ── Trade execution endpoint ────────────────────────────
-
-app.post('/api/trade/execute', async (req, res) => {
-    const order = req.body as TradeOrder;
-    if (!order.exchangeKeyId || !order.symbol || !order.side || !order.quantity) {
-        return res.status(400).json({
-            error: 'exchangeKeyId, symbol, side, quantity are required',
-        });
-    }
-    try {
-        const result = await executeTradeOrder(order);
-        return res.status(result.ok ? 200 : 400).json(result);
-    } catch (err: any) {
-        return res.status(500).json({ ok: false, error: err.message });
-    }
 });
 
 // Start Server

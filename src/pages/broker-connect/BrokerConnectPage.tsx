@@ -31,7 +31,12 @@ const BrokerConnectPage: React.FC = () => {
             {showWizard && (
                 <AddConnectionWizard
                     onClose={() => setShowWizard(false)}
-                    onAdded={() => { setShowWizard(false); void refresh(); void refreshAll(); }}
+                    onAdded={async () => {
+                        setShowWizard(false);
+                        await refresh();
+                        // useHealthCheck's testedIdsRef effect will pick up the new
+                        // id automatically on the next render after refresh() resolves.
+                    }}
                 />
             )}
         </div>

@@ -21,6 +21,7 @@ const IndianBrokerForm: React.FC<Props> = ({ broker, onCancel, onSaved }) => {
     const [clientId, setClientId] = useState('');
     const [accessToken, setAccessToken] = useState('');
     const [totpSecret, setTotp] = useState('');
+    const [mpin, setMpin] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ const IndianBrokerForm: React.FC<Props> = ({ broker, onCancel, onSaved }) => {
         if (broker === 'angelone') {
             body.clientId = clientId;
             body.totpSecret = totpSecret;
+            body.passphrase = mpin;   // Angel One MPIN
         } else if (broker === 'dhan') {
             body.clientId = clientId;
             body.accessToken = accessToken;
@@ -146,6 +148,16 @@ const IndianBrokerForm: React.FC<Props> = ({ broker, onCancel, onSaved }) => {
                         type="password"
                         value={totpSecret}
                         onChange={(e) => setTotp(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                </Field>
+            )}
+            {broker === 'angelone' && (
+                <Field label="MPIN">
+                    <input
+                        type="password"
+                        value={mpin}
+                        onChange={(e) => setMpin(e.target.value)}
                         className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                     />
                 </Field>

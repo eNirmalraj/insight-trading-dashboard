@@ -12,6 +12,7 @@ const BADGE: Record<HealthStatus, { dot: string; text: string; bg: string; label
     disconnected: { dot: 'bg-red-500',                   text: 'text-red-400',    bg: 'bg-red-500/10',    label: 'Disconnected' },
     untested:     { dot: 'bg-yellow-500',                text: 'text-yellow-400', bg: 'bg-yellow-500/10', label: 'Untested' },
     testing:      { dot: 'bg-blue-500 animate-pulse',    text: 'text-blue-400',   bg: 'bg-blue-500/10',   label: 'Testing…' },
+    paused:       { dot: 'bg-gray-500',                  text: 'text-gray-400',   bg: 'bg-gray-500/10',   label: 'Paused' },
 };
 
 const HealthBadge: React.FC<Props> = ({ status, latencyMs, error }) => {

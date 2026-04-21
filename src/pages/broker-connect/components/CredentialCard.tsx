@@ -59,9 +59,9 @@ const CredentialCard: React.FC<Props> = ({ credential, health, onTest, onEdit, o
                             {envLabel}
                         </span>
                         <HealthBadge
-                            status={health?.status ?? 'untested'}
+                            status={!credential.is_active ? 'paused' : (health?.status ?? 'untested')}
                             latencyMs={health?.latencyMs}
-                            error={health?.error ?? credential.last_test_error ?? undefined}
+                            error={credential.is_active ? (health?.error ?? credential.last_test_error ?? undefined) : undefined}
                         />
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
