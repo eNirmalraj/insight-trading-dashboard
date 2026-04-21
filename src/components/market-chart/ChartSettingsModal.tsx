@@ -5,6 +5,7 @@ import {
     CanvasSettings,
     ScalesAndLinesSettings,
     StatusLineSettings,
+    ScaleType,
 } from './types';
 import {
     CloseIcon,
@@ -323,6 +324,36 @@ const ScalesAndLinesSettingsComponent: React.FC<{
     ) => void;
 }> = ({ settings, onChange }) => (
     <div className="space-y-6">
+        <div>
+            <SectionTitle>Scale</SectionTitle>
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="scaleType" className="text-gray-300">
+                        Scale type
+                    </label>
+                    <select
+                        id="scaleType"
+                        value={settings.scaleType}
+                        onChange={(e) => onChange('scaleType', e.target.value as ScaleType)}
+                        className="bg-gray-700 border border-gray-600 rounded-md py-1 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="Linear">Linear</option>
+                        <option value="Logarithmic">Logarithmic</option>
+                        <option value="Percent">Percent</option>
+                    </select>
+                </div>
+                <CheckboxSettingRow
+                    label="Reverse scale"
+                    isChecked={settings.reverseScale}
+                    onToggle={(v) => onChange('reverseScale', v)}
+                />
+                <CheckboxSettingRow
+                    label="Lock price-to-bar ratio"
+                    isChecked={settings.lockPriceToBarRatio}
+                    onToggle={(v) => onChange('lockPriceToBarRatio', v)}
+                />
+            </div>
+        </div>
         <div>
             <SectionTitle>Labels</SectionTitle>
             <div className="space-y-2">
