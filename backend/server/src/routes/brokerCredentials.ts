@@ -8,6 +8,8 @@ import { credentialBridge } from '../services/credentialBridge';
 import { getBrokerAdapter } from '../engine/brokerAdapters';
 import { supabaseAdmin } from '../services/supabaseAdmin';
 import { testCredential } from '../services/credentialHealth';
+import { buildAuthorizeUrl, exchangeCode, OauthBroker } from '../services/oauthFlows';
+import crypto from 'crypto';
 
 const router: Router = express.Router();
 
@@ -314,6 +316,115 @@ router.delete('/:id', async (req: Request, res: Response) => {
         .eq('user_id', userId);
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ ok: true });
+});
+
+// In-memory OAuth state store, 5-minute TTL. For multi-instance production
+// this must become Redis or a DB table; single-process dev + small deployments
+// work fine with memory and opportunistic cleanup on new-state insert.
+interface OauthState {
+    userId: string;
+    broker: OauthBroker;
+    nickname: string;
+    clientId: string;
+    clientSecret: string;
+    expiresAt: number;
+}
+const oauthStates = new Map<string, OauthState>();
+
+function pruneExpiredOauthStates(): void {
+    const now = Date.now();
+    for (const [k, v] of oauthStates.entries()) {
+        if (v.expiresAt < now) oauthStates.delete(k);
+    }
+}
+
+// POST /api/broker-credentials/oauth/:broker/start
+// Begins an OAuth flow for Zerodha/Upstox/Fyers. Caller supplies nickname,
+// clientId (the API key), and clientSecret (the API secret from the broker
+// developer portal). Returns an authorize URL; the caller redirects the user
+// there, completes login, and the broker posts back to /callback with ?code=.
+router.post('/oauth/:broker/start', async (req: Request, res: Response) => {
+    const userId = await resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const broker = req.params.broker as OauthBroker;
+    if (!['zerodha', 'upstox', 'fyers'].includes(broker)) {
+        return res.status(400).json({ error: 'non-OAuth broker', code: 'validation' });
+    }
+
+    const { nickname, clientId, clientSecret } = (req.body ?? {}) as
+        { nickname?: string; clientId?: string; clientSecret?: string };
+    if (!nickname || !clientId || !clientSecret) {
+        return res.status(400).json({
+            error: 'nickname, clientId, clientSecret required',
+            code: 'validation',
+        });
+    }
+
+    pruneExpiredOauthStates();
+    const state = crypto.randomBytes(16).toString('hex');
+    oauthStates.set(state, {
+        userId, broker, nickname, clientId, clientSecret,
+        expiresAt: Date.now() + 5 * 60_000,
+    });
+
+    try {
+        const authorizeUrl = buildAuthorizeUrl(broker, { state, clientId });
+        return res.json({ authorizeUrl });
+    } catch (e: any) {
+        return res.status(500).json({ error: e?.message ?? 'failed to build authorize URL' });
+    }
+});
+
+// POST /api/broker-credentials/oauth/:broker/callback
+// Exchange the authorization code for an access token, store the credential,
+// run a pre-persist test, roll back on failure (same pattern as regular POST).
+router.post('/oauth/:broker/callback', async (req: Request, res: Response) => {
+    const broker = req.params.broker as OauthBroker;
+    const { code, state } = (req.body ?? {}) as { code?: string; state?: string };
+    if (!code || !state) return res.status(400).json({ error: 'code + state required' });
+
+    const entry = oauthStates.get(state);
+    if (!entry || entry.expiresAt < Date.now() || entry.broker !== broker) {
+        return res.status(400).json({ error: 'invalid or expired state' });
+    }
+    oauthStates.delete(state);
+
+    try {
+        const { accessToken } = await exchangeCode(broker, {
+            code, clientId: entry.clientId, clientSecret: entry.clientSecret,
+        });
+
+        const { id } = await credentialVault.store({
+            userId: entry.userId,
+            broker, nickname: entry.nickname, environment: 'live',
+            apiKey: entry.clientId, accessToken,
+        });
+
+        const result = await testCredential(id);
+        if (!result.ok) {
+            await supabaseAdmin
+                .from('user_exchange_keys_v2')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', entry.userId);
+            return res.status(400).json({ error: result.error ?? 'test failed', code: 'adapter' });
+        }
+
+        await supabaseAdmin
+            .from('user_exchange_keys_v2')
+            .update({
+                last_test_status: 'success',
+                last_test_error: null,
+                last_verified_at: new Date().toISOString(),
+                permissions: result.permissions,
+            })
+            .eq('id', id);
+
+        return res.status(201).json({ id });
+    } catch (e: any) {
+        return res.status(400).json({ error: e?.message ?? 'oauth exchange failed' });
+    }
 });
 
 export default router;
