@@ -7,7 +7,7 @@ import {
     PaperIcon,
 } from '../components/IconComponents';
 import Subscription from './Subscription';
-import ExchangeManagement from './ExchangeManagement';
+import BrokerConnectPage from './broker-connect/BrokerConnectPage';
 import PaperTradingAccounts from './PaperTradingAccounts';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -883,7 +883,7 @@ const SecuritySettings: React.FC = () => {
 
 const BrokerConnectSettings: React.FC = () => (
     <div className="h-full">
-        <ExchangeManagement />
+        <BrokerConnectPage />
     </div>
 );
 
