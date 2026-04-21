@@ -15,6 +15,11 @@ import {
     LineChartIcon,
     MenuIcon,
     StarIcon,
+    BarsIcon,
+    HollowCandlesIcon,
+    HeikinAshiIcon,
+    AreaIcon,
+    BaselineIcon,
 } from '../IconComponents';
 import SymbolSearchModal from './SymbolSearchModal';
 
@@ -35,6 +40,49 @@ const HeaderButton: React.FC<{
     </button>
 );
 
+const CHART_TYPE_OPTIONS: { type: ChartType; label: string; Icon: React.FC<{ className?: string }> }[] = [
+    { type: 'Bars',           label: 'Bars',            Icon: BarsIcon },
+    { type: 'Candles',        label: 'Candles',         Icon: CandlesIcon },
+    { type: 'Hollow Candles', label: 'Hollow Candles',  Icon: HollowCandlesIcon },
+    { type: 'Heikin Ashi',    label: 'Heikin Ashi',     Icon: HeikinAshiIcon },
+    { type: 'Line',           label: 'Line',            Icon: LineChartIcon },
+    { type: 'Area',           label: 'Area',            Icon: AreaIcon },
+    { type: 'Baseline',       label: 'Baseline',        Icon: BaselineIcon },
+];
+
+const ChartTypePickerMenu: React.FC<{
+    current: ChartType;
+    onSelect: (next: ChartType) => void;
+    onClose: () => void;
+}> = ({ current, onSelect, onClose }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    useOutsideAlerter(ref, onClose);
+    return (
+        <div
+            ref={ref}
+            className="absolute top-full left-0 mt-1 z-50 bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-lg py-1 min-w-[180px]"
+        >
+            {CHART_TYPE_OPTIONS.map(({ type, label, Icon }) => (
+                <button
+                    key={type}
+                    onClick={() => {
+                        onSelect(type);
+                        onClose();
+                    }}
+                    className={`flex items-center w-full px-3 py-2 text-sm text-left transition-colors ${
+                        type === current
+                            ? 'bg-[#c4b5f0]/10 text-[#c4b5f0]'
+                            : 'text-gray-300 hover:bg-gray-800'
+                    }`}
+                >
+                    <Icon className="w-4 h-4 mr-3" />
+                    {label}
+                </button>
+            ))}
+        </div>
+    );
+};
+
 interface ChartHeaderProps {
     symbol: string;
     onSymbolChange: (symbol: string) => void;
@@ -52,7 +100,7 @@ interface ChartHeaderProps {
     canRedo: boolean;
     onToggleIndicators: () => void;
     chartType: ChartType;
-    onToggleChartType: () => void;
+    onChartTypeChange: (next: ChartType) => void;
     onSaveLayout: () => void;
     onToggleSettings: () => void;
     onToggleFullscreen: () => void;
@@ -80,7 +128,7 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
         canRedo,
         onToggleIndicators,
         chartType,
-        onToggleChartType,
+        onChartTypeChange,
         onSaveLayout,
         onToggleSettings,
         onToggleFullscreen,
@@ -132,6 +180,7 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
 
     const [isSymbolSearchOpen, setSymbolSearchOpen] = useState(false);
     const [customInterval, setCustomInterval] = useState('');
+    const [chartTypeMenuOpen, setChartTypeMenuOpen] = useState(false);
 
     const handleSymbolSelect = (newSymbol: string) => {
         onSymbolChange(newSymbol);
@@ -335,13 +384,25 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                         <HeaderButton onClick={onToggleIndicators} title="Indicators">
                             <IndicatorIcon className="w-5 h-5" />
                         </HeaderButton>
-                        <HeaderButton onClick={onToggleChartType} title="Chart Type">
-                            {chartType === 'Candles' ? (
-                                <CandlesIcon className="w-5 h-5" />
-                            ) : (
-                                <LineChartIcon className="w-5 h-5" />
+                        <div className="relative">
+                            <HeaderButton
+                                onClick={() => setChartTypeMenuOpen((v) => !v)}
+                                title="Chart type"
+                            >
+                                {(() => {
+                                    const opt = CHART_TYPE_OPTIONS.find((o) => o.type === chartType);
+                                    const Icon = opt?.Icon ?? CandlesIcon;
+                                    return <Icon className="w-5 h-5" />;
+                                })()}
+                            </HeaderButton>
+                            {chartTypeMenuOpen && (
+                                <ChartTypePickerMenu
+                                    current={chartType}
+                                    onSelect={onChartTypeChange}
+                                    onClose={() => setChartTypeMenuOpen(false)}
+                                />
                             )}
-                        </HeaderButton>
+                        </div>
                         <div className="h-5 w-px bg-gray-700"></div>
                         <HeaderButton onClick={onSaveLayout} title="Save Chart">
                             <SaveLayoutIcon className="w-5 h-5" />

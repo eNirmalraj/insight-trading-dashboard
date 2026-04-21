@@ -9582,9 +9582,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     canRedo={redoStack.length > 0}
                     onToggleIndicators={() => setIndicatorPanelOpen(true)}
                     chartType={chartType}
-                    onToggleChartType={() => {
+                    onChartTypeChange={(next) => {
                         commitCurrentState();
-                        setChartType((t) => (t === 'Candles' ? 'Line' : 'Candles'));
+                        setChartType(next);
+                        localStorage.setItem('chart_type_preference', next);
                     }}
                     onSaveLayout={() => {
                         // Manual save immediately
