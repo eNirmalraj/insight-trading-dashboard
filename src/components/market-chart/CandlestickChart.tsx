@@ -64,6 +64,7 @@ import IndicatorPanel from './IndicatorPickerModal';
 import IndicatorSettingsModal from './IndicatorSettingsPanel';
 import { DEFAULT_INDICATORS } from '../../indicators';
 import ChartSettingsModal from './ChartSettingsModal';
+import { useOutsideAlerter } from './hooks';
 import ActiveIndicatorsDisplay from './ActiveIndicatorsDisplay';
 import ContextMenu from './ContextMenu';
 import TemplateManagerModal from './TemplateManagerModal';
@@ -352,6 +353,94 @@ const hexToRgba = (hex: string, alpha: number): string => {
     const g = parseInt(h.substring(2, 4), 16);
     const b = parseInt(h.substring(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+interface PriceScaleContextMenuProps {
+    x: number;
+    y: number;
+    isAutoScaling: boolean;
+    scaleType: ScaleType;
+    reverseScale: boolean;
+    lockPriceToBarRatio: boolean;
+    onAutoScaleToggle: () => void;
+    onScaleTypeChange: (next: ScaleType) => void;
+    onReverseToggle: () => void;
+    onLockToggle: () => void;
+    onClose: () => void;
+}
+
+const PriceScaleContextMenu: React.FC<PriceScaleContextMenuProps> = ({
+    x,
+    y,
+    isAutoScaling,
+    scaleType,
+    reverseScale,
+    lockPriceToBarRatio,
+    onAutoScaleToggle,
+    onScaleTypeChange,
+    onReverseToggle,
+    onLockToggle,
+    onClose,
+}) => {
+    const ref = useRef<HTMLDivElement>(null);
+    useOutsideAlerter(ref, onClose);
+    const radio = (active: boolean) => (active ? '●' : '○');
+    const check = (active: boolean) => (active ? '☑' : '☐');
+    const rowClass =
+        'flex items-center w-full px-3 py-2 text-sm text-left text-gray-300 hover:bg-gray-800 transition-colors';
+    return (
+        <div
+            ref={ref}
+            style={{ position: 'fixed', top: y, left: x, zIndex: 50 }}
+            className="bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-lg py-1 min-w-[220px]"
+        >
+            <button
+                className={rowClass}
+                onClick={() => {
+                    onAutoScaleToggle();
+                    onClose();
+                }}
+            >
+                <span className="w-5 text-[#c4b5f0]">{radio(isAutoScaling)}</span>
+                Auto-scale
+            </button>
+            <div className="my-1 h-px bg-gray-700" />
+            {(['Linear', 'Logarithmic', 'Percent'] as ScaleType[]).map((t) => (
+                <button
+                    key={t}
+                    className={rowClass}
+                    onClick={() => {
+                        onScaleTypeChange(t);
+                        onClose();
+                    }}
+                >
+                    <span className="w-5 text-[#c4b5f0]">{radio(scaleType === t)}</span>
+                    {t} scale
+                </button>
+            ))}
+            <div className="my-1 h-px bg-gray-700" />
+            <button
+                className={rowClass}
+                onClick={() => {
+                    onReverseToggle();
+                    onClose();
+                }}
+            >
+                <span className="w-5 text-[#c4b5f0]">{check(reverseScale)}</span>
+                Reverse scale
+            </button>
+            <button
+                className={rowClass}
+                onClick={() => {
+                    onLockToggle();
+                    onClose();
+                }}
+            >
+                <span className="w-5 text-[#c4b5f0]">{check(lockPriceToBarRatio)}</span>
+                Lock price-to-bar
+            </button>
+        </div>
+    );
 };
 
 const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
@@ -689,6 +778,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     } | null>(null);
 
     const [lockedVerticalLineTime, setLockedVerticalLineTime] = useState<number | null>(null);
+    const [priceScaleMenu, setPriceScaleMenu] = useState<{ x: number; y: number } | null>(null);
     const [chartSettings, setChartSettings] = useState<ChartSettings>(() => {
         // Use prop if available initially
         if (props.initialSettings) {
@@ -1969,6 +2059,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     };
 
     const handleSaveSettings = (newSettings: ChartSettings) => {
+        // If lock-price-to-bar was turned ON via this save, disable autoscale to prevent conflict.
+        if (
+            newSettings.scalesAndLines.lockPriceToBarRatio &&
+            !chartSettings.scalesAndLines.lockPriceToBarRatio
+        ) {
+            setIsAutoScaling(false);
+        }
         setChartSettings(newSettings);
         try {
             localStorage.setItem(`chartSettings_${props.symbol}`, JSON.stringify(newSettings));
@@ -9984,6 +10081,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                 <div
                                     className="w-16 flex-shrink-0 border-l border-[#2A2A2A] cursor-ns-resize"
                                     ref={yAxisContainerRef}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setPriceScaleMenu({ x: e.clientX, y: e.clientY });
+                                    }}
                                 >
                                     <canvas ref={yAxisCanvasRef} className="w-full h-full block" />
                                 </div>
@@ -10237,6 +10338,47 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         settings={chartSettings}
                         onClose={() => setSettingsModalOpen(false)}
                         onSave={handleSaveSettings}
+                    />
+                )}
+                {priceScaleMenu && (
+                    <PriceScaleContextMenu
+                        x={priceScaleMenu.x}
+                        y={priceScaleMenu.y}
+                        isAutoScaling={isAutoScaling}
+                        scaleType={chartSettings.scalesAndLines.scaleType}
+                        reverseScale={chartSettings.scalesAndLines.reverseScale}
+                        lockPriceToBarRatio={chartSettings.scalesAndLines.lockPriceToBarRatio}
+                        onAutoScaleToggle={() => setIsAutoScaling((v) => !v)}
+                        onScaleTypeChange={(next) => {
+                            setChartSettings((prev) => ({
+                                ...prev,
+                                scalesAndLines: { ...prev.scalesAndLines, scaleType: next },
+                            }));
+                        }}
+                        onReverseToggle={() => {
+                            setChartSettings((prev) => ({
+                                ...prev,
+                                scalesAndLines: {
+                                    ...prev.scalesAndLines,
+                                    reverseScale: !prev.scalesAndLines.reverseScale,
+                                },
+                            }));
+                        }}
+                        onLockToggle={() => {
+                            const wasLocked = chartSettings.scalesAndLines.lockPriceToBarRatio;
+                            setChartSettings((prev) => ({
+                                ...prev,
+                                scalesAndLines: {
+                                    ...prev.scalesAndLines,
+                                    lockPriceToBarRatio: !prev.scalesAndLines.lockPriceToBarRatio,
+                                },
+                            }));
+                            // When TURNING ON the lock, disable autoscale to prevent conflict.
+                            if (!wasLocked) {
+                                setIsAutoScaling(false);
+                            }
+                        }}
+                        onClose={() => setPriceScaleMenu(null)}
                     />
                 )}
 
