@@ -10095,6 +10095,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                     ref={yAxisContainerRef}
                                     onContextMenu={(e) => {
                                         e.preventDefault();
+                                        e.stopPropagation();
                                         setPriceScaleMenu({ x: e.clientX, y: e.clientY });
                                     }}
                                 >
