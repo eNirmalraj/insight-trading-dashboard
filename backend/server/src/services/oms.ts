@@ -136,6 +136,7 @@ async function insertPendingExecution(intent: OrderIntent, _qty: number): Promis
             leverage: intent.riskSettings.leverage ?? null,
             status: 'Pending',
             broker: intent.broker,
+            broker_credential_id: intent.brokerCredentialId,
         })
         .select('*')
         .single();
