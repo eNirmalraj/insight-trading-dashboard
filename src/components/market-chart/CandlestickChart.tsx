@@ -9779,11 +9779,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     onLogout={props.onLogout}
                     headerOhlc={headerOhlc}
                     statusLineSettings={chartSettings.statusLine}
-                    indicators={allActiveIndicators}
-                    onEditIndicator={(id) => {
-                        const ind = allActiveIndicators.find((i) => i.id === id);
-                        if (ind) setIndicatorToEdit(ind);
-                    }}
                     onUndo={handleUndo}
                     onRedo={handleRedo}
                     canUndo={undoStack.length > 0}
