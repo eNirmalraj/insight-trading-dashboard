@@ -91,6 +91,47 @@ router.post('/:id/verify', async (req: Request, res: Response) => {
     }
 });
 
+// POST /api/broker-credentials/test-batch
+// Runs testCredential for every id in parallel. Promise.allSettled ensures
+// a hung broker doesn't block responses for fast ones. Persistence is
+// fire-and-forget with the same transient-filtering logic as /:id/test.
+router.post('/test-batch', async (req: Request, res: Response) => {
+    const userId = await resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : [];
+    if (ids.length === 0) return res.json({ results: [] });
+
+    const settled = await Promise.allSettled(ids.map((id) => testCredential(id)));
+    const results = settled.map((s, i) => ({
+        id: ids[i],
+        ...(s.status === 'fulfilled'
+            ? s.value
+            : { ok: false, latencyMs: 0, permissions: [], error: String(s.reason) }),
+    }));
+
+    // Fire-and-forget persistence. Errors are logged, not thrown, so the
+    // response isn't held up waiting for DB writes.
+    const TRANSIENT_RE = /timeout|fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND/i;
+    void Promise.all(results.map(async (r) => {
+        if (TRANSIENT_RE.test(r.error ?? '')) return;
+        const update: Record<string, unknown> = {
+            last_test_status: r.ok ? 'success' : 'failed',
+            last_test_error: r.ok ? null : (r.error ?? null),
+            permissions: r.permissions,
+        };
+        if (r.ok) update.last_verified_at = new Date().toISOString();
+        const { error } = await supabaseAdmin
+            .from('user_exchange_keys_v2')
+            .update(update)
+            .eq('id', r.id)
+            .eq('user_id', userId);
+        if (error) console.warn('[test-batch] persist error:', error.message);
+    })).catch((e) => console.warn('[test-batch] persist error:', e?.message));
+
+    return res.json({ results });
+});
+
 // POST /api/broker-credentials/:id/test
 // Runs a live health probe against the broker. Returns the TestResult directly.
 // Persists last_test_status + error + permissions + last_verified_at — but NOT

@@ -70,3 +70,36 @@ describe('POST /api/broker-credentials/:id/test', () => {
         expect(r.status).toBe(401);
     });
 });
+
+describe('POST /api/broker-credentials/test-batch', () => {
+    it('returns a result for every id, distinguishing success from failure', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials/test-batch')
+            .set('Authorization', 'Bearer x')
+            .send({ ids: ['ok', 'bad', 'ok'] });
+        expect(r.status).toBe(200);
+        expect(Array.isArray(r.body.results)).toBe(true);
+        expect(r.body.results).toHaveLength(3);
+        expect(r.body.results[0].ok).toBe(true);
+        expect(r.body.results[0].id).toBe('ok');
+        expect(r.body.results[1].ok).toBe(false);
+        expect(r.body.results[1].error).toMatch(/Invalid/);
+        expect(r.body.results[2].ok).toBe(true);
+    });
+
+    it('returns empty array for empty ids', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials/test-batch')
+            .set('Authorization', 'Bearer x')
+            .send({ ids: [] });
+        expect(r.status).toBe(200);
+        expect(r.body.results).toEqual([]);
+    });
+
+    it('401 without bearer', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials/test-batch')
+            .send({ ids: ['ok'] });
+        expect(r.status).toBe(401);
+    });
+});
