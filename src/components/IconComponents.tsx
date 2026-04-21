@@ -1709,3 +1709,45 @@ export const RiskIcon: React.FC<{ className?: string }> = ({ className }) => (
         />
     </svg>
 );
+
+export const BarsIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="10" y1="3" x2="10" y2="17" />
+        <line x1="6" y1="6" x2="10" y2="6" />
+        <line x1="10" y1="14" x2="14" y2="14" />
+    </svg>
+);
+
+export const HollowCandlesIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="6" y1="3" x2="6" y2="17" />
+        <rect x="3.5" y="6" width="5" height="8" fill="none" />
+        <line x1="14" y1="3" x2="14" y2="17" />
+        <rect x="11.5" y="8" width="5" height="6" fill="none" />
+    </svg>
+);
+
+export const HeikinAshiIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="4" y1="4" x2="4" y2="16" />
+        <rect x="2.5" y="6" width="3" height="6" fill="currentColor" />
+        <line x1="10" y1="3" x2="10" y2="17" />
+        <rect x="8.5" y="5" width="3" height="8" fill="currentColor" />
+        <line x1="16" y1="5" x2="16" y2="15" />
+        <rect x="14.5" y="7" width="3" height="6" fill="currentColor" />
+    </svg>
+);
+
+export const AreaIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 14 L7 9 L11 12 L18 5 L18 17 L2 17 Z" fill="currentColor" fillOpacity="0.25" />
+        <path d="M2 14 L7 9 L11 12 L18 5" />
+    </svg>
+);
+
+export const BaselineIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="2" y1="10" x2="18" y2="10" strokeDasharray="2 2" />
+        <path d="M2 13 L7 8 L11 11 L18 4" />
+    </svg>
+);
