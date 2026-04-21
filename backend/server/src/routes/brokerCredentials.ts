@@ -7,6 +7,7 @@ import { credentialVault } from '../services/credentialVault';
 import { credentialBridge } from '../services/credentialBridge';
 import { getBrokerAdapter } from '../engine/brokerAdapters';
 import { supabaseAdmin } from '../services/supabaseAdmin';
+import { testCredential } from '../services/credentialHealth';
 
 const router: Router = express.Router();
 
@@ -88,6 +89,37 @@ router.post('/:id/verify', async (req: Request, res: Response) => {
     } catch (err: any) {
         return res.status(500).json({ error: err?.message || 'verify failed' });
     }
+});
+
+// POST /api/broker-credentials/:id/test
+// Runs a live health probe against the broker. Returns the TestResult directly.
+// Persists last_test_status + error + permissions + last_verified_at — but NOT
+// for transient failures (timeout, network) so a brief outage doesn't flip a
+// working credential's badge to red.
+router.post('/:id/test', async (req: Request, res: Response) => {
+    const userId = await resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const result = await testCredential(id);
+
+    const transient = /timeout|fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND/i
+        .test(result.error ?? '');
+    if (!transient) {
+        const update: Record<string, unknown> = {
+            last_test_status: result.ok ? 'success' : 'failed',
+            last_test_error: result.ok ? null : (result.error ?? null),
+            permissions: result.permissions,
+        };
+        if (result.ok) update.last_verified_at = new Date().toISOString();
+        await supabaseAdmin
+            .from('user_exchange_keys_v2')
+            .update(update)
+            .eq('id', id)
+            .eq('user_id', userId);
+    }
+
+    return res.json(result);
 });
 
 // DELETE /api/broker-credentials/:id — removes from whichever table owns the id.
