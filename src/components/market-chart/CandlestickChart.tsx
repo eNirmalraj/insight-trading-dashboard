@@ -861,7 +861,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             }
         };
         fetchData();
-        const intervalId = setInterval(fetchData, 60000);
+        const intervalId = setInterval(fetchData, 10000);
         return () => clearInterval(intervalId);
     }, []);
 
