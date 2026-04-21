@@ -12,34 +12,33 @@ jest.mock('../../src/services/credentialHealth', () => ({
 
 jest.mock('../../src/services/supabaseAdmin', () => {
     const updateSpy = jest.fn().mockReturnValue({ eq: () => ({ eq: async () => ({ error: null }) }) });
+    const selectChain = {
+        eq: () => ({
+            order: async () => ({ data: [], error: null }),
+            eq: async () => ({ data: [], error: null }),
+        }),
+    };
     return {
         supabaseAdmin: {
             auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
-            from: jest.fn(() => ({ update: updateSpy })),
+            from: jest.fn(() => ({
+                update: updateSpy,
+                select: () => selectChain,
+                delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
+            })),
             __updateSpy: updateSpy,
         },
     };
 });
 
-jest.mock('../../src/services/credentialBridge', () => ({
-    credentialBridge: {
-        listAllForUser: jest.fn(async () => []),
-        getBrokerAndNetwork: jest.fn(async () => null),
-        retrieveById: jest.fn(async () => null),
-    },
-}));
-
 jest.mock('../../src/services/credentialVault', () => ({
     credentialVault: {
         store: jest.fn(async () => ({ id: 'new-id' })),
         retrieve: jest.fn(async () => null),
+        retrieveById: jest.fn(async () => null),
         remove: jest.fn(async () => {}),
         markVerified: jest.fn(async () => {}),
     },
-}));
-
-jest.mock('../../src/engine/brokerAdapters', () => ({
-    getBrokerAdapter: jest.fn(() => ({ ping: jest.fn(async () => true) })),
 }));
 
 import brokerCredentialsRouter from '../../src/routes/brokerCredentials';
@@ -111,14 +110,10 @@ describe('POST /api/broker-credentials (create)', () => {
     beforeEach(() => {
         mockHealth.mockReset();
         // Default the credentialVault.store mock to return a fake id.
-        jest.doMock('../../src/services/credentialVault', () => ({
-            credentialVault: {
-                store: jest.fn(async () => ({ id: 'new-cred-id' })),
-                retrieveById: jest.fn(async () => null),
-                remove: jest.fn(async () => {}),
-                markVerified: jest.fn(async () => {}),
-            },
-        }));
+        // (retrieveById is already mocked at module level; store is reset here
+        //  to ensure the create-route tests use the expected return value.)
+        const vault = require('../../src/services/credentialVault').credentialVault;
+        (vault.store as jest.Mock).mockResolvedValue({ id: 'new-cred-id' });
         // Reset supabase from() to return chainable update with no error, and delete too.
         mockSupa.from = jest.fn(() => ({
             update: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),

@@ -4,8 +4,6 @@
 import type { Request, Response, Router } from 'express';
 import express from 'express';
 import { credentialVault } from '../services/credentialVault';
-import { credentialBridge } from '../services/credentialBridge';
-import { getBrokerAdapter } from '../engine/brokerAdapters';
 import { supabaseAdmin } from '../services/supabaseAdmin';
 import { testCredential } from '../services/credentialHealth';
 import { buildAuthorizeUrl, exchangeCode, OauthBroker } from '../services/oauthFlows';
@@ -23,17 +21,48 @@ async function resolveUserId(req: Request): Promise<string | null> {
 }
 
 // GET /api/broker-credentials — list user's credentials (metadata only).
-// Returns credentials from BOTH the legacy user_exchange_keys table (managed
-// by the Broker Connect page) and the v2 vault table, so the Execute modal
-// sees every connected broker regardless of where it was originally saved.
+// Reads user_exchange_keys_v2 directly (legacy table dropped in Task 25).
+// Adds api_key_preview by decrypting each row in memory; decrypt failures
+// become empty preview strings — the row is still valid for display.
 router.get('/', async (req: Request, res: Response) => {
     const userId = await resolveUserId(req);
     if (!userId) return res.status(401).json({ error: 'unauthorized' });
     try {
-        const rows = await credentialBridge.listAllForUser(userId);
-        return res.json({ credentials: rows });
+        const { data: rows, error } = await supabaseAdmin
+            .from('user_exchange_keys_v2')
+            .select('id, broker, nickname, environment, is_active, last_test_status, last_test_error, last_verified_at, permissions')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+        if (error) return res.status(500).json({ error: error.message });
+
+        // Add api_key_preview by decrypting each row and taking the last 4 chars
+        // of whatever identity field is primary for that broker. Decrypt
+        // failures become empty preview strings (row still displays).
+        const credentials = await Promise.all((rows ?? []).map(async (row) => {
+            let preview = '';
+            try {
+                const full = await credentialVault.retrieveById(row.id);
+                const identity = full?.apiKey ?? full?.mt5Login ?? full?.clientId ?? '';
+                preview = identity ? `***${identity.slice(-4)}` : '';
+            } catch {
+                preview = '';
+            }
+            return {
+                id: row.id,
+                broker: row.broker,
+                nickname: row.nickname,
+                environment: row.environment,
+                is_active: row.is_active,
+                last_test_status: row.last_test_status,
+                last_test_error: row.last_test_error,
+                last_verified_at: row.last_verified_at,
+                permissions: row.permissions ?? [],
+                api_key_preview: preview,
+            };
+        }));
+        return res.json({ credentials });
     } catch (err: any) {
-        return res.status(500).json({ error: err?.message || 'list failed' });
+        return res.status(500).json({ error: err?.message ?? 'list failed' });
     }
 });
 
@@ -144,33 +173,6 @@ router.post('/', async (req: Request, res: Response) => {
         .eq('id', id);
 
     return res.status(201).json({ id });
-});
-
-// POST /api/broker-credentials/:id/verify — call adapter.ping() to test.
-// Works against both v2 and legacy credentials via the bridge.
-router.post('/:id/verify', async (req: Request, res: Response) => {
-    const userId = await resolveUserId(req);
-    if (!userId) return res.status(401).json({ error: 'unauthorized' });
-
-    const { id } = req.params;
-
-    try {
-        const meta = await credentialBridge.getBrokerAndNetwork(id, userId);
-        if (!meta) return res.status(404).json({ error: 'credential not found' });
-
-        const creds = await credentialBridge.retrieveById(id);
-        if (!creds) return res.status(500).json({ error: 'decrypt failed' });
-
-        const adapter = getBrokerAdapter(meta.broker);
-        const ok = await adapter.ping(creds);
-
-        if (ok && meta.source === 'v2') {
-            await credentialVault.markVerified(id);
-        }
-        return res.json({ ok });
-    } catch (err: any) {
-        return res.status(500).json({ error: err?.message || 'verify failed' });
-    }
 });
 
 // POST /api/broker-credentials/test-batch
