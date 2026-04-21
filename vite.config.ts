@@ -9,15 +9,15 @@ export default defineConfig(({ mode }) => {
             port: 3000,
             host: '0.0.0.0',
             proxy: {
-                '/api/exchange': {
-                    target: 'http://localhost:4000',
-                    changeOrigin: true,
-                },
-                '/api/oauth': {
-                    target: 'http://localhost:4000',
-                    changeOrigin: true,
-                },
                 '/api/trade': {
+                    target: 'http://localhost:4000',
+                    changeOrigin: true,
+                },
+                '/api/broker-credentials': {
+                    target: 'http://localhost:4000',
+                    changeOrigin: true,
+                },
+                '/api/execute-signal': {
                     target: 'http://localhost:4000',
                     changeOrigin: true,
                 },
