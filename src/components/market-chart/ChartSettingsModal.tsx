@@ -313,6 +313,21 @@ const StatusLineSettingsComponent: React.FC<{
             isChecked={settings.showVolume}
             onToggle={(checked) => onChange('showVolume', checked)}
         />
+        <CheckboxSettingRow
+            label="Symbol description"
+            isChecked={settings.showSymbolDescription}
+            onToggle={(v) => onChange('showSymbolDescription', v)}
+        />
+        <CheckboxSettingRow
+            label="Bar change %"
+            isChecked={settings.showBarChangePercent}
+            onToggle={(v) => onChange('showBarChangePercent', v)}
+        />
+        <CheckboxSettingRow
+            label="Market status"
+            isChecked={settings.showMarketStatus}
+            onToggle={(v) => onChange('showMarketStatus', v)}
+        />
     </div>
 );
 
