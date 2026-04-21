@@ -1,0 +1,311 @@
+<h2>Improved Designs — Before & After</h2>
+<p class="subtitle">This is what we'll build. Approve or request changes.</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px">
+
+  <!-- FIBONACCI -->
+  <div>
+    <div class="label" style="color:#c4b5f0;margin-bottom:10px">Fibonacci Retracement</div>
+    <div class="split" style="gap:10px;margin-bottom:8px">
+      <div class="mockup" style="padding:0;overflow:hidden;flex:1">
+        <div class="mockup-header" style="font-size:10px">Before</div>
+        <div class="mockup-body" style="padding:0;background:#0f0f11;height:220px;position:relative">
+          <canvas id="fibBefore" width="220" height="220" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+      <div class="mockup" style="padding:0;overflow:hidden;flex:1;border-color:rgba(196,181,240,0.3)">
+        <div class="mockup-header" style="font-size:10px;color:#c4b5f0">After ✦</div>
+        <div class="mockup-body" style="padding:0;background:#0f0f11;height:220px;position:relative">
+          <canvas id="fibAfter" width="220" height="220" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#666;line-height:1.7;padding:0 4px">
+      <span style="color:#c4b5f0">✦</span> Labels on <b style="color:#ccc">both sides</b> (% left, price right)<br>
+      <span style="color:#c4b5f0">✦</span> Extension levels: −0.618, 1.272, 1.618, 2.618<br>
+      <span style="color:#c4b5f0">✦</span> Fills adapt to draw direction (up or down)<br>
+      <span style="color:#c4b5f0">✦</span> Midpoint handle to stretch without moving endpoints
+    </div>
+  </div>
+
+  <!-- GANN -->
+  <div>
+    <div class="label" style="color:#f59e0b;margin-bottom:10px">Gann Box</div>
+    <div class="split" style="gap:10px;margin-bottom:8px">
+      <div class="mockup" style="padding:0;overflow:hidden;flex:1">
+        <div class="mockup-header" style="font-size:10px">Before</div>
+        <div class="mockup-body" style="padding:0;background:#0f0f11;height:220px;position:relative">
+          <canvas id="gannBefore" width="220" height="220" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+      <div class="mockup" style="padding:0;overflow:hidden;flex:1;border-color:rgba(245,158,11,0.3)">
+        <div class="mockup-header" style="font-size:10px;color:#f59e0b">After ✦</div>
+        <div class="mockup-body" style="padding:0;background:#0f0f11;height:220px;position:relative">
+          <canvas id="gannAfter" width="220" height="220" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#666;line-height:1.7;padding:0 4px">
+      <span style="color:#f59e0b">✦</span> True Gann fan lines: 1×1 (45°), 2×1, 1×2, 3×1, 1×3<br>
+      <span style="color:#f59e0b">✦</span> Angle labels on each fan line (e.g. "1×1")<br>
+      <span style="color:#f59e0b">✦</span> Price labels on horizontal levels, date on vertical<br>
+      <span style="color:#f59e0b">✦</span> 8-point resize handles (corners + edge midpoints)
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;margin-top:20px">
+  <div class="options" style="max-width:400px;margin:0 auto">
+    <div class="option" data-choice="approve" onclick="toggleSelect(this)" style="padding:12px 16px">
+      <div class="letter">✓</div>
+      <div class="content"><h3>Looks good — build it</h3><p>Proceed with all 8 improvements</p></div>
+    </div>
+    <div class="option" data-choice="tweak" onclick="toggleSelect(this)" style="padding:12px 16px">
+      <div class="letter">~</div>
+      <div class="content"><h3>Small changes needed</h3><p>I'll describe what to adjust in the terminal</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── FIBONACCI BEFORE ───────────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('fibBefore');
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  const pad = 8, labelW = 42;
+
+  const levels = [
+    { v:0,     color:'#787B86' },
+    { v:0.236, color:'#F44336' },
+    { v:0.382, color:'#FF9800' },
+    { v:0.5,   color:'#4CAF50' },
+    { v:0.618, color:'#2196F3' },
+    { v:0.786, color:'#3F51B5' },
+    { v:1,     color:'#787B86' },
+  ];
+  const x1 = pad + labelW, x2 = w - pad - labelW;
+  const y1 = pad + 10, y2 = h - pad - 10;
+
+  // Fills
+  for (let i=0;i<levels.length-1;i++){
+    const ya = y1 + (y2-y1)*levels[i].v;
+    const yb = y1 + (y2-y1)*levels[i+1].v;
+    ctx.fillStyle = levels[i].color+'22';
+    ctx.fillRect(x1,ya,x2-x1,yb-ya);
+  }
+  // Lines + right label only
+  levels.forEach(lv=>{
+    const y = y1+(y2-y1)*lv.v;
+    ctx.strokeStyle=lv.color; ctx.lineWidth=1; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
+    ctx.fillStyle=lv.color; ctx.font='9px monospace';
+    ctx.fillText(lv.v.toFixed(3), x2+4, y+3);
+  });
+  // Trend line
+  ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.setLineDash([]);
+})();
+
+// ─── FIBONACCI AFTER ────────────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('fibAfter');
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+
+  const levels = [
+    { v:-0.618, color:'#E91E63', label:'-0.618', ext:true },
+    { v:-0.272, color:'#9C27B0', label:'-0.272', ext:true },
+    { v:0,      color:'#787B86', label:'0' },
+    { v:0.236,  color:'#F44336', label:'0.236' },
+    { v:0.382,  color:'#FF9800', label:'0.382' },
+    { v:0.5,    color:'#4CAF50', label:'0.5' },
+    { v:0.618,  color:'#2196F3', label:'0.618' },
+    { v:0.786,  color:'#3F51B5', label:'0.786' },
+    { v:1,      color:'#787B86', label:'1' },
+    { v:1.272,  color:'#00BCD4', label:'1.272', ext:true },
+    { v:1.618,  color:'#9C27B0', label:'1.618', ext:true },
+    { v:2.618,  color:'#E91E63', label:'2.618', ext:true },
+  ];
+
+  const leftPad=40, rightPad=52, vPad=8;
+  // map level value to y: 0 is top of chart range, 1 is bottom, negatives go up, >1 go below
+  const minV = -0.618, maxV = 2.618;
+  const x1 = leftPad, x2 = w - rightPad;
+  const yOf = v => vPad + (h-vPad*2)*((v-minV)/(maxV-minV));
+
+  // Fills between consecutive visible levels in [0..1] range
+  const core = levels.filter(l=>!l.ext);
+  for (let i=0;i<core.length-1;i++){
+    const ya=yOf(core[i].v), yb=yOf(core[i+1].v);
+    ctx.fillStyle=core[i].color+'1a';
+    ctx.fillRect(x1,ya,x2-x1,yb-ya);
+  }
+
+  // All lines
+  levels.forEach(lv=>{
+    const y=yOf(lv.v);
+    ctx.strokeStyle=lv.color+(lv.ext?'88':'cc');
+    ctx.lineWidth=lv.ext?0.8:1;
+    ctx.setLineDash(lv.ext?[3,3]:[]);
+    ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Left label: %
+    ctx.fillStyle=lv.color+(lv.ext?'88':'cc');
+    ctx.font=`${lv.ext?8:9}px monospace`;
+    ctx.textAlign='right';
+    ctx.fillText(lv.label, x1-4, y+3);
+
+    // Right label: simulated price
+    const price = (50000 - lv.v*8000).toFixed(0);
+    ctx.textAlign='left';
+    ctx.fillText(price, x2+4, y+3);
+  });
+
+  // Trend line
+  ctx.strokeStyle='#c4b5f060'; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(x1,yOf(0)); ctx.lineTo(x2,yOf(1)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Midpoint handle (new!)
+  const mx=(x1+x2)/2, my=yOf(0.5);
+  ctx.fillStyle='#c4b5f0'; ctx.strokeStyle='#1a1a1e'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(mx,my,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // Corner handles
+  [[x1,yOf(0)],[x2,yOf(0)],[x1,yOf(1)],[x2,yOf(1)]].forEach(([hx,hy])=>{
+    ctx.fillStyle='#c4b5f0'; ctx.strokeStyle='#1a1a1e'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(hx,hy,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  });
+})();
+
+// ─── GANN BEFORE ────────────────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('gannBefore');
+  const ctx = c.getContext('2d');
+  const w=c.width, h=c.height;
+  const pad=12;
+  const bx=pad, by=pad, bw=w-pad*2, bh=h-pad*2;
+
+  const levels=[0,0.25,0.382,0.5,0.618,0.75,1];
+  const colors=['#787B86','#FFA726','#2962FF','#4CAF50','#26A69A','#AB47BC','#787B86'];
+
+  // Grid fills
+  for(let i=0;i<levels.length-1;i++){
+    for(let j=0;j<levels.length-1;j++){
+      const x=bx+bw*levels[j], y=by+bh*levels[i];
+      const rw=bw*(levels[j+1]-levels[j]), rh=bh*(levels[i+1]-levels[i]);
+      ctx.fillStyle=colors[i]+'18';
+      ctx.fillRect(x,y,rw,rh);
+    }
+  }
+  levels.forEach((lv,i)=>{
+    const x=bx+bw*lv;
+    ctx.strokeStyle=colors[i]; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,by); ctx.lineTo(x,by+bh); ctx.stroke();
+    const y=by+bh*lv;
+    ctx.beginPath(); ctx.moveTo(bx,y); ctx.lineTo(bx+bw,y); ctx.stroke();
+    // small label
+    ctx.fillStyle=colors[i]; ctx.font='8px monospace'; ctx.textAlign='left';
+    ctx.fillText(lv.toFixed(3), x+2, by+10);
+  });
+  ctx.strokeStyle='#787B86'; ctx.lineWidth=1.5;
+  ctx.strokeRect(bx,by,bw,bh);
+})();
+
+// ─── GANN AFTER ─────────────────────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('gannAfter');
+  const ctx = c.getContext('2d');
+  const w=c.width, h=c.height;
+  const pad=14;
+  const bx=pad, by=pad, bw=w-pad*2, bh=h-pad*2;
+
+  const priceLevels=[0,0.25,0.382,0.5,0.618,0.75,1];
+  const timeLevels=[0,0.25,0.382,0.5,0.618,0.75,1];
+  const colors=['#787B86','#FFA726','#2962FF','#4CAF50','#26A69A','#AB47BC','#787B86'];
+
+  // Subtle fills
+  for(let i=0;i<priceLevels.length-1;i++){
+    for(let j=0;j<timeLevels.length-1;j++){
+      const x=bx+bw*timeLevels[j], y=by+bh*priceLevels[i];
+      const rw=bw*(timeLevels[j+1]-timeLevels[j]), rh=bh*(priceLevels[i+1]-priceLevels[i]);
+      ctx.fillStyle=colors[i]+'10';
+      ctx.fillRect(x,y,rw,rh);
+    }
+  }
+
+  // Horizontal price lines with LEFT labels
+  priceLevels.forEach((lv,i)=>{
+    const y=by+bh*lv;
+    ctx.strokeStyle=colors[i]+'cc'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(bx,y); ctx.lineTo(bx+bw,y); ctx.stroke();
+    const price=(50000-lv*8000).toFixed(0);
+    ctx.fillStyle=colors[i]+'cc'; ctx.font='8px monospace'; ctx.textAlign='right';
+    ctx.fillText(price, bx-3, y+3);
+  });
+
+  // Vertical time lines with BOTTOM labels
+  timeLevels.forEach((lv,i)=>{
+    const x=bx+bw*lv;
+    ctx.strokeStyle=colors[i]+'cc'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,by); ctx.lineTo(x,by+bh); ctx.stroke();
+    ctx.fillStyle=colors[i]+'cc'; ctx.font='8px monospace'; ctx.textAlign='center';
+    ctx.fillText(lv.toFixed(2), x, by+bh+11);
+  });
+
+  // ── TRUE GANN FAN LINES from bottom-left origin ──
+  const fanAngles = [
+    { ratio:'4×1', slope:4, color:'#EF5350' },
+    { ratio:'3×1', slope:3, color:'#FFA726' },
+    { ratio:'2×1', slope:2, color:'#FFCA28' },
+    { ratio:'1×1', slope:1, color:'#66BB6A' },   // 45°
+    { ratio:'1×2', slope:0.5, color:'#29B6F6' },
+    { ratio:'1×3', slope:0.333, color:'#7E57C2' },
+    { ratio:'1×4', slope:0.25, color:'#EC407A' },
+  ];
+
+  const ox=bx, oy=by+bh; // origin = bottom-left
+
+  fanAngles.forEach(fan=>{
+    // project the line from origin across the box, clipping at boundary
+    // slope = price units per time unit, scaled to pixels: dy/dx = fan.slope * (bh/bw)
+    const dydx = fan.slope * (bh/bw);
+    // find where line exits the box (right or top boundary)
+    const xAtTop = ox + (bh/dydx);
+    let endX, endY;
+    if(xAtTop <= bx+bw){ endX=xAtTop; endY=by; }
+    else { endX=bx+bw; endY=oy - dydx*(bw); }
+
+    ctx.strokeStyle=fan.color+'aa'; ctx.lineWidth=1.2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(endX,endY); ctx.stroke();
+
+    // Label near the end
+    ctx.fillStyle=fan.color+'cc'; ctx.font='bold 8px sans-serif'; ctx.textAlign='left';
+    const lx=Math.min(endX+3, bx+bw-20);
+    const ly=Math.max(endY-3, by+8);
+    ctx.fillText(fan.ratio, lx, ly);
+  });
+
+  // Outer border
+  ctx.strokeStyle='#787B86'; ctx.lineWidth=1.5; ctx.setLineDash([]);
+  ctx.strokeRect(bx,by,bw,bh);
+
+  // 8-point resize handles
+  const pts=[
+    [bx,by],[bx+bw/2,by],[bx+bw,by],
+    [bx,by+bh/2],[bx+bw,by+bh/2],
+    [bx,by+bh],[bx+bw/2,by+bh],[bx+bw,by+bh]
+  ];
+  pts.forEach(([hx,hy])=>{
+    ctx.fillStyle='#f59e0b'; ctx.strokeStyle='#1a1a1e'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(hx,hy,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  });
+
+  // Origin dot
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#1a1a1e'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(ox,oy,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+})();
+</script>

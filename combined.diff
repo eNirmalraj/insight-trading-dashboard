@@ -1,0 +1,669 @@
+diff --git a/src/components/market-chart/CandlestickChart.tsx b/src/components/market-chart/CandlestickChart.tsx
+index dc70eb4..2c35ee6 100644
+--- a/src/components/market-chart/CandlestickChart.tsx
++++ b/src/components/market-chart/CandlestickChart.tsx
+@@ -3654,6 +3654,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                 if (distSq(p, start) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'start' };
+                 if (distSq(p, end) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'end' };
+ 
++                // Midpoint handle — only when selected, so first click selects rather than moves
++                if (selectedDrawingId === d.id) {
++                    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
++                    if (distSq(p, mid) < HANDLE_RADIUS ** 2) return { drawing: d, handle: 'mid' };
++                }
++
+                 // Check trendline
+                 if (distToSegmentSquared(p, start, end) < HITBOX_WIDTH ** 2) return { drawing: d };
+ 
+@@ -3761,6 +3767,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                         if (distSq(p, c3) < hRadiusSq) return { drawing: d, handle: 'c3' };
+                         if (distSq(p, c4) < hRadiusSq) return { drawing: d, handle: 'c4' };
+ 
++                        // Edge midpoint handles — Gann Box only
++                        if (d.type === 'Gann Box') {
++                            const mx = (start.x + end.x) / 2;
++                            const my = (start.y + end.y) / 2;
++                            const topY = Math.min(start.y, end.y);
++                            const botY = Math.max(start.y, end.y);
++                            const leftX = Math.min(start.x, end.x);
++                            const rightX = Math.max(start.x, end.x);
++                            if (distSq(p, { x: mx, y: topY }) < hRadiusSq) return { drawing: d, handle: 'top' };
++                            if (distSq(p, { x: mx, y: botY }) < hRadiusSq) return { drawing: d, handle: 'bottom' };
++                            if (distSq(p, { x: leftX, y: my }) < hRadiusSq) return { drawing: d, handle: 'left' };
++                            if (distSq(p, { x: rightX, y: my }) < hRadiusSq) return { drawing: d, handle: 'right' };
++                        }
++
+                         const minX = Math.min(start.x, end.x);
+                         const maxX = Math.max(start.x, end.x);
+                         const minY = Math.min(start.y, end.y);
+@@ -5239,6 +5259,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                 }
+                             }
+                         }
++                    } else if (h === 'mid' && resized.type === 'Fibonacci Retracement') {
++                        // Translate both endpoints by the same delta relative to initial midpoint
++                        const init = interaction.initialDrawing as any;
++                        const initMidTime = (init.start.time + init.end.time) / 2;
++                        const initMidPrice = (init.start.price + init.end.price) / 2;
++                        const dTime = snappedPoint.time - initMidTime;
++                        const dPrice = snappedPoint.price - initMidPrice;
++                        resized.start = { time: init.start.time + dTime, price: init.start.price + dPrice };
++                        resized.end = { time: init.end.time + dTime, price: init.end.price + dPrice };
+                     } else if (h === 'start' || h === 'end') {
+                         // All range tools: update full point (both time + price)
+                         if (h === 'start') resized.start = snappedPoint;
+@@ -5249,6 +5278,38 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                     } else if (h === 'c4') {
+                         resized.end = { ...resized.end, time: snappedPoint.time };
+                         resized.start = { ...resized.start, price: snappedPoint.price };
++                    } else if (h === 'top' && resized.type === 'Gann Box') {
++                        // Move the high-price edge; ties go to `start` (strict < picks end)
++                        const init = interaction.initialDrawing as any;
++                        if (init.start.price >= init.end.price) {
++                            resized.start = { ...resized.start, price: snappedPoint.price };
++                        } else {
++                            resized.end = { ...resized.end, price: snappedPoint.price };
++                        }
++                    } else if (h === 'bottom' && resized.type === 'Gann Box') {
++                        // Move the low-price edge; strict < so `start` wins tie via the 'top' branch
++                        const init = interaction.initialDrawing as any;
++                        if (init.start.price < init.end.price) {
++                            resized.start = { ...resized.start, price: snappedPoint.price };
++                        } else {
++                            resized.end = { ...resized.end, price: snappedPoint.price };
++                        }
++                    } else if (h === 'left' && resized.type === 'Gann Box') {
++                        // Move the earliest-time edge; ties go to `start`
++                        const init = interaction.initialDrawing as any;
++                        if (init.start.time <= init.end.time) {
++                            resized.start = { ...resized.start, time: snappedPoint.time };
++                        } else {
++                            resized.end = { ...resized.end, time: snappedPoint.time };
++                        }
++                    } else if (h === 'right' && resized.type === 'Gann Box') {
++                        // Move the latest-time edge; strict > so `start` wins tie via the 'left' branch
++                        const init = interaction.initialDrawing as any;
++                        if (init.start.time > init.end.time) {
++                            resized.start = { ...resized.start, time: snappedPoint.time };
++                        } else {
++                            resized.end = { ...resized.end, time: snappedPoint.time };
++                        }
+                     } else if (typeof h === 'string' && h.startsWith('p')) {
+                         const idx = parseInt(h.substring(1));
+                         if (!isNaN(idx) && resized.type === 'Path') {
+@@ -5992,18 +6053,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                         }
+                         case 'Fibonacci Retracement': {
+                             if (!d.start || !d.end) return null;
+-                            const [x1, y1] = [timeToX(d.start.time), yScale(d.start.price)];
+-                            const [x2, y2] = [timeToX(d.end.time), yScale(d.end.price)];
++                            const x1 = Math.round(timeToX(d.start.time));
++                            const y1 = Math.round(yScale(d.start.price));
++                            const x2 = Math.round(timeToX(d.end.time));
++                            const y2 = Math.round(yScale(d.end.price));
+                             const priceDiff = d.end.price - d.start.price;
+ 
+-                            // Default Settings fallback
+                             const settings = d.style.fibSettings || {
+-                                trendLine: {
+-                                    visible: true,
+-                                    color: style.color,
+-                                    width: 1,
+-                                    style: 'dashed',
+-                                },
++                                trendLine: { visible: true, color: style.color, width: 1, style: 'dashed' as const },
+                                 levels: FIB_LEVELS.map((l, i) => ({
+                                     level: l,
+                                     color: FIB_LEVEL_COLORS[i] || style.color,
+@@ -6015,16 +6072,24 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                 useLogScale: false,
+                             };
+ 
+-                            const x_min = Math.min(x1, x2);
+-                            const x_max = Math.max(x1, x2);
+-                            const width = x_max - x_min;
++                            const xMin = Math.min(x1, x2);
++                            const xMax = Math.max(x1, x2);
++                            const lineX1 = settings.extendLines ? 0 : xMin;
++                            const lineX2 = settings.extendLines ? chartDimensions.width : xMax;
++                            const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
+ 
+-                            // Filter visible levels and sort
+-                            const activeLevels = settings.levels
++                            const allLevels = settings.levels
+                                 .filter((l) => l.visible)
+                                 .sort((a, b) => a.level - b.level);
+-                            const opacity =
+-                                1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
++                            // Core levels (0–1) used for background fills only
++                            const coreLevels = allLevels.filter((l) => l.level >= 0 && l.level <= 1);
++
++                            // Midpoint of trend line in pixel space
++                            const midX = (x1 + x2) / 2;
++                            const midY = (y1 + y2) / 2;
++
++                            const nwse = (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2) ? 'nwse-resize' : 'nesw-resize';
++                            const nesw = nwse === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
+ 
+                             return (
+                                 <g
+@@ -6032,38 +6097,28 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                     filter={isSelected ? 'url(#selectionGlow)' : 'none'}
+                                     pointerEvents="auto"
+                                 >
+-                                    {/* Background Fills */}
++                                    {/* Background fills between core levels only */}
+                                     {settings.showBackground &&
+-                                        activeLevels.slice(0, -1).map((l, i) => {
+-                                            const next = activeLevels[i + 1];
+-                                            const y_start = yScale(
+-                                                d.start.price + priceDiff * l.level
+-                                            );
+-                                            const y_end = yScale(
+-                                                d.start.price + priceDiff * next.level
+-                                            );
+-                                            const h = Math.abs(y_start - y_end);
+-                                            const y = Math.min(y_start, y_end);
+-                                            // Use color of the *current* level for the band (standard TradingView behavior) or mix?
+-                                            // TradingView uses the color of the level.
++                                        coreLevels.slice(0, -1).map((l, i) => {
++                                            const next = coreLevels[i + 1];
++                                            const ya = Math.round(yScale(d.start.price + priceDiff * l.level));
++                                            const yb = Math.round(yScale(d.start.price + priceDiff * next.level));
++                                            const fy = Math.min(ya, yb);
++                                            const fh = Math.abs(ya - yb);
+                                             return (
+                                                 <rect
+                                                     key={`fill-${i}`}
+-                                                    x={settings.extendLines ? 0 : x_min}
+-                                                    y={y}
+-                                                    width={
+-                                                        settings.extendLines
+-                                                            ? chartDimensions.width
+-                                                            : width
+-                                                    }
+-                                                    height={h}
++                                                    x={lineX1}
++                                                    y={fy}
++                                                    width={lineX2 - lineX1}
++                                                    height={fh}
+                                                     fill={l.color}
+-                                                    fillOpacity={opacity * 0.5}
++                                                    fillOpacity={bgOpacity * 0.5}
+                                                 />
+                                             );
+                                         })}
+ 
+-                                    {/* Trend Line */}
++                                    {/* Trend line */}
+                                     {settings.trendLine.visible && (
+                                         <line
+                                             x1={x1}
+@@ -6082,92 +6137,87 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                         />
+                                     )}
+ 
+-                                    {/* Grid Lines & Labels */}
+-                                    {activeLevels.map((l, i) => {
++                                    {/* Level lines + dual labels */}
++                                    {allLevels.map((l, i) => {
+                                         const price = d.start.price + priceDiff * l.level;
+-                                        const y = yScale(price);
+-                                        const textX = settings.extendLines
+-                                            ? d.start.time < d.end.time
+-                                                ? chartDimensions.width - 50
+-                                                : 50 // Simplified
+-                                            : d.start.time < d.end.time
+-                                              ? x2 + 5
+-                                              : x2 - 5;
+-                                        const textAnchor =
+-                                            d.start.time < d.end.time ? 'start' : 'end';
+-                                        const label = `${l.level.toFixed(3)} (${formatPrice(price)})`;
+-
++                                        const ly = Math.round(yScale(price));
++                                        const isExt = l.level < 0 || l.level > 1;
++                                        const lineOpacity = isExt ? 0.55 : 1;
+                                         return (
+-                                            <g key={`grid-${i}`}>
++                                            <g key={`lv-${i}`}>
+                                                 <line
+-                                                    x1={settings.extendLines ? 0 : x_min}
+-                                                    y1={y}
+-                                                    x2={
+-                                                        settings.extendLines
+-                                                            ? chartDimensions.width
+-                                                            : x_max
+-                                                    }
+-                                                    y2={y}
++                                                    x1={lineX1}
++                                                    y1={ly}
++                                                    x2={lineX2}
++                                                    y2={ly}
+                                                     stroke={l.color}
+-                                                    strokeWidth={style.width}
++                                                    strokeWidth={1}
++                                                    strokeOpacity={lineOpacity}
++                                                    strokeDasharray={isExt ? '3 3' : undefined}
+                                                 />
++                                                {/* Left label: ratio */}
++                                                <text
++                                                    x={xMin - 4}
++                                                    y={ly - 3}
++                                                    fill={l.color}
++                                                    fillOpacity={lineOpacity}
++                                                    fontSize="10"
++                                                    textAnchor="end"
++                                                    className="pointer-events-none select-none"
++                                                >
++                                                    {l.level.toFixed(3)}
++                                                </text>
++                                                {/* Right label: price */}
+                                                 <text
+-                                                    x={textX}
+-                                                    y={y - 4}
++                                                    x={xMax + 4}
++                                                    y={ly - 3}
+                                                     fill={l.color}
++                                                    fillOpacity={lineOpacity}
+                                                     fontSize="10"
+-                                                    textAnchor={textAnchor}
+-                                                    className="pointer-events-none"
++                                                    textAnchor="start"
++                                                    className="pointer-events-none select-none"
+                                                 >
+-                                                    {label}
++                                                    {formatPrice(price)}
+                                                 </text>
+                                             </g>
+                                         );
+                                     })}
+ 
+-                                    {isSelected &&
+-                                        (() => {
+-                                            const nwse =
+-                                                (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2)
+-                                                    ? 'nwse-resize'
+-                                                    : 'nesw-resize';
+-                                            const nesw =
+-                                                nwse === 'nwse-resize'
+-                                                    ? 'nesw-resize'
+-                                                    : 'nwse-resize';
+-                                            return (
+-                                                <>
+-                                                    {renderHandle(x1, y1, nwse)}
+-                                                    {renderHandle(x2, y2, nwse)}
+-                                                    {renderHandle(x1, y2, nesw)}
+-                                                    {renderHandle(x2, y1, nesw)}
+-                                                </>
+-                                            );
+-                                        })()}
++                                    {/* Handles when selected */}
++                                    {isSelected && (
++                                        <>
++                                            {renderHandle(x1, y1, nwse)}
++                                            {renderHandle(x2, y2, nwse)}
++                                            {renderHandle(x1, y2, nesw)}
++                                            {renderHandle(x2, y1, nesw)}
++                                            {/* Midpoint handle — drags entire drawing (interaction added in Task 3) */}
++                                            {renderHandle(midX, midY, 'move')}
++                                        </>
++                                    )}
+                                 </g>
+                             );
+                         }
+                         case 'Gann Box': {
+                             if (!d.start || !d.end) return null;
+-                            const [x1, y1] = [timeToX(d.start.time), yScale(d.start.price)];
+-                            const [x2, y2] = [timeToX(d.end.time), yScale(d.end.price)];
++                            const x1 = Math.round(timeToX(d.start.time));
++                            const y1 = Math.round(yScale(d.start.price));
++                            const x2 = Math.round(timeToX(d.end.time));
++                            const y2 = Math.round(yScale(d.end.price));
+ 
+-                            // Use bounding box for consistent 0-1 regardless of draw direction
+-                            const x = Math.min(x1, x2),
+-                                y = Math.min(y1, y2);
+-                            const w = Math.abs(x1 - x2),
+-                                h = Math.abs(y1 - y2);
++                            const bx = Math.min(x1, x2);
++                            const by = Math.min(y1, y2);
++                            const bw = Math.abs(x1 - x2);
++                            const bh = Math.abs(y1 - y2);
+ 
+-                            // Resolve Settings
+                             const settings = d.style.gannSettings || {
+                                 priceLevels: GANN_LEVELS.map((l, i) => ({
+                                     level: l,
+-                                    color: GANN_LEVEL_COLORS[i] || d.style.color,
++                                    color: GANN_LEVEL_COLORS[i] || style.color,
+                                     visible: true,
+                                 })),
+                                 timeLevels: GANN_LEVELS.map((l, i) => ({
+                                     level: l,
+-                                    color: GANN_LEVEL_COLORS[i] || d.style.color,
++                                    color: GANN_LEVEL_COLORS[i] || style.color,
+                                     visible: true,
+                                 })),
+                                 useLeftLabels: true,
+@@ -6185,8 +6235,33 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                 .filter((l) => l.visible)
+                                 .sort((a, b) => a.level - b.level);
+ 
+-                            const opacity =
+-                                1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
++                            const bgOpacity = 1 - Math.max(0, Math.min(1, settings.backgroundTransparency));
++
++                            // Price helpers — top of box = max price, bottom = min price
++                            const topPrice = Math.max(d.start.price, d.end.price);
++                            const botPrice = Math.min(d.start.price, d.end.price);
++                            const priceAtLevel = (level: number) => topPrice - (topPrice - botPrice) * level;
++
++                            // Time helpers
++                            const leftTime = Math.min(d.start.time, d.end.time);
++                            const rightTime = Math.max(d.start.time, d.end.time);
++                            const timeAtLevel = (level: number) => leftTime + (rightTime - leftTime) * level;
++                            const formatGannDate = (unixSecs: number) => {
++                                const dt = new Date(unixSecs * 1000);
++                                const month = dt.toLocaleString('en-US', { month: 'short' });
++                                const day = String(dt.getDate()).padStart(2, '0');
++                                const hh = String(dt.getHours()).padStart(2, '0');
++                                const mm = String(dt.getMinutes()).padStart(2, '0');
++                                return `${month} ${day} ${hh}:${mm}`;
++                            };
++
++                            // 8 handle positions
++                            const midX = (x1 + x2) / 2;
++                            const midY = (y1 + y2) / 2;
++                            const topY = by;
++                            const botY = by + bh;
++                            const leftX = bx;
++                            const rightX = bx + bw;
+ 
+                             return (
+                                 <g
+@@ -6194,170 +6269,145 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
+                                     filter={isSelected ? 'url(#selectionGlow)' : 'none'}
+                                     pointerEvents="auto"
+                                 >
+-                                    {/* Background Fills - Intersecting Strips */}
++                                    {/* Background fills */}
+                                     {settings.showBackground && (
+                                         <>
+-                                            {/* Time Strips */}
+                                             {activeTimeLevels.slice(0, -1).map((l, i) => {
+                                                 const next = activeTimeLevels[i + 1];
+-                                                const vx = x + w * l.level;
+-                                                const vw = w * (next.level - l.level);
++                                                const vx = bx + bw * l.level;
++                                                const vw = bw * (next.level - l.level);
+                                                 if (vw <= 0) return null;
+                                                 return (
+                                                     <rect
+                                                         key={`t-fill-${i}`}
+                                                         x={vx}
+-                                                        y={y}
++                                                        y={by}
+                                                         width={vw}
+-                                                        height={h}
++                                                        height={bh}
+                                                         fill={l.color}
+-                                                        fillOpacity={opacity * 0.5}
++                                                        fillOpacity={bgOpacity * 0.5}
+                                                     />
+                                                 );
+                                             })}
+-                                            {/* Price Strips */}
+                                             {activePriceLevels.slice(0, -1).map((l, i) => {
+                                                 const next = activePriceLevels[i + 1];
+-                                                const hy = y + h * l.level;
+-                                                const hh = h * (next.level - l.level);
++                                                const hy = by + bh * l.level;
++                                                const hh = bh * (next.level - l.level);
+                                                 if (hh <= 0) return null;
+                                                 return (
+                                                     <rect
+                                                         key={`p-fill-${i}`}
+-                                                        x={x}
++                                                        x={bx}
+                                                         y={hy}
+-                                                        width={w}
++                                                        width={bw}
+                                                         height={hh}
+                                                         fill={l.color}
+-                                                        fillOpacity={opacity * 0.5}
++                                                        fillOpacity={bgOpacity * 0.5}
+                                                     />
+                                                 );
+                                             })}
+                                         </>
+                                     )}
+ 
+-                                    {/* Grid Lines & Labels */}
+-                                    {/* Time Levels (Vertical) */}
++                                    {/* Vertical time lines */}
+                                     {activeTimeLevels.map((l, i) => {
+-                                        const lx = x + w * l.level;
++                                        const lx = Math.round(bx + bw * l.level);
++                                        const dateStr = formatGannDate(timeAtLevel(l.level));
+                                         return (
+                                             <g key={`t-grid-${i}`}>
+                                                 <line
+-                                                    x1={lx}
+-                                                    y1={y}
+-                                                    x2={lx}
+-                                                    y2={y + h}
++                                                    x1={lx} y1={by} x2={lx} y2={by + bh}
+                                                     stroke={l.color}
+                                                     strokeWidth={1}
+                                                     strokeOpacity={0.8}
+                                                 />
+-                                                {settings.useTopLabels &&
+-                                                    l.level >= 0 &&
+-                                                    l.level <= 1 && (
+-                                                        <text
+-                                                            x={lx}
+-                                                            y={y - 5}
+-                                                            fill={l.color}
+-                                                            fontSize={10}
+-                                                            textAnchor="middle"
+-                                                        >
+-                                                            {l.level}
+-                                                        </text>
+-                                                    )}
+-                                                {settings.useBottomLabels &&
+-                                                    l.level >= 0 &&
+-                                                    l.level <= 1 && (
+-                                                        <text
+-                                                            x={lx}
+-                                                            y={y + h + 12}
+-                                                            fill={l.color}
+-                                                            fontSize={10}
+-                                                            textAnchor="middle"
+-                                                        >
+-                                                            {l.level}
+-                                                        </text>
+-                                                    )}
++                                                {settings.useTopLabels && l.level >= 0 && l.level <= 1 && (
++                                                    <text
++                                                        x={lx} y={by - 5}
++                                                        fill={l.color} fontSize={10} textAnchor="middle"
++                                                        className="pointer-events-none select-none"
++                                                    >
++                                                        {l.level.toFixed(3)}
++                                                    </text>
++                                                )}
++                                                {settings.useBottomLabels && l.level >= 0 && l.level <= 1 && (
++                                                    <text
++                                                        x={lx} y={by + bh + 12}
++                                                        fill={l.color} fontSize={9} textAnchor="middle"
++                                                        className="pointer-events-none select-none"
++                                                    >
++                                                        {dateStr}
++                                                    </text>
++                                                )}
+                                             </g>
+                                         );
+                                     })}
+ 
+-                                    {/* Price Levels (Horizontal) */}
++                                    {/* Horizontal price lines */}
+                                     {activePriceLevels.map((l, i) => {
+-                                        const ly = y + h * l.level;
++                                        const ly = Math.round(by + bh * l.level);
++                                        const priceLabel = formatPrice(priceAtLevel(l.level));
+                                         return (
+                                             <g key={`p-grid-${i}`}>
+                                                 <line
+-                                                    x1={x}
+-                                                    y1={ly}
+-                                                    x2={x + w}
+-                                                    y2={ly}
++                                                    x1={bx} y1={ly} x2={bx + bw} y2={ly}
+                                                     stroke={l.color}
+                                                     strokeWidth={1}
+                                                     strokeOpacity={0.8}
+                                                 />
+-                                                {settings.useRightLabels &&
+-                                                    l.level >= 0 &&
+-                                                    l.level <= 1 && (
+-                                                        <text
+-                                                            x={x + w + 5}
+-                                                            y={ly + 3}
+-                                                            fill={l.color}
+-                                                            fontSize={10}
+-                                                            textAnchor="start"
+-                                                        >
+-                                                            {l.level}
+-                                                        </text>
+-                                                    )}
+-                                                {settings.useLeftLabels &&
+-                                                    l.level >= 0 &&
+-                                                    l.level <= 1 && (
+-                                                        <text
+-                                                            x={x - 5}
+-                                                            y={ly + 3}
+-                                                            fill={l.color}
+-                                                            fontSize={10}
+-                                                            textAnchor="end"
+-                                                        >
+-                                                            {l.level}
+-                                                        </text>
+-                                                    )}
++                                                {settings.useLeftLabels && l.level >= 0 && l.level <= 1 && (
++                                                    <text
++                                                        x={bx - 5} y={ly + 3}
++                                                        fill={l.color} fontSize={10} textAnchor="end"
++                                                        className="pointer-events-none select-none"
++                                                    >
++                                                        {priceLabel}
++                                                    </text>
++                                                )}
++                                                {settings.useRightLabels && l.level >= 0 && l.level <= 1 && (
++                                                    <text
++                                                        x={bx + bw + 5} y={ly + 3}
++                                                        fill={l.color} fontSize={10} textAnchor="start"
++                                                        className="pointer-events-none select-none"
++                                                    >
++                                                        {l.level.toFixed(3)}
++                                                    </text>
++                                                )}
+                                             </g>
+                                         );
+                                     })}
+ 
+-                                    {/* Outer Border */}
++                                    {/* Outer border */}
+                                     <rect
+-                                        x={x}
+-                                        y={y}
+-                                        width={w}
+-                                        height={h}
++                                        x={bx} y={by} width={bw} height={bh}
+                                         fill="none"
+                                         stroke={style.color}
+                                         strokeWidth={style.width}
++                                        strokeDasharray={strokeDasharray}
+                                     />
+-                                    {isSelected &&
+-                                        (() => {
+-                                            const nx1 = timeToX(d.start.time),
+-                                                ny1 = yScale(d.start.price);
+-                                            const nx2 = timeToX(d.end.time),
+-                                                ny2 = yScale(d.end.price);
+-                                            const nwse =
+-                                                (nx1 < nx2 && ny1 < ny2) || (nx1 > nx2 && ny1 > ny2)
+-                                                    ? 'nwse-resize'
+-                                                    : 'nesw-resize';
+-                                            const nesw =
+-                                                nwse === 'nwse-resize'
+-                                                    ? 'nesw-resize'
+-                                                    : 'nwse-resize';
+-                                            return (
+-                                                <>
+-                                                    {renderHandle(nx1, ny1, nwse)}
+-                                                    {renderHandle(nx2, ny2, nwse)}
+-                                                    {renderHandle(nx1, ny2, nesw)}
+-                                                    {renderHandle(nx2, ny1, nesw)}
+-                                                </>
+-                                            );
+-                                        })()}
++
++                                    {/* 8-point resize handles when selected */}
++                                    {isSelected && (() => {
++                                        const nwse =
++                                            (x1 < x2 && y1 < y2) || (x1 > x2 && y1 > y2)
++                                                ? 'nwse-resize'
++                                                : 'nesw-resize';
++                                        const nesw = nwse === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
++                                        return (
++                                            <>
++                                                {/* Corners */}
++                                                <g key="gh-c1">{renderHandle(x1, y1, nwse)}</g>
++                                                <g key="gh-c2">{renderHandle(x2, y2, nwse)}</g>
++                                                <g key="gh-c3">{renderHandle(x1, y2, nesw)}</g>
++                                                <g key="gh-c4">{renderHandle(x2, y1, nesw)}</g>
++                                                {/* Edge midpoints */}
++                                                <g key="gh-n">{renderHandle(midX, topY, 'n-resize')}</g>
++                                                <g key="gh-s">{renderHandle(midX, botY, 's-resize')}</g>
++                                                <g key="gh-w">{renderHandle(leftX, midY, 'w-resize')}</g>
++                                                <g key="gh-e">{renderHandle(rightX, midY, 'e-resize')}</g>
++                                            </>
++                                        );
++                                    })()}
+                                 </g>
+                             );
+                         }
+diff --git a/src/components/market-chart/DrawingSettingsModal.tsx b/src/components/market-chart/DrawingSettingsModal.tsx
+index 91a8ecf..aa09a9e 100644
+--- a/src/components/market-chart/DrawingSettingsModal.tsx
++++ b/src/components/market-chart/DrawingSettingsModal.tsx
+@@ -56,17 +56,18 @@ const DefaultGannSettings: GannSettings = {
+ const DefaultFibSettings: FibSettings = {
+     trendLine: { visible: true, color: '#787B86', width: 1, style: 'dashed' },
+     levels: [
+-        { level: 0, color: '#787B86', visible: true },
+-        { level: 0.236, color: '#F44336', visible: true },
+-        { level: 0.382, color: '#FF9800', visible: true },
+-        { level: 0.5, color: '#4CAF50', visible: true },
+-        { level: 0.618, color: '#2196F3', visible: true },
+-        { level: 0.786, color: '#3F51B5', visible: true },
+-        { level: 1, color: '#787B86', visible: true },
+-        { level: 1.618, color: '#9C27B0', visible: true },
+-        { level: 2.618, color: '#E91E63', visible: false },
+-        { level: 3.618, color: '#9C27B0', visible: false },
+-        { level: 4.236, color: '#E91E63', visible: false },
++        { level: -0.618, color: '#E91E63', visible: false },
++        { level: -0.272, color: '#9C27B0', visible: false },
++        { level: 0,      color: '#787B86', visible: true  },
++        { level: 0.236,  color: '#F44336', visible: true  },
++        { level: 0.382,  color: '#FF9800', visible: true  },
++        { level: 0.5,    color: '#4CAF50', visible: true  },
++        { level: 0.618,  color: '#2196F3', visible: true  },
++        { level: 0.786,  color: '#3F51B5', visible: true  },
++        { level: 1,      color: '#787B86', visible: true  },
++        { level: 1.272,  color: '#00BCD4', visible: false },
++        { level: 1.618,  color: '#9C27B0', visible: false },
++        { level: 2.618,  color: '#E91E63', visible: false },
+     ],
+     extendLines: false,
+     showBackground: true,

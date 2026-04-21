@@ -9,10 +9,23 @@ export interface IndicatorInstance {
     paramValues: Record<string, any>;
 }
 
+export type MatchOp = '==' | '<' | '<=' | '>' | '>=' | '!=';
+
+export interface MatchCase {
+    op?: MatchOp;   // comparison operator (default '==')
+    when: string;   // input value to match (string or number as string)
+    then: string;   // output value (string or number as string)
+}
+
 export interface FormulaToken {
     kind: 'operand' | 'operator';
     value: string;
     valueNum?: number;
+    // For "match" operand: map a parameter's value to an output
+    matchParam?: string;       // variable name of parameter to match against
+    matchCases?: MatchCase[];
+    matchDefault?: string;     // fallback when no case matches
+    matchOutputType?: 'string' | 'number';  // whether outputs are strings or numbers
 }
 
 export interface Formula {
@@ -32,6 +45,9 @@ export interface PlotDef {
     lineStyle: 'solid' | 'dashed' | 'dotted';
     width: number;
     markerLocation?: 'above' | 'below';
+    // User-input linking — if set, use that param variable instead of the literal
+    visibilityParam?: string;  // bool param — plot only shows when this is true
+    widthParam?: string;       // int param — line width
 }
 
 export interface AlertRow {
@@ -57,10 +73,17 @@ export interface ParameterDef {
 
 // Friendly labels for param types (shown in dropdown)
 export const PARAM_TYPE_LABELS: Record<ParamType, string> = {
-    int: 'Whole Number',
-    float: 'Decimal Number',
-    bool: 'Yes / No Toggle',
-    string: 'Text Choice',
+    int: 'Number — e.g. 14, 20, 50',
+    float: 'Decimal — e.g. 0.5, 1.25, 2.75',
+    bool: 'On / Off Switch',
+    string: 'Choice from list — e.g. Auto, Gap, Flat',
+};
+
+export const PARAM_TYPE_DESCRIPTIONS: Record<ParamType, string> = {
+    int: 'A whole number the user can adjust. Use for period lengths, counts, bar counts, multipliers (where decimals don\'t matter).',
+    float: 'A decimal number the user can adjust. Use for multipliers, percentages, sensitivity, fine-tuned values.',
+    bool: 'An On/Off switch. Use for "show labels?", "show history?", "enable alerts?" — anywhere the user turns something on or off.',
+    string: 'A dropdown where user picks one option from a list you define. Use for period choices (Daily/Weekly), open type (Gap/Flat), modes, etc.',
 };
 
 export interface IndicatorModel {

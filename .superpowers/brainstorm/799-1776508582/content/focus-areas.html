@@ -1,0 +1,205 @@
+<h2>Fibonacci & Gann Box — What to Improve?</h2>
+<p class="subtitle">Select all the areas you want us to focus on (multi-select)</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+
+  <!-- FIBONACCI COLUMN -->
+  <div>
+    <div class="label" style="margin-bottom:10px;color:#c4b5f0">Fibonacci Retracement</div>
+
+    <!-- Canvas preview of current Fib -->
+    <div class="mockup" style="margin-bottom:14px;padding:0;overflow:hidden;height:180px">
+      <div class="mockup-header" style="font-size:11px">Current rendering</div>
+      <div class="mockup-body" style="padding:0;background:#131315;height:150px;position:relative;overflow:hidden">
+        <canvas id="fibCanvas" width="320" height="150" style="position:absolute;top:0;left:0;width:100%;height:100%"></canvas>
+      </div>
+    </div>
+
+    <div class="options" data-multiselect style="gap:8px">
+      <div class="option" data-choice="fib-render" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">A</div>
+        <div class="content">
+          <h3 style="font-size:12px">Rendering quality</h3>
+          <p style="font-size:11px">Sharper lines, better labels, price shown on each level, font improvements</p>
+        </div>
+      </div>
+      <div class="option" data-choice="fib-levels" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">B</div>
+        <div class="content">
+          <h3 style="font-size:12px">Level display</h3>
+          <p style="font-size:11px">Show both % and price label, left+right labels, flip on direction</p>
+        </div>
+      </div>
+      <div class="option" data-choice="fib-extend" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">C</div>
+        <div class="content">
+          <h3 style="font-size:12px">Extension levels</h3>
+          <p style="font-size:11px">-0.272, -0.618 below; 1.272, 1.618, 2.618 above — enabled visually</p>
+        </div>
+      </div>
+      <div class="option" data-choice="fib-interaction" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">D</div>
+        <div class="content">
+          <h3 style="font-size:12px">Interaction / handles</h3>
+          <p style="font-size:11px">Snap to highs/lows, midpoint handle, stretch individual levels</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GANN COLUMN -->
+  <div>
+    <div class="label" style="margin-bottom:10px;color:#f59e0b">Gann Box</div>
+
+    <!-- Canvas preview of current Gann -->
+    <div class="mockup" style="margin-bottom:14px;padding:0;overflow:hidden;height:180px">
+      <div class="mockup-header" style="font-size:11px">Current rendering</div>
+      <div class="mockup-body" style="padding:0;background:#131315;height:150px;position:relative;overflow:hidden">
+        <canvas id="gannCanvas" width="320" height="150" style="position:absolute;top:0;left:0;width:100%;height:100%"></canvas>
+      </div>
+    </div>
+
+    <div class="options" data-multiselect style="gap:8px">
+      <div class="option" data-choice="gann-render" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">E</div>
+        <div class="content">
+          <h3 style="font-size:12px">Rendering quality</h3>
+          <p style="font-size:11px">Diagonal fan lines (1×1, 2×1, 1×2), angle labels, cleaner grid</p>
+        </div>
+      </div>
+      <div class="option" data-choice="gann-angles" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">F</div>
+        <div class="content">
+          <h3 style="font-size:12px">True Gann angles</h3>
+          <p style="font-size:11px">45° (1×1), 63.75° (2×1), 26.25° (1×2) drawn as diagonal lines from origin</p>
+        </div>
+      </div>
+      <div class="option" data-choice="gann-labels" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">G</div>
+        <div class="content">
+          <h3 style="font-size:12px">Better labels</h3>
+          <p style="font-size:11px">Show price on horizontal levels, date on vertical levels, angle name on diagonals</p>
+        </div>
+      </div>
+      <div class="option" data-choice="gann-interaction" onclick="toggleSelect(this)" style="padding:10px 12px">
+        <div class="letter" style="font-size:11px;min-width:24px;height:24px">H</div>
+        <div class="content">
+          <h3 style="font-size:12px">Interaction / handles</h3>
+          <p style="font-size:11px">Better corner/edge detection, 8-directional resize handles, proportional resize</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Draw mini Fibonacci canvas
+(function() {
+  const canvas = document.getElementById('fibCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  const levels = [
+    { v: 0,     color: '#787B86', label: '0' },
+    { v: 0.236, color: '#F44336', label: '0.236' },
+    { v: 0.382, color: '#FF9800', label: '0.382' },
+    { v: 0.5,   color: '#4CAF50', label: '0.5' },
+    { v: 0.618, color: '#2196F3', label: '0.618' },
+    { v: 0.786, color: '#3F51B5', label: '0.786' },
+    { v: 1,     color: '#787B86', label: '1' },
+  ];
+
+  // Start price high, end price low
+  const startY = 15;
+  const endY = h - 15;
+
+  // Background fills
+  for (let i = 0; i < levels.length - 1; i++) {
+    const y1 = startY + (endY - startY) * levels[i].v;
+    const y2 = startY + (endY - startY) * levels[i+1].v;
+    ctx.fillStyle = levels[i].color + '20';
+    ctx.fillRect(30, y1, w - 60, y2 - y1);
+  }
+
+  // Horizontal lines
+  levels.forEach(lv => {
+    const y = startY + (endY - startY) * lv.v;
+    ctx.strokeStyle = lv.color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(30, y);
+    ctx.lineTo(w - 30, y);
+    ctx.stroke();
+
+    ctx.fillStyle = lv.color;
+    ctx.font = '9px monospace';
+    ctx.fillText(lv.label, w - 28, y + 3);
+  });
+
+  // Trend line (diagonal)
+  ctx.strokeStyle = '#787B86';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(30, startY);
+  ctx.lineTo(w - 30, endY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+})();
+
+// Draw mini Gann canvas
+(function() {
+  const canvas = document.getElementById('gannCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  const pad = 20;
+  const bx = pad, by = pad, bw = w - pad*2, bh = h - pad*2;
+
+  const levels = [0, 0.25, 0.382, 0.5, 0.618, 0.75, 1];
+  const colors = ['#787B86','#FFA726','#2962FF','#4CAF50','#26A69A','#AB47BC','#787B86'];
+
+  // Background grid fills
+  for (let i = 0; i < levels.length - 1; i++) {
+    for (let j = 0; j < levels.length - 1; j++) {
+      const x = bx + bw * levels[j];
+      const y = by + bh * levels[i];
+      const rw = bw * (levels[j+1] - levels[j]);
+      const rh = bh * (levels[i+1] - levels[i]);
+      ctx.fillStyle = colors[i] + '18';
+      ctx.fillRect(x, y, rw, rh);
+    }
+  }
+
+  // Vertical lines
+  levels.forEach((lv, i) => {
+    const x = bx + bw * lv;
+    ctx.strokeStyle = colors[i];
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, by);
+    ctx.lineTo(x, by + bh);
+    ctx.stroke();
+  });
+
+  // Horizontal lines
+  levels.forEach((lv, i) => {
+    const y = by + bh * lv;
+    ctx.strokeStyle = colors[i];
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bx, y);
+    ctx.lineTo(bx + bw, y);
+    ctx.stroke();
+  });
+
+  // Border
+  ctx.strokeStyle = '#787B86';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(bx, by, bw, bh);
+})();
+</script>

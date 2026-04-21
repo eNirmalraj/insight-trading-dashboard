@@ -20,8 +20,6 @@ import { runStrategy, Candle as RunnerCandle } from './strategyRunner';
 import { insertSignal } from '../services/signalStorage';
 import { binanceStream } from '../services/binanceStream';
 import { TradeDirection, Market } from '../constants/enums';
-import { builtinStrategyUuid } from './strategyLoader';
-import { PLATFORM_ASSIGNMENTS } from '../services/platformSignals';
 import { eventBus, EngineEvents } from '../utils/eventBus';
 import { supabaseAdmin } from '../services/supabaseAdmin';
 import * as symSvc from '../services/symbolService';
@@ -54,55 +52,9 @@ interface Assignment {
 let assignments: Assignment[] = [];
 let started = false;
 let configReloadInterval: NodeJS.Timeout | null = null;
-
-// ─── Symbol discovery (legacy, kept for external callers) ────────
-
-export const fetchAllSymbols = async (): Promise<string[]> => {
-    try {
-        console.log('[SignalEngine] Connecting to Binance Global Futures...');
-        await exchange.loadMarkets();
-    } catch (error: any) {
-        console.warn(
-            `[SignalEngine] ⚠️ Global Futures connect failed (${error.code || error.message}). Switching to US...`,
-        );
-        exchange = new ccxt.binanceus({ enableRateLimit: true, timeout: 5000 });
-        binanceStream.setRegion(true);
-        try {
-            await exchange.loadMarkets();
-            console.log('[SignalEngine] ✅ Connected to Binance US');
-        } catch (usError) {
-            console.error('[SignalEngine] Failed to connect to Binance US:', usError);
-            return [];
-        }
-    }
-
-    try {
-        const tickers = await exchange.fetchTickers();
-        await exchange.loadMarkets();
-
-        const candidates = Object.keys(tickers)
-            .map((ccxtSymbol) => {
-                const ticker = tickers[ccxtSymbol];
-                const market = exchange.markets[ccxtSymbol];
-                if (!market || !market.active) return null;
-                if (!(market.linear || market.swap) || market.quote !== 'USDT') return null;
-                return {
-                    symbol: `${market.base}${market.quote}`, // Binance-native: BTCUSDT
-                    volume: ticker.quoteVolume || 0,
-                };
-            })
-            .filter((x): x is { symbol: string; volume: number } => x !== null)
-            .sort((a, b) => b.volume - a.volume);
-
-        const top100 = candidates.slice(0, 100).map((c) => c.symbol);
-        console.log(`[SignalEngine] ✅ Top ${top100.length} USDT Futures pairs by Volume`);
-        console.log(`[SignalEngine] Top 3: ${top100.slice(0, 3).join(', ')}`);
-        return top100;
-    } catch (error) {
-        console.error('[SignalEngine] Error processing markets:', error);
-        return [];
-    }
-};
+// One-shot flags to prevent listener/channel accumulation across retry loops.
+let candleListenerRegistered = false;
+let realtimeChannelRegistered = false;
 
 // ─── Historical candle fetch ─────────────────────────────────────
 
@@ -201,37 +153,6 @@ async function loadAssignments(): Promise<Assignment[]> {
         }
     }
 
-    // 2. Synthetic platform assignments from PLATFORM_ASSIGNMENTS.
-    // These produce events with watchlist_strategy_id=null; the Execution Engine
-    // uses that as the signal to fan out as platform executions (user_id=null).
-    for (const pa of PLATFORM_ASSIGNMENTS) {
-        const uuid = builtinStrategyUuid(pa.strategyId);
-        const { data: script } = await supabaseAdmin
-            .from('scripts')
-            .select('id, name, source_code, template_version')
-            .eq('id', uuid)
-            .maybeSingle();
-
-        if (!script || !script.source_code) {
-            console.warn(`[SignalEngine] Platform strategy ${pa.strategyId} not found in scripts table (uuid=${uuid})`);
-            continue;
-        }
-
-        result.push({
-            id: `platform-${pa.strategyId}`,
-            watchlist_id: null,
-            user_id: null,
-            strategy_id: uuid,
-            strategy_name: script.name,
-            strategy_source: script.source_code,
-            template_version: script.template_version || '',
-            params: pa.params,
-            timeframe: pa.timeframe,
-            symbols: pa.symbols,
-            market: pa.market,
-        });
-    }
-
     return result;
 }
 
@@ -265,9 +186,13 @@ async function clearLastError(assignmentId: string): Promise<void> {
  * This matches the favoriteTimeframes list in Signals.tsx.
  */
 function normalizeTimeframe(tf: string): string {
-    const lower = tf.toLowerCase();
-    if (lower.endsWith('m') && !lower.endsWith('mo')) return lower; // minutes: 1m, 5m, 15m, 30m
-    return lower.toUpperCase(); // hours/days/weeks/months: 1H, 4H, 1D, 1W, 1M
+    // Monthly: keep exact 'M' casing — lowercase 'm' means minute on Binance.
+    // We check the raw unit letter BEFORE lowercasing to distinguish them.
+    const unit = tf.slice(-1);
+    const num = tf.slice(0, -1);
+    if (unit === 'M') return `${num}M`;           // months: 1M
+    if (unit === 'm') return `${num}m`;           // minutes: 1m, 5m, 15m, 30m
+    return `${num}${unit.toUpperCase()}`;         // hours/days/weeks: 1H, 4H, 1D, 1W
 }
 
 // ─── Candle close handling ───────────────────────────────────────
@@ -411,6 +336,20 @@ export async function startSignalEngine(): Promise<void> {
 
     console.log('[SignalEngine] Starting...');
 
+    // Register the CANDLE_CLOSED listener ONCE — even across retry loops.
+    // Otherwise each 60s empty-assignments retry would accumulate listeners,
+    // causing duplicate signal generation.
+    if (!candleListenerRegistered) {
+        eventBus.on(EngineEvents.CANDLE_CLOSED, async (payload: any) => {
+            try {
+                await onCandleClose(payload.symbol, payload.timeframe, payload.candle);
+            } catch (err) {
+                console.error('[SignalEngine] onCandleClose error:', err);
+            }
+        });
+        candleListenerRegistered = true;
+    }
+
     assignments = await loadAssignments();
     console.log(`[SignalEngine] Loaded ${assignments.length} assignments`);
     for (const a of assignments) {
@@ -440,40 +379,37 @@ export async function startSignalEngine(): Promise<void> {
     // Dedupe index prevents re-emitting signals we've already saved on prior restarts.
     await coldStartScan();
 
-    // Subscribe to candle close events (from binanceStream)
-    eventBus.on(EngineEvents.CANDLE_CLOSED, async (payload: any) => {
-        try {
-            await onCandleClose(payload.symbol, payload.timeframe, payload.candle);
-        } catch (err) {
-            console.error('[SignalEngine] onCandleClose error:', err);
-        }
-    });
-
     // Start Binance WebSocket kline subscriptions
     await binanceStream.subscribe(symbols, timeframes);
 
     // Supabase Realtime: reload assignments on watchlist_strategies changes.
-    supabaseAdmin
-        .channel('watchlist-strategies-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'watchlist_strategies' }, async () => {
-            assignments = await loadAssignments();
-            console.log(`[SignalEngine] Reloaded ${assignments.length} assignments (realtime)`);
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'watchlist_items' }, async () => {
-            assignments = await loadAssignments();
-            console.log(`[SignalEngine] Reloaded ${assignments.length} assignments (watchlist_items)`);
-        })
-        .subscribe();
+    // Register once — subsequent retries of startSignalEngine reuse this.
+    if (!realtimeChannelRegistered) {
+        supabaseAdmin
+            .channel('watchlist-strategies-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'watchlist_strategies' }, async () => {
+                assignments = await loadAssignments();
+                console.log(`[SignalEngine] Reloaded ${assignments.length} assignments (realtime)`);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'watchlist_items' }, async () => {
+                assignments = await loadAssignments();
+                console.log(`[SignalEngine] Reloaded ${assignments.length} assignments (watchlist_items)`);
+            })
+            .subscribe();
+        realtimeChannelRegistered = true;
+    }
 
     // Safety-net polling fallback in case Realtime drops silently (Risk R1).
-    configReloadInterval = setInterval(async () => {
-        try {
-            assignments = await loadAssignments();
-            console.log(`[SignalEngine] Safety-net reloaded ${assignments.length} assignments`);
-        } catch (err) {
-            console.error('[SignalEngine] Safety-net reload error:', err);
-        }
-    }, 60 * 1000);
+    if (!configReloadInterval) {
+        configReloadInterval = setInterval(async () => {
+            try {
+                assignments = await loadAssignments();
+                console.log(`[SignalEngine] Safety-net reloaded ${assignments.length} assignments`);
+            } catch (err) {
+                console.error('[SignalEngine] Safety-net reload error:', err);
+            }
+        }, 60 * 1000);
+    }
 
     started = true;
     console.log('[SignalEngine] Started successfully');

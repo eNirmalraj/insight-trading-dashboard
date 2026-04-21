@@ -81,7 +81,7 @@ async function evaluateAlerts() {
 
             if (current === undefined || alert.price === null) continue;
 
-            binanceStream.subscribeBookTicker(sym);
+            binanceStream.ensureKlineStream(sym);
 
             const triggered = checkCondition(alert.condition, current, prev, alert.price);
             if (!triggered) continue;

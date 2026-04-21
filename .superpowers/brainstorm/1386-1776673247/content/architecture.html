@@ -1,0 +1,196 @@
+<h2>Multi-Broker Trading Platform — Target Architecture</h2>
+<p class="subtitle">Layered design for 10K users across crypto, forex, and Indian stocks.</p>
+
+<style>
+  .arch {
+    background: #0f0f13;
+    border: 1px solid #2a2a35;
+    border-radius: 12px;
+    padding: 28px;
+    font-family: -apple-system, system-ui, sans-serif;
+    color: #e5e7eb;
+  }
+  .layer {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    border: 1px solid;
+  }
+  .layer-title {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 10px;
+  }
+  .layer-body {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+  .flow-arrow {
+    text-align: center;
+    color: #64748b;
+    font-size: 20px;
+    margin: 2px 0;
+  }
+  .ui { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.05); }
+  .ui .layer-title { color: #60a5fa; }
+  .oms { border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.05); }
+  .oms .layer-title { color: #a78bfa; }
+  .abs { border-color: rgba(234,179,8,0.3); background: rgba(234,179,8,0.05); }
+  .abs .layer-title { color: #facc15; }
+  .brokers { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.05); }
+  .brokers .layer-title { color: #4ade80; }
+  .infra { border-color: rgba(148,163,184,0.3); background: rgba(148,163,184,0.05); }
+  .infra .layer-title { color: #94a3b8; }
+  .db { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+  .db .layer-title { color: #f87171; }
+  .cross {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .cross-chip {
+    padding: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 6px;
+    font-size: 11px;
+    text-align: center;
+    color: #cbd5e1;
+  }
+  .cross-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+    font-weight: 700;
+    margin: 18px 0 8px;
+  }
+</style>
+
+<div class="arch">
+  <!-- UI Layer -->
+  <div class="layer ui">
+    <div class="layer-title">1. User Interface</div>
+    <div class="layer-body">
+      <div class="chip">Signals Page<br/>Execute</div>
+      <div class="chip">Market Page<br/>Order Panel</div>
+      <div class="chip">My Scripts<br/>Auto-Trade</div>
+      <div class="chip">Position<br/>Monitor</div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼</div>
+
+  <!-- OMS Layer -->
+  <div class="layer oms">
+    <div class="layer-title">2. Order Management System (OMS)</div>
+    <div class="layer-body">
+      <div class="chip">Validate<br/>(balance, qty)</div>
+      <div class="chip">Normalize<br/>(symbol, tick)</div>
+      <div class="chip">Position Size<br/>Calculator</div>
+      <div class="chip">Risk Checks<br/>(limits, kill)</div>
+      <div class="chip">Order Queue<br/>(Redis)</div>
+      <div class="chip">Fill<br/>Reconciler</div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼</div>
+
+  <!-- Broker Abstraction -->
+  <div class="layer abs">
+    <div class="layer-title">3. Broker Abstraction Interface</div>
+    <div class="layer-body">
+      <div class="chip" style="flex: 1 0 100%">
+        BrokerAdapter &nbsp;·&nbsp; placeEntry() &nbsp;·&nbsp; placeStop() &nbsp;·&nbsp; placeTakeProfit() &nbsp;·&nbsp; cancel() &nbsp;·&nbsp; getPosition() &nbsp;·&nbsp; subscribeFills()
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼</div>
+
+  <!-- Broker Implementations -->
+  <div class="layer brokers">
+    <div class="layer-title">4. Broker Implementations</div>
+    <div class="layer-body">
+      <div class="chip">Binance<br/><span style="color:#4ade80">Crypto</span></div>
+      <div class="chip">Bybit<br/><span style="color:#4ade80">Crypto</span></div>
+      <div class="chip">Coinbase<br/><span style="color:#4ade80">Crypto</span></div>
+      <div class="chip">OANDA<br/><span style="color:#facc15">Forex</span></div>
+      <div class="chip">Zerodha<br/><span style="color:#60a5fa">Indian Stocks</span></div>
+      <div class="chip">Paper Broker<br/><span style="color:#94a3b8">Internal</span></div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼</div>
+
+  <!-- Infrastructure -->
+  <div class="layer infra">
+    <div class="layer-title">5. Infrastructure (per-user, scaled)</div>
+    <div class="layer-body">
+      <div class="chip">Credential<br/>Vault<br/>(AES-256)</div>
+      <div class="chip">User-Data<br/>WebSocket Pool<br/>(sharded)</div>
+      <div class="chip">REST<br/>Polling Fallback<br/>(60s)</div>
+      <div class="chip">Rate Limiter<br/>(per broker,<br/>per user)</div>
+      <div class="chip">Circuit<br/>Breaker</div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">▼</div>
+
+  <!-- Database / State -->
+  <div class="layer db">
+    <div class="layer-title">6. Authoritative State (Postgres + RLS)</div>
+    <div class="layer-body">
+      <div class="chip">signal_executions<br/>(status, fills)</div>
+      <div class="chip">broker_orders<br/>(order_id, state)</div>
+      <div class="chip">positions<br/>(live, realized)</div>
+      <div class="chip">fills_log<br/>(audit trail)</div>
+      <div class="chip">user_exchange_keys<br/>(encrypted)</div>
+    </div>
+  </div>
+
+  <!-- Cross-cutting concerns -->
+  <div class="cross-title">Cross-Cutting Concerns</div>
+  <div class="cross">
+    <div class="cross-chip">🔐 Encrypted Credential Vault</div>
+    <div class="cross-chip">📊 Observability / Logs / Metrics</div>
+    <div class="cross-chip">🚨 Kill Switch / Circuit Breaker</div>
+    <div class="cross-chip">📜 Full Audit Trail</div>
+    <div class="cross-chip">⚖️ Per-Broker Rate Limiting</div>
+    <div class="cross-chip">🔄 Idempotent Order Submission</div>
+    <div class="cross-chip">📬 Realtime User Notifications</div>
+    <div class="cross-chip">🔧 Retry with Exponential Backoff</div>
+  </div>
+</div>
+
+<div class="options" style="margin-top: 24px">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Looks right — proceed to phasing</h3>
+      <p>Move on to see the phased rollout plan.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Something needs changing</h3>
+      <p>Tell me what's wrong in the terminal.</p>
+    </div>
+  </div>
+</div>

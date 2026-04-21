@@ -48,6 +48,55 @@ function resolveToken(
 
     // Operand resolution
     if (v.startsWith('param:')) return v.split(':')[1]; // user-defined parameter variable
+
+    // Chart State — current chart timeframe info
+    if (v === 'tf:multiplier') return 'timeframe.multiplier';
+    if (v === 'tf:isintraday') return 'timeframe.isintraday';
+    if (v === 'tf:isdaily') return 'timeframe.isdaily';
+    if (v === 'tf:isweekly') return 'timeframe.isweekly';
+    if (v === 'tf:ismonthly') return 'timeframe.ismonthly';
+    if (v === 'tf:period') return 'timeframe.period';
+
+    // Match (lookup table): map source value to output via chained comparisons
+    // Emits nested ternary with per-case operators
+    if (v.startsWith('match:')) {
+        const source = token.matchParam || '';
+        const cases = token.matchCases || [];
+        const fallback = token.matchDefault || '';
+        const outputType = token.matchOutputType || 'string';
+
+        if (!source || cases.length === 0) return 'na';
+
+        const formatOutput = (val: string): string => {
+            if (outputType === 'number') {
+                const n = parseFloat(val);
+                return isNaN(n) ? '0' : String(n);
+            }
+            return `"${val.replace(/"/g, '\\"')}"`;
+        };
+
+        // Format "when" value based on source type — numeric for timeframe.multiplier etc., string otherwise
+        const isNumericSource = source === 'timeframe.multiplier' || source === 'close' || source === 'open' || source === 'high' || source === 'low';
+        const isBoolSource = source.startsWith('timeframe.is');
+        const formatWhen = (val: string): string => {
+            if (isBoolSource) return val.toLowerCase() === 'true' || val === '1' ? 'true' : 'false';
+            if (isNumericSource) {
+                const n = parseFloat(val);
+                return isNaN(n) ? '0' : String(n);
+            }
+            return `"${val.replace(/"/g, '\\"')}"`;
+        };
+
+        let expr = formatOutput(fallback);
+        for (let i = cases.length - 1; i >= 0; i--) {
+            const c = cases[i];
+            if (c.when === '') continue;
+            const op = c.op || '==';
+            expr = `${source} ${op} ${formatWhen(c.when)} ? ${formatOutput(c.then)} : ${expr}`;
+        }
+        return `(${expr})`;
+    }
+
     if (v.startsWith('price:')) return v.split(':')[1];
     if (v.startsWith('hist:')) {
         const histParts = v.split(':');
@@ -294,27 +343,29 @@ export const generateKuri = (model: IndicatorModel): string => {
             const formula = model.formulas.find((f) => f.id === p.formulaId);
             const formulaName = formula?.name ?? 'na';
 
-            // Kuri mark() syntax: mark(value, title="...", color=#HEX)
-            // No width, no style params — Kuri doesn't support them
-            // Colors must be unquoted: color=#2962FF not color="#2962FF"
             const col = p.color.startsWith('#') ? p.color : `#${p.color}`;
+
+            // If visibilityParam is linked, wrap value in ternary: showFlag ? value : na
+            const plotValue = p.visibilityParam
+                ? `${p.visibilityParam} ? ${formulaName} : na`
+                : formulaName;
 
             switch (p.kind) {
                 case 'line':
-                    L.push(`mark(${formulaName}, title=${q(p.title)}, color=${col})`);
+                    L.push(`mark(${plotValue}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'level':
-                    L.push(`mark.level(${formulaName}, title=${q(p.title)}, color=${col})`);
+                    L.push(`mark.level(${plotValue}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'histogram':
-                    L.push(`mark.bar(${formulaName}, title=${q(p.title)}, color=${col})`);
+                    L.push(`mark.bar(${plotValue}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'area':
-                    L.push(`mark.area(${formulaName}, title=${q(p.title)}, color=${col})`);
+                    L.push(`mark.area(${plotValue}, title=${q(p.title)}, color=${col})`);
                     break;
                 case 'marker': {
                     const loc = p.markerLocation === 'above' ? 'location.abovebar' : 'location.belowbar';
-                    L.push(`plotshape(${formulaName}, location=${loc}, color=${col}, title=${q(p.title)})`);
+                    L.push(`plotshape(${plotValue}, location=${loc}, color=${col}, title=${q(p.title)})`);
                     break;
                 }
             }

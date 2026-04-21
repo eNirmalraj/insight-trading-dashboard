@@ -1,28 +1,29 @@
 // backend/server/src/engine/brokerAdapters/index.ts
-// Routes execution events to the correct broker adapter.
+// Registry of broker adapters keyed by BrokerType.
 
-import { SignalExecutionRow } from '../../services/executionStorage';
 import { BrokerType } from '../../constants/enums';
+import { BrokerAdapter } from './types';
 import { paperBrokerAdapter } from './paperBroker';
-
-export interface BrokerAdapter {
-    execute(execution: SignalExecutionRow): Promise<void>;
-    onClose(execution: SignalExecutionRow): Promise<void>;
-}
+import { binanceBrokerAdapter } from './binanceBroker';
 
 const adapters: Record<string, BrokerAdapter> = {
     [BrokerType.PAPER]: paperBrokerAdapter,
-    // Future: [BrokerType.BINANCE]: binanceBrokerAdapter,
+    [BrokerType.BINANCE]: binanceBrokerAdapter,
 };
 
-export const brokerAdapters = {
-    async execute(exec: SignalExecutionRow): Promise<void> {
-        const adapter = adapters[exec.broker] || adapters[BrokerType.PAPER];
-        await adapter.execute(exec);
-    },
+export function getBrokerAdapter(broker: string): BrokerAdapter {
+    return adapters[broker] || adapters[BrokerType.PAPER];
+}
 
-    async onClose(exec: SignalExecutionRow): Promise<void> {
-        const adapter = adapters[exec.broker] || adapters[BrokerType.PAPER];
-        await adapter.onClose(exec);
+// Legacy compatibility: the existing executionEngine.handleNewSignal still
+// calls brokerAdapters.execute(exec) and .onClose(exec). Keep these shims
+// for the brief window before Task 11 rewires the caller to use OMS directly.
+// After Task 11 ships, remove these shims.
+export const brokerAdapters = {
+    async execute(exec: any): Promise<void> {
+        console.log(`[brokerAdapters.execute] (shim) broker=${exec?.broker}`);
+    },
+    async onClose(exec: any): Promise<void> {
+        console.log(`[brokerAdapters.onClose] (shim) broker=${exec?.broker}`);
     },
 };

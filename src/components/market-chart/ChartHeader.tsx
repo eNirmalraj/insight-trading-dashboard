@@ -3,7 +3,6 @@ import * as ReactRouterDOM from 'react-router-dom';
 // Note: ChartHeader receives isMobile as prop from parent (CandlestickChart)
 import { Candle, ChartType, StatusLineSettings } from './types';
 import { useOutsideAlerter } from './hooks';
-import { getSymbolDescription } from './symbolDescriptions';
 import {
     getMarketStatus,
     marketStatusDotColor,
@@ -269,11 +268,6 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                         />
                     </div>
 
-                    {statusLineSettings.showSymbolDescription && getSymbolDescription(symbol) && (
-                        <span className="text-xs text-gray-500 hidden md:inline px-1">
-                            {getSymbolDescription(symbol)}
-                        </span>
-                    )}
 
                     <div className="flex items-center gap-1">
                         {favoriteTimeframes.map((tf) => (

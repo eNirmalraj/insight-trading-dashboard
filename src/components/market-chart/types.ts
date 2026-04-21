@@ -440,7 +440,6 @@ export interface StatusLineSettings {
     showIndicatorTitles: boolean;
     showIndicatorValues: boolean;
     showBarChangePercent: boolean;
-    showSymbolDescription: boolean;
     showMarketStatus: boolean;
 }
 

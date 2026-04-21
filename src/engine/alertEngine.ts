@@ -10,6 +10,8 @@ import {
     ParallelChannelDrawing,
     RectangleDrawing,
     VerticalLineDrawing,
+    FibonacciRetracementDrawing,
+    GannBoxDrawing,
 } from '../components/market-chart/types';
 import { marketRealtimeService } from '../services/marketRealtimeService';
 import {
@@ -361,6 +363,22 @@ class AlertEngine {
         if (alert.condition === 'Time Reached' && drawing.type === 'Vertical Line') {
             const d = drawing as VerticalLineDrawing;
             return evalTime >= d.time;
+        }
+
+        // Fibonacci Retracement: compute target from stored fib level
+        if (drawing.type === 'Fibonacci Retracement') {
+            const d = drawing as FibonacciRetracementDrawing;
+            const level = alert.fibLevel ?? 0.618;
+            const targetPrice = d.start.price + (d.end.price - d.start.price) * level;
+            return this.checkCondition(alert.condition, currentPrice, prevPrice, targetPrice);
+        }
+
+        // Gann Box: compute target from stored gann level (reuses fibLevel field)
+        if (drawing.type === 'Gann Box') {
+            const d = drawing as GannBoxDrawing;
+            const level = alert.fibLevel ?? 0.5;
+            const targetPrice = d.start.price + (d.end.price - d.start.price) * level;
+            return this.checkCondition(alert.condition, currentPrice, prevPrice, targetPrice);
         }
 
         if (alert.condition === 'Entering Channel' || alert.condition === 'Exiting Channel') {

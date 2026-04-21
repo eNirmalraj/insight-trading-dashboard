@@ -1,59 +1,13 @@
 // src/services/signalService.ts
+// Frontend-facing signal queries. Writes to the legacy `signals` table were
+// removed when the signal/execution split landed in migration 054 — that
+// table is now event-only (immutable). Frontend writes go to
+// `signal_executions` (see toggleSignalPinned). All other state changes
+// (Active → Closed, SL/TP updates, P&L) are owned by the backend execution
+// engine and propagate to the UI via Supabase Realtime.
+
 import { db } from './supabaseClient';
 import { Signal, Timeframe } from '../types';
-import { PaperExecutionEngine } from '../engine/paperExecutionEngine';
-
-export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> => {
-    const { data, error } = await db()
-        .from('signals')
-        .insert({
-            symbol: signal.pair,
-            strategy: signal.strategy,
-            strategy_id: signal.strategyId,
-            direction: signal.direction,
-            entry_price: signal.entry,
-            entry_type: signal.entryType,
-            stop_loss: signal.stopLoss,
-            take_profit: signal.takeProfit,
-            timeframe: signal.timeframe,
-            status: signal.status,
-            trailing_stop_loss: signal.trailingStopLoss,
-            lot_size: signal.lotSize,
-            leverage: signal.leverage,
-        })
-        .select()
-        .single();
-
-    if (error) throw new Error(error.message);
-
-    const newSignal: Signal = {
-        id: data.id,
-        pair: data.symbol,
-        strategy: data.strategy,
-        strategyId: data.strategy_id,
-        direction: data.direction,
-        entry: data.entry_price,
-        entryType: data.entry_type,
-        stopLoss: data.stop_loss,
-        takeProfit: data.take_profit,
-        status: data.status,
-        timestamp: data.created_at,
-        timeframe: data.timeframe,
-        trailingStopLoss: data.trailing_stop_loss,
-        lotSize: data.lot_size,
-        leverage: data.leverage,
-    };
-
-    // Trigger Paper Execution if Active immediately (Market Order)
-    if (newSignal.status === 'Active') {
-        // Run async without blocking
-        PaperExecutionEngine.processSignal(newSignal).catch((err) =>
-            console.error('Paper Exec Error:', err)
-        );
-    }
-
-    return newSignal;
-};
 
 /**
  * Read signal executions (what the UI calls "signals") joined with their
@@ -65,15 +19,15 @@ export const createSignal = async (signal: Omit<Signal, 'id'>): Promise<Signal> 
  */
 export const getSignals = async (): Promise<Signal[]> => {
 
-    // Step 1: fetch executions (what the UI calls "signal cards")
+    // Step 1: fetch executions (what the UI calls "signal cards").
+    // Columns dropped (not consumed by the UI mapping): watchlist_strategy_id,
+    // user_id, updated_at. Kept list mirrors every field used in the map below.
     const { data: execs, error: execErr } = await db()
         .from('signal_executions')
         .select(
             `
             id,
             signal_id,
-            watchlist_strategy_id,
-            user_id,
             symbol,
             market,
             direction,
@@ -90,12 +44,11 @@ export const getSignals = async (): Promise<Signal[]> => {
             profit_loss,
             broker,
             is_pinned,
-            created_at,
-            updated_at
+            created_at
         `
         )
         .order('created_at', { ascending: false })
-        .limit(300);
+        .limit(50);
 
     if (execErr) {
         console.warn('[signalService] getSignals (executions) failed:', execErr.message);
@@ -175,247 +128,10 @@ export const toggleSignalPinned = async (id: string, pinned: boolean): Promise<v
     }
 };
 
-export const updateSignalStatus = async (id: string, status: string): Promise<void> => {
-
-    const updateData: any = { status };
-
-    // Set timestamps based on status
-    if (status === 'Active' && !updateData.activated_at) {
-        updateData.activated_at = new Date().toISOString();
-    } else if (status === 'Closed' && !updateData.closed_at) {
-        updateData.closed_at = new Date().toISOString();
-    }
-
-    const { data: updatedSignal, error } = await db()
-        .from('signals')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw new Error(error.message);
-
-    // Trigger Paper Execution if becoming Active
-    if (status === 'Active' && updatedSignal) {
-        const signalObj: Signal = {
-            id: updatedSignal.id,
-            pair: updatedSignal.symbol,
-            strategy: updatedSignal.strategy,
-            strategyId: updatedSignal.strategy_id,
-            direction: updatedSignal.direction,
-            entry: updatedSignal.entry_price,
-            entryType: updatedSignal.entry_type,
-            stopLoss: updatedSignal.stop_loss,
-            takeProfit: updatedSignal.take_profit,
-            status: updatedSignal.status,
-            timestamp: updatedSignal.created_at,
-            timeframe: updatedSignal.timeframe,
-        };
-        PaperExecutionEngine.processSignal(signalObj).catch((err) =>
-            console.error('Paper Exec Error:', err)
-        );
-    }
-};
-
 /**
- * Update risk levels (SL/TP) for a signal - Used for Trailing SL
- */
-export const updateSignalRiskLevels = async (
-    id: string,
-    riskLevels: { stopLoss: number; takeProfit?: number }
-): Promise<void> => {
-
-    const updateData: any = {
-        stop_loss: riskLevels.stopLoss,
-    };
-
-    if (riskLevels.takeProfit !== undefined) {
-        updateData.take_profit = riskLevels.takeProfit;
-    }
-
-    const { error } = await db().from('signals').update(updateData).eq('id', id);
-
-    if (error) throw new Error(error.message);
-};
-
-/**
- * Back-compat alias for toggleSignalPinned — legacy callers used this name,
- * and the old implementation wrote to signals.is_pinned (dropped in 054).
- * The new implementation writes to signal_executions.is_pinned (added in 060).
+ * Back-compat alias for toggleSignalPinned.
  */
 export const toggleSignalPin = toggleSignalPinned;
-
-/**
- * Activate a signal (move from PENDING to ACTIVE)
- */
-export const activateSignal = async (id: string): Promise<void> => {
-
-    const { data: updatedSignal, error } = await db()
-        .from('signals')
-        .update({
-            status: 'Active',
-            activated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) throw new Error(error.message);
-
-    if (updatedSignal) {
-        const signalObj: Signal = {
-            id: updatedSignal.id,
-            pair: updatedSignal.symbol,
-            strategy: updatedSignal.strategy,
-            strategyId: updatedSignal.strategy_id,
-            direction: updatedSignal.direction,
-            entry: updatedSignal.entry_price,
-            entryType: updatedSignal.entry_type,
-            stopLoss: updatedSignal.stop_loss,
-            takeProfit: updatedSignal.take_profit,
-            status: updatedSignal.status,
-            timestamp: updatedSignal.created_at,
-            timeframe: updatedSignal.timeframe,
-        };
-        PaperExecutionEngine.processSignal(signalObj).catch((err) =>
-            console.error('Paper Exec Error:', err)
-        );
-    }
-};
-
-// Import at top (add if missing, handled by tool usually but let's be safe)
-import { closePaperTrade } from './paperTradingService';
-
-/**
- * Close a signal with reason and profit/loss
- */
-export const closeSignal = async (
-    id: string,
-    closeReason: 'TP' | 'SL' | 'MANUAL' | 'TIMEOUT',
-    profitLoss?: number
-): Promise<void> => {
-
-    const updateData: any = {
-        status: 'Closed',
-        closed_at: new Date().toISOString(),
-        close_reason: closeReason,
-    };
-
-    if (profitLoss !== undefined) {
-        updateData.profit_loss = profitLoss;
-    }
-
-    const { error } = await db().from('signals').update(updateData).eq('id', id);
-
-    if (error) throw new Error(error.message);
-
-    // Close the corresponding paper trade
-    // Note: We might need exitPrice. If manual/timeout, use current price?
-    // For now, let's pass a specialized reason.
-    // Ideally we need the exit price.
-    // Since closeSignal is usually called with a calculated PnL, we can infer price or pass 0.
-    // However, the function signature doesn't include price.
-    // For manual/timeout, let's just close it.
-
-    // Attempt to close paper trade. Price might be inaccurate here without fetching.
-    // But requirement says "Close it exactly ONCE".
-    // If engine closed it via TP/SL, it's already closed. `closePaperTrade` logic handles "only OPEN" trades.
-    // So this is safe to call.
-
-    // We'll pass 0 as price for now or modify `closePaperTrade` to fetch current price if not provided?
-    // Let's pass 0 and let user know limits, or fetch price here?
-    // Fetching price here adds dependency.
-    // Let's just assume 0 for manual closing in this context or let the engine handle price exits.
-    // Only manual/timeout exits come here without price data usually.
-
-    await closePaperTrade(id, 0, closeReason);
-};
-
-/**
- * Get signal statistics
- */
-export const getSignalStatistics = async (): Promise<{
-    total: number;
-    active: number;
-    closed: number;
-    pending: number;
-    totalProfitLoss: number;
-    avgProfitLoss: number;
-    winRate: number;
-}> => {
-    const { data, error } = await db()
-        .from('signals')
-        .select('status, profit_loss, close_reason');
-
-    if (error) throw new Error(error.message);
-
-    const stats = {
-        total: data.length,
-        active: data.filter((s) => s.status === 'Active').length,
-        closed: data.filter((s) => s.status === 'Closed').length,
-        pending: data.filter((s) => s.status === 'Pending').length,
-        totalProfitLoss: 0,
-        avgProfitLoss: 0,
-        winRate: 0,
-    };
-
-    const closedSignals = data.filter((s) => s.status === 'Closed');
-
-    if (closedSignals.length > 0) {
-        // Calculate PnL if available
-        stats.totalProfitLoss = closedSignals.reduce((sum, s) => sum + (s.profit_loss || 0), 0);
-        stats.avgProfitLoss = stats.totalProfitLoss / closedSignals.length;
-
-        // Calculate Win Rate using PnL OR Close Reason
-        let wins = 0;
-        let losses = 0;
-
-        closedSignals.forEach((s) => {
-            const pnl = s.profit_loss;
-            const reason = s.close_reason;
-
-            if (typeof pnl === 'number') {
-                if (pnl > 0) wins++;
-                else if (pnl < 0) losses++;
-            } else if (reason) {
-                if (reason === 'TP' || reason === 'MANUAL_PROFIT') wins++;
-                else if (reason === 'SL' || reason === 'MANUAL_LOSS') losses++;
-            }
-        });
-
-        const totalResolved = wins + losses;
-        stats.winRate = totalResolved > 0 ? (wins / totalResolved) * 100 : 0;
-    }
-
-    return stats;
-};
-
-// Check for duplicate signals
-export const isDuplicateSignal = async (
-    strategyId: string | undefined,
-    symbol: string,
-    direction: string,
-    currentTime: number,
-    lookbackSeconds: number
-): Promise<boolean> => {
-    const lookbackTime = new Date(currentTime * 1000 - lookbackSeconds * 1000).toISOString();
-
-    const { data, error } = await db()
-        .from('signals')
-        .select('id')
-        .eq('strategy_id', strategyId)
-        .eq('symbol', symbol)
-        .eq('direction', direction)
-        .gte('created_at', lookbackTime)
-        .limit(1);
-
-    if (error) {
-        console.error('Error checking duplicate signal:', error);
-        return false; // Fail open to allow signal creation
-    }
-
-    return (data?.length || 0) > 0;
-};
 
 // Get signal executions filtered by strategy ID
 export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]> => {
@@ -481,31 +197,3 @@ export const getSignalsByStrategy = async (strategyId: string): Promise<Signal[]
     });
 };
 
-/**
- * Delete closed signals older than 7 days
- */
-export const cleanupOldSignals = async (): Promise<void> => {
-
-    // Calculate cutoff date (7 days ago)
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 7);
-    const cutoffISO = cutoffDate.toISOString();
-
-    console.log(`[SignalCleanup] Cleaning up closed signals older than ${cutoffISO}...`);
-
-    const { error, count } = await db()
-        .from('signals')
-        .delete({ count: 'exact' })
-        .eq('status', 'Closed')
-        .lt('closed_at', cutoffISO);
-
-    if (error) {
-        console.error('[SignalCleanup] Error deleting old signals:', error.message);
-    } else {
-        if ((count || 0) > 0) {
-            console.log(`[SignalCleanup] Deleted ${count} old signals.`);
-        } else {
-            console.log('[SignalCleanup] No old signals to delete.');
-        }
-    }
-};

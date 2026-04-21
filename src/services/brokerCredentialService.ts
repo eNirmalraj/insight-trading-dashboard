@@ -62,7 +62,7 @@ export async function createBrokerCredential(body: CreateBody): Promise<{ id: st
     return { id: data.id };
 }
 
-export async function patchBrokerCredential(id: string, body: { nickname?: string; environment?: Environment }): Promise<{ id: string } | { error: string; field?: string; code?: string }> {
+export async function patchBrokerCredential(id: string, body: { nickname?: string; environment?: Environment; is_active?: boolean }): Promise<{ id: string } | { error: string; field?: string; code?: string }> {
     const r = await fetch(`/api/broker-credentials/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await authHeader()) },

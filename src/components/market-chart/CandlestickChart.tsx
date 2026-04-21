@@ -159,7 +159,6 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showIndicatorTitles: true,
         showIndicatorValues: true,
         showBarChangePercent: false,
-        showSymbolDescription: true,
         showMarketStatus: true,
     },
     scalesAndLines: {

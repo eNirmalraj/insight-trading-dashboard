@@ -276,6 +276,9 @@ router.patch('/:id', async (req: Request, res: Response) => {
         }
         patch.environment = body.environment;
     }
+    if (typeof body.is_active === 'boolean') {
+        patch.is_active = body.is_active;
+    }
 
     if (Object.keys(patch).length > 0) {
         const { error } = await supabaseAdmin

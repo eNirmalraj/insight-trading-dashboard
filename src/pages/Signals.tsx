@@ -17,7 +17,6 @@ import { db } from '../services/supabaseClient';
 import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
 import Loader from '../components/Loader';
-import { getSignalStatistics } from '../services/signalService';
 import { useAuth } from '../context/AuthContext';
 import { computeStrategyStats, StrategyWinRate } from '../utils/strategyStats';
 
@@ -56,7 +55,6 @@ const Signals: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     const [isConnected, setIsConnected] = useState(false);
-    const [signalStats, setSignalStats] = useState<any>(null);
 
     // Full timeframe options from 1m to 1M
     const ALL_TIMEFRAMES = [
@@ -160,87 +158,110 @@ const Signals: React.FC = () => {
 
     // Supabase Realtime subscription for instant signal updates
     // The backend now generates signals, frontend just listens
-    // Supabase Realtime subscription for instant signal updates
+    // Supabase Realtime subscription for instant signal updates.
+    // - Filtered to this user's executions (RLS enforces this anyway but
+    //   adding the filter reduces wasted network chatter).
+    // - Debounces bursts of INSERTs into a single refetch.
+    // - Reconnects on disconnect instead of relying solely on the 60s poll.
     useEffect(() => {
+        if (!user?.id) return;
+
         console.log('[Signals] 🔌 Setting up Supabase Realtime subscription...');
 
-        const channel = db()
-            .channel('signal-executions-realtime')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'signal_executions',
-                },
-                (payload) => {
-                    console.log('[Signals] ⚡ Execution update received:', payload);
+        let insertDebounce: ReturnType<typeof setTimeout> | null = null;
+        const scheduleRefetch = () => {
+            if (insertDebounce) return; // coalesce bursts
+            insertDebounce = setTimeout(() => {
+                insertDebounce = null;
+                fetchData(true);
+            }, 500);
+        };
 
-                    if (payload.eventType === 'INSERT') {
-                        // New execution row — refetch through getSignals() which
-                        // joins the signals event + scripts name in one pass.
-                        fetchData(true);
-                    } else if (payload.eventType === 'UPDATE') {
-                        const updatedRow = payload.new;
-                        setSignals((prev) =>
-                            prev.map((s) =>
-                                s.id === updatedRow.id
-                                    ? {
-                                          ...s,
-                                          status: updatedRow.status,
-                                          isPinned:
-                                              updatedRow.is_pinned !== undefined
-                                                  ? updatedRow.is_pinned
-                                                  : s.isPinned,
-                                          profitLoss: updatedRow.profit_loss,
-                                          closePrice: updatedRow.close_price,
-                                          closeReason: updatedRow.close_reason,
-                                          closedAt: updatedRow.closed_at,
-                                      }
-                                    : s
-                            )
-                        );
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+        let channel: ReturnType<ReturnType<typeof db>['channel']> | null = null;
+
+        const connect = () => {
+            channel = db()
+                .channel(`signal-executions-realtime-${user.id}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'signal_executions',
+                        filter: `user_id=eq.${user.id}`,
+                    },
+                    (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            scheduleRefetch();
+                        } else if (payload.eventType === 'UPDATE') {
+                            const updatedRow = payload.new;
+                            setSignals((prev) =>
+                                prev.map((s) =>
+                                    s.id === updatedRow.id
+                                        ? {
+                                              ...s,
+                                              status: updatedRow.status,
+                                              isPinned:
+                                                  updatedRow.is_pinned !== undefined
+                                                      ? updatedRow.is_pinned
+                                                      : s.isPinned,
+                                              profitLoss: updatedRow.profit_loss,
+                                              closePrice: updatedRow.close_price,
+                                              closeReason: updatedRow.close_reason,
+                                              closedAt: updatedRow.closed_at,
+                                          }
+                                        : s
+                                )
+                            );
+                        }
                     }
-                    refreshSignalStats();
-                }
-            )
-            .subscribe((status) => {
-                const isSubscribed = status === 'SUBSCRIBED';
-                setIsConnected(isSubscribed);
-                console.log(`[Signals] Realtime status: ${status}`);
-            });
+                )
+                .subscribe((status) => {
+                    const isSubscribed = status === 'SUBSCRIBED';
+                    setIsConnected(isSubscribed);
+                    console.log(`[Signals] Realtime status: ${status}`);
+
+                    // Auto-reconnect on disconnect/error/timed-out.
+                    if (
+                        status === 'CLOSED' ||
+                        status === 'CHANNEL_ERROR' ||
+                        status === 'TIMED_OUT'
+                    ) {
+                        if (reconnectTimer) return;
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            console.log('[Signals] Reconnecting Realtime...');
+                            if (channel) db().removeChannel(channel);
+                            connect();
+                        }, 3000);
+                    }
+                });
+        };
+        connect();
 
         return () => {
             console.log('[Signals] Cleaning up realtime subscription');
-            db().removeChannel(channel);
+            if (insertDebounce) clearTimeout(insertDebounce);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (channel) db().removeChannel(channel);
             setIsConnected(false);
         };
-    }, []);
-
-    const refreshSignalStats = useCallback(async () => {
-        try {
-            const stats = await getSignalStatistics();
-            setSignalStats(stats);
-        } catch (err) {
-            console.error('Error fetching signal statistics:', err);
-        }
-    }, []);
+    }, [user?.id, fetchData]);
 
     // Auto-refresh signals data periodically (independent of generation)
     useEffect(() => {
         const interval = setInterval(() => {
             fetchData(true); // Background refresh
-            refreshSignalStats();
-        }, 60000); // 60 seconds (Relaxed due to realtime)
+        }, 300000); // 5 minutes — Realtime pushes live changes; this is just a safety net
 
         return () => clearInterval(interval);
-    }, [fetchData, refreshSignalStats]);
+    }, [fetchData]);
 
     // Initial load
     useEffect(() => {
         fetchData();
-        refreshSignalStats();
-    }, [fetchData, refreshSignalStats]);
+    }, [fetchData]);
 
     // Load available strategies - Hybrid approach (Service + Actual Signals)
     useEffect(() => {
@@ -512,7 +533,6 @@ const Signals: React.FC = () => {
                         isAddedToWatchlist={addedToWatchlistPairs.has(signal.pair)}
                         currentPrice={currentPrices[signal.pair]}
                         onTogglePin={handleTogglePin}
-                        strategyWinRate={strategyStats.get(signal.strategyId || signal.strategy || '')}
                     />
                 ))}
             </div>

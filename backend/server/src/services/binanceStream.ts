@@ -20,7 +20,6 @@ export interface KlineMessage {
     };
 }
 
-type CandleCloseCallback = (symbol: string, timeframe: string, candle: Candle) => void;
 
 interface StreamShard {
     id: number;
@@ -29,6 +28,7 @@ interface StreamShard {
     isConnected: boolean;
     reconnectTimer: NodeJS.Timeout | null;
     reconnectAttempts: number;
+    lastMessageTime: number; // per-shard silence detection
 }
 
 export class BinanceStreamManager {
@@ -40,20 +40,14 @@ export class BinanceStreamManager {
     // State
     private shards: StreamShard[] = [];
     private subscriptions: Map<string, Set<string>> = new Map(); // symbol -> Set<timeframe>
-    private onCandleCloseCallback: CandleCloseCallback | null = null;
-
-    // Dedicated bookTicker shard — managed independently from kline shards.
-    // Rebuilt whenever the set of tracked symbols changes (add/remove), but
-    // rebuilds are debounced to coalesce bursts of subscribe/unsubscribe calls
-    // (e.g. during cold-start scans that emit dozens of signals back-to-back).
-    private tickerShard: StreamShard | null = null;
-    private bookTickerSymbols: Set<string> = new Set(); // canonical symbols e.g. 'BTCUSDT'
-    private tickerRebuildTimer: NodeJS.Timeout | null = null;
-    private readonly TICKER_REBUILD_DEBOUNCE_MS = 1000;
 
     // Watchdog and Debounce
     private lastMessageTime: number = Date.now();
     private watchdogInterval: NodeJS.Timeout | null = null;
+
+    // Log throttling — aggregate candle-close counts, flush once per minute.
+    private candleCloseCounts: Map<string, number> = new Map();
+    private candleLogFlusher: NodeJS.Timeout | null = null;
 
     /**
      * Set the region for Binance Stream (US or Global)
@@ -68,13 +62,6 @@ export class BinanceStreamManager {
             this.baseUrl = 'wss://fstream.binance.com/stream?streams=';
             console.log('[BinanceStream] Switched to Binance Global Futures WebSocket');
         }
-    }
-
-    /**
-     * Set the callback for candle close events
-     */
-    public onCandleClose(callback: CandleCloseCallback): void {
-        this.onCandleCloseCallback = callback;
     }
 
     /**
@@ -122,6 +109,7 @@ export class BinanceStreamManager {
             isConnected: false,
             reconnectTimer: null,
             reconnectAttempts: 0,
+            lastMessageTime: Date.now(),
         }));
 
         console.log(`[BinanceStream] Created ${this.shards.length} connection shards`);
@@ -163,10 +151,12 @@ export class BinanceStreamManager {
                 console.log(`[BinanceStream] [Shard ${shard.id}] ✅ Connected`);
                 shard.isConnected = true;
                 shard.reconnectAttempts = 0; // Reset backoff on success
+                shard.lastMessageTime = Date.now();
                 this.lastMessageTime = Date.now();
             });
 
             shard.ws.on('message', (data: WebSocket.Data) => {
+                shard.lastMessageTime = Date.now();
                 this.handleMessage(data);
             });
 
@@ -218,6 +208,20 @@ export class BinanceStreamManager {
 
         try {
             const parsed = JSON.parse(data.toString());
+
+            // SUBSCRIBE/UNSUBSCRIBE ack: {"result":null,"id":<n>} on success,
+            // or {"error":{...},"id":<n>} on failure. Log failures — silent
+            // failures would leave the stream tracked but not delivering.
+            if ('result' in parsed && 'id' in parsed) {
+                if (parsed.error) {
+                    console.error(
+                        `[BinanceStream] SUBSCRIBE request ${parsed.id} failed:`,
+                        parsed.error,
+                    );
+                }
+                return;
+            }
+
             if (!parsed.data) return;
 
             // Kline event: { stream: "btcusdt@kline_1h", data: { e:'kline', k: {...} } }
@@ -245,28 +249,12 @@ export class BinanceStreamManager {
                         volume: parseFloat(kline.k.v),
                     };
 
-                    console.log(
-                        `[BinanceStream] 🕯️ Candle closed: ${symbol} ${timeframe} @ ${candle.close}`
-                    );
+                    // Aggregate per-timeframe counts; flush summary once a minute.
+                    const key = timeframe;
+                    this.candleCloseCounts.set(key, (this.candleCloseCounts.get(key) || 0) + 1);
 
                     eventBus.emitCandleClosed(symbol, timeframe, candle);
-
-                    if (this.onCandleCloseCallback) {
-                        this.onCandleCloseCallback(symbol, timeframe, candle);
-                    }
                 }
-                return;
-            }
-
-            // BookTicker event: { stream: "btcusdt@bookTicker", data: { s, b, a, B, A, ... } }
-            // Binance @bookTicker does NOT have an `e` field; we identify by stream suffix.
-            if (parsed.stream && typeof parsed.stream === 'string' && parsed.stream.endsWith('@bookTicker')) {
-                const tick = parsed.data;
-                const symbol = String(tick.s || '').toUpperCase();
-                const bid = parseFloat(tick.b);
-                const ask = parseFloat(tick.a);
-                if (!symbol || Number.isNaN(bid) || Number.isNaN(ask)) return;
-                eventBus.emitPriceTick(symbol, bid, ask);
                 return;
             }
         } catch (error) {
@@ -274,152 +262,40 @@ export class BinanceStreamManager {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    //  BookTicker subscriptions (for tick-level SL/TP monitoring)
-    // ──────────────────────────────────────────────────────────────
-
     /**
-     * Subscribe to the @bookTicker stream for a symbol.
-     * Idempotent: calling twice for the same symbol is a no-op.
-     * Rebuilds are debounced — bursts of calls within 250 ms coalesce into
-     * a single teardown + rebuild with the final set.
-     */
-    public async subscribeBookTicker(symbol: string): Promise<void> {
-        const canonical = symbol.toUpperCase();
-        if (this.bookTickerSymbols.has(canonical)) return;
-        this.bookTickerSymbols.add(canonical);
-        console.log(
-            `[BinanceStream] + bookTicker ${canonical} (pending rebuild, set size: ${this.bookTickerSymbols.size})`,
-        );
-        this.scheduleTickerRebuild();
-    }
-
-    /**
-     * Unsubscribe from the @bookTicker stream for a symbol.
-     * Debounced the same way as subscribe. If the set becomes empty after
-     * the debounce window, the shard is torn down entirely.
-     */
-    public async unsubscribeBookTicker(symbol: string): Promise<void> {
-        const canonical = symbol.toUpperCase();
-        if (!this.bookTickerSymbols.has(canonical)) return;
-        this.bookTickerSymbols.delete(canonical);
-        console.log(
-            `[BinanceStream] - bookTicker ${canonical} (pending rebuild, set size: ${this.bookTickerSymbols.size})`,
-        );
-        this.scheduleTickerRebuild();
-    }
-
-    /**
-     * Debounce helper. Multiple subscribe/unsubscribe calls within 250 ms
-     * collapse into a single rebuild with the final symbol set. Prevents the
-     * cold-start race where 18 rapid calls torn down and re-created the
-     * WebSocket 18 times, crashing the worker when terminate() was called on
-     * a socket still in the CONNECTING state.
-     */
-    private scheduleTickerRebuild(): void {
-        if (this.tickerRebuildTimer) return; // Already scheduled — next rebuild picks up the latest set.
-        this.tickerRebuildTimer = setTimeout(() => {
-            this.tickerRebuildTimer = null;
-            this.rebuildTickerShard();
-        }, this.TICKER_REBUILD_DEBOUNCE_MS);
-    }
-
-    private rebuildTickerShard(): void {
-        this.tearDownTickerShard();
-
-        const streams = Array.from(this.bookTickerSymbols).map(
-            (s) => `${s.toLowerCase()}@bookTicker`,
-        );
-
-        if (streams.length === 0) {
-            console.log('[BinanceStream] Ticker shard: no symbols, skipping connect');
-            return;
-        }
-
-        console.log(
-            `[BinanceStream] Ticker shard: rebuilding with ${streams.length} symbols`,
-        );
-
-        this.tickerShard = {
-            id: 9999, // distinct id for logs
-            ws: null,
-            streams,
-            isConnected: false,
-            reconnectTimer: null,
-            reconnectAttempts: 0,
-        };
-
-        this.connectShard(this.tickerShard);
-    }
-
-    /**
-     * Safely tear down the ticker shard.
-     * Uses `close()` instead of `terminate()` when the WebSocket is still in
-     * the CONNECTING state, because terminate() on a CONNECTING socket throws
-     * in recent versions of the `ws` library and was crashing the worker.
-     */
-    private tearDownTickerShard(): void {
-        if (!this.tickerShard) return;
-
-        if (this.tickerShard.reconnectTimer) {
-            clearTimeout(this.tickerShard.reconnectTimer);
-            this.tickerShard.reconnectTimer = null;
-        }
-
-        const ws = this.tickerShard.ws;
-        if (ws) {
-            // Remove listeners first so a graceful close doesn't trigger
-            // the reconnect handler.
-            try {
-                ws.removeAllListeners();
-            } catch {}
-
-            try {
-                if (ws.readyState === WebSocket.CONNECTING) {
-                    // terminate() or close() on a CONNECTING socket can throw in some ws versions.
-                    // We wrap in a no-op error handler to prevent crashing the global process.
-                    ws.on('error', () => {}); 
-                    ws.close();
-                } else if (
-                    ws.readyState === WebSocket.OPEN ||
-                    ws.readyState === WebSocket.CLOSING
-                ) {
-                    ws.terminate();
-                }
-            } catch (err) {
-                // Ignore errors during teardown
-            }
-        }
-
-        this.tickerShard = null;
-    }
-
-    /**
-     * Watchdog: Monitor global data flow
+     * Watchdog: Per-shard silence detection. Each shard tracks its own
+     * last-message time — a single silent shard gets reconnected without
+     * disturbing the others.
      */
     private startWatchdog(): void {
         this.stopWatchdog();
+        const SILENCE_THRESHOLD = 120_000; // 2 minutes
+
+        // Candle-close log flusher: summary every 60s instead of per-candle spam.
+        this.candleLogFlusher = setInterval(() => {
+            if (this.candleCloseCounts.size === 0) return;
+            const parts: string[] = [];
+            for (const [tf, count] of this.candleCloseCounts) parts.push(`${tf}×${count}`);
+            console.log(`[BinanceStream] 🕯️ Candles closed (last 60s): ${parts.join(', ')}`);
+            this.candleCloseCounts.clear();
+        }, 60_000);
 
         this.watchdogInterval = setInterval(() => {
-            const silenceDuration = Date.now() - this.lastMessageTime;
-
-            // If no message from ANY shard for > 2 mins (120s), something is wrong globally
-            // Or we check individual shards?
-            // For simplicity, if global silence > 120s, reconnect ALL shards
-            if (silenceDuration > 120000 && this.shards.length > 0) {
-                console.error(
-                    `[BinanceStream] ⚠️ Global Watchdog Timeout: No data for ${Math.floor(silenceDuration / 1000)}s. Resetting all connections...`
-                );
-
-                // Force reconnect all
-                this.shards.forEach((shard) => {
-                    if (shard.ws) shard.ws.terminate();
-                });
-
-                // Reset timer to avoid double-triggering before they reconnect
-                this.lastMessageTime = Date.now();
+            const now = Date.now();
+            for (const shard of this.shards) {
+                if (!shard.isConnected) continue; // already in reconnect flow
+                const silence = now - shard.lastMessageTime;
+                if (silence > SILENCE_THRESHOLD) {
+                    console.error(
+                        `[BinanceStream] ⚠️ Shard ${shard.id} silent for ${Math.floor(silence / 1000)}s — reconnecting`,
+                    );
+                    shard.lastMessageTime = now; // prevent re-trigger before reconnect
+                    try {
+                        if (shard.ws) shard.ws.terminate();
+                    } catch {}
+                }
             }
-        }, 30000); // Check every 30s
+        }, 30_000); // Check every 30s
     }
 
     private stopWatchdog(): void {
@@ -427,17 +303,17 @@ export class BinanceStreamManager {
             clearInterval(this.watchdogInterval);
             this.watchdogInterval = null;
         }
+        if (this.candleLogFlusher) {
+            clearInterval(this.candleLogFlusher);
+            this.candleLogFlusher = null;
+        }
     }
 
     /**
-     * Disconnect all shards (including the ticker shard)
+     * Disconnect all shards
      */
     public disconnect(): void {
         this.stopWatchdog();
-        if (this.tickerRebuildTimer) {
-            clearTimeout(this.tickerRebuildTimer);
-            this.tickerRebuildTimer = null;
-        }
         this.shards.forEach((shard) => {
             if (shard.reconnectTimer) clearTimeout(shard.reconnectTimer);
             if (shard.ws) {
@@ -452,15 +328,17 @@ export class BinanceStreamManager {
             }
         });
         this.shards = [];
-        this.tearDownTickerShard();
-        this.bookTickerSymbols.clear();
     }
 
     /**
      * Ensure a symbol has at least a 1m kline stream for live price ticks.
      * Used by the execution engine to guarantee SL/TP monitoring coverage
      * for symbols that might not have an active strategy assignment.
-     * If the symbol already has any kline subscription, this is a no-op.
+     *
+     * Uses Binance's dynamic SUBSCRIBE WebSocket op so we DO NOT tear down
+     * an existing shard (which would lose ticks for every other symbol on
+     * that shard for ~5s during reconnect). Awaits the socket 'open' event
+     * before returning so the caller has the guarantee that ticks can flow.
      */
     public async ensureKlineStream(symbol: string): Promise<void> {
         const canonical = symbol.toUpperCase();
@@ -473,34 +351,78 @@ export class BinanceStreamManager {
         }
         this.subscriptions.get(canonical)!.add('1m');
 
-        // Add to an existing shard or create a new stream entry
         const stream = `${canonical.toLowerCase()}@kline_1m`;
         const lastShard = this.shards[this.shards.length - 1];
+
         if (lastShard && lastShard.streams.length < this.STREAMS_PER_CONNECTION) {
-            // Add to last shard — schedule reconnect safely
+            // Add to the last shard. Track the stream in the shard's list
+            // for reconnect-replay, but use dynamic SUBSCRIBE to avoid a
+            // full teardown.
             lastShard.streams.push(stream);
-            if (lastShard.ws) {
-                try { lastShard.ws.removeAllListeners(); } catch {}
-                try {
-                    if (lastShard.ws.readyState === WebSocket.OPEN) lastShard.ws.terminate();
-                    else lastShard.ws.on('error', () => {}), lastShard.ws.close();
-                } catch {}
-                lastShard.ws = null;
+
+            if (lastShard.ws && lastShard.ws.readyState === WebSocket.OPEN) {
+                // Send SUBSCRIBE frame — Binance adds the stream without
+                // dropping existing subscriptions.
+                lastShard.ws.send(JSON.stringify({
+                    method: 'SUBSCRIBE',
+                    params: [stream],
+                    id: Date.now(),
+                }));
+                return;
             }
-            this.connectShard(lastShard);
-        } else {
-            // Create a new shard
-            const newShard: StreamShard = {
-                id: this.shards.length + 1,
-                ws: null,
-                streams: [stream],
-                isConnected: false,
-                reconnectTimer: null,
-                reconnectAttempts: 0,
-            };
-            this.shards.push(newShard);
-            this.connectShard(newShard);
+            // Socket is CONNECTING or CLOSED. The original connect URL was
+            // built BEFORE we pushed the new stream, so we need to send
+            // SUBSCRIBE once it opens to pick up the newly-added stream.
+            await this.waitForShardOpen(lastShard);
+            if (lastShard.ws && lastShard.ws.readyState === WebSocket.OPEN) {
+                lastShard.ws.send(JSON.stringify({
+                    method: 'SUBSCRIBE',
+                    params: [stream],
+                    id: Date.now(),
+                }));
+            }
+            return;
         }
+
+        // Need a fresh shard (last one full, or none exist yet).
+        const newShard: StreamShard = {
+            id: this.shards.length + 1,
+            ws: null,
+            streams: [stream],
+            isConnected: false,
+            reconnectTimer: null,
+            reconnectAttempts: 0,
+            lastMessageTime: Date.now(),
+        };
+        this.shards.push(newShard);
+        this.connectShard(newShard);
+        await this.waitForShardOpen(newShard);
+    }
+
+    /**
+     * Await a shard's 'open' event, with a timeout so we never block forever.
+     * Resolves immediately if already open.
+     */
+    private waitForShardOpen(shard: StreamShard, timeoutMs = 10_000): Promise<void> {
+        return new Promise((resolve) => {
+            if (shard.ws && shard.ws.readyState === WebSocket.OPEN) {
+                resolve();
+                return;
+            }
+            const timer = setTimeout(() => {
+                console.warn(`[BinanceStream] [Shard ${shard.id}] waitForOpen timeout after ${timeoutMs}ms`);
+                resolve();
+            }, timeoutMs);
+            const check = () => {
+                if (shard.ws && shard.ws.readyState === WebSocket.OPEN) {
+                    clearTimeout(timer);
+                    resolve();
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
     }
 
     /**

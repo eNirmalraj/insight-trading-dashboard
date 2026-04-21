@@ -119,8 +119,11 @@ The signal lifecycle is split between a Scanner and an Executor:
 - **Execution Engine** (`backend/server/src/engine/executionEngine.ts`):
   Executor + tick monitor. Listens for `SIGNAL_CREATED`, fans out each
   event to per-user executions in `signal_executions` with SL/TP computed
-  by `riskCalculator.ts`, then watches @bookTicker ticks for SL/TP hits.
-  Broker dispatch goes through `brokerAdapters/` (paper broker default).
+  by `riskCalculator.ts`, then watches kline-stream live prices for SL/TP
+  hits (every kline update emits a `PRICE_TICK`; every `CANDLE_CLOSED`
+  is also a fallback SL/TP check using the candle's high/low and gap-aware
+  fill price). Broker dispatch goes through `brokerAdapters/` (paper by
+  default).
 
 - **Startup order matters**: `startExecutionEngine()` MUST run BEFORE
   `startSignalEngine()` in `worker.ts` so the event-bus listener is
@@ -131,14 +134,11 @@ The signal lifecycle is split between a Scanner and an Executor:
   frontmatter + param schema on startup and upserts into the `scripts`
   table (deterministic uuidv5 mapping since `scripts.id` is uuid-typed).
 
-- **Platform signals**: 10 hardcoded top-symbol pairs run SMA Trend
-  continuously as a discovery feed for users with no watchlists.
-  See `services/platformSignals.ts` and the `signal_executions` rows
-  with `user_id IS NULL`.
-
 - **Deleted in the refactor**: old `signalMonitor.ts` (merged into
-  executionEngine) and old `strategyEngine.ts` (split into strategyRunner
-  and riskCalculator).
+  executionEngine), old `strategyEngine.ts` (split into strategyRunner
+  and riskCalculator), the bookTicker WebSocket shard (replaced by
+  live-price ticks emitted from the kline stream), and the
+  `PLATFORM_ASSIGNMENTS` feed (was never populated in production).
 
 ### Database
 Uses Supabase (PostgreSQL) with tables for:
@@ -202,15 +202,22 @@ To add a new indicator, modifications needed in:
    assignments matching this signal, inserts one execution per user
    into `signal_executions` with risk-adjusted SL/TP
 6. `brokerAdapters.execute()` dispatches to the paper broker (default)
-7. `binanceStream.subscribeBookTicker()` starts tracking ticks for SL/TP
+7. `binanceStream.ensureKlineStream()` guarantees a 1m kline is subscribed
+   for the symbol (dynamic SUBSCRIBE op — no shard teardown)
 
-**SL/TP monitoring (per tick):**
-1. `@bookTicker` stream delivers bid/ask for every subscribed symbol
-2. Execution Engine checks each active execution: BUY closes at bid
-   when it crosses SL/TP; SELL closes at ask
+**SL/TP monitoring (per tick + per candle close):**
+1. Kline WebSocket emits a `PRICE_TICK` on every update (close price = last
+   trade price). Execution Engine checks active execs: cross SL/TP →
+   close at mid price.
+2. `CANDLE_CLOSED` event also runs a fallback SL/TP check using the
+   candle's high/low. On gap candles that opened past SL/TP, the fill
+   price is `candle.open` (realistic); otherwise it's the level itself.
 3. `executionStorage.closeExecution()` does an atomic update
-   `WHERE status='Active'` to prevent double-close
-4. Ticker is unsubscribed when the last active execution for a symbol closes
+   `WHERE status='Active'` to prevent double-close. `removeActive` runs
+   synchronously before the await to keep the in-memory map correct.
+4. On worker restart, `replayMissedCandles()` walks historical klines
+   (1m ≤1000min, 5m ≤5000min, 1h beyond) to retroactively close any
+   execution that hit SL/TP during downtime.
 
 ## Environment Variables
 - `SUPABASE_URL`: Supabase project URL

@@ -34,7 +34,7 @@ export function useBrokerCredentials() {
         return r;
     }, [refresh]);
 
-    const patch = useCallback(async (id: string, body: { nickname?: string; environment?: Environment }) => {
+    const patch = useCallback(async (id: string, body: { nickname?: string; environment?: Environment; is_active?: boolean }) => {
         const r = await patchBrokerCredential(id, body);
         if ('id' in r) await refresh();
         return r;
@@ -46,5 +46,12 @@ export function useBrokerCredentials() {
         return r;
     }, [refresh]);
 
-    return { creds, loading, error, refresh, create, patch, remove };
+    // Convenience wrapper for the toggle switch on each card.
+    const setActive = useCallback(async (id: string, active: boolean) => {
+        const r = await patchBrokerCredential(id, { is_active: active });
+        if ('id' in r) await refresh();
+        return r;
+    }, [refresh]);
+
+    return { creds, loading, error, refresh, create, patch, remove, setActive };
 }

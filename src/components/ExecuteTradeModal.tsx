@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Signal, TradeDirection, Position, PositionStatus } from '../types';
 import { CloseIcon, MinusIcon, PlusIcon } from './IconComponents';
+import {
+    listBrokerCredentials,
+    executeSignalLive,
+    BrokerCredentialInfo,
+} from '../services/brokerCredentialService';
 
 interface ExecuteTradeModalProps {
     signal: Signal;
@@ -25,6 +30,20 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ signal, onClose, 
     const [takeProfit, setTakeProfit] = useState(signal.takeProfit);
 
     const [availableBalance] = useState(1000.0); // Mock Balance
+
+    // Phase 1: broker selector (paper vs connected live accounts)
+    const [brokerCreds, setBrokerCreds] = useState<BrokerCredentialInfo[]>([]);
+    const [selectedCredId, setSelectedCredId] = useState<string>('paper');
+    useEffect(() => {
+        listBrokerCredentials()
+            .then(setBrokerCreds)
+            .catch((err) => {
+                console.error('listBrokerCredentials failed:', err);
+                setBrokerCreds([]);
+            });
+    }, []);
+    const selectedCred = brokerCreds.find((c) => c.id === selectedCredId);
+    const isLiveMainnet = selectedCred?.network === 'mainnet';
 
     const isForex = account === 'Forex';
     const isCrypto = account === 'Binance';
@@ -99,6 +118,34 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ signal, onClose, 
     }, [potentialProfit, potentialLoss]);
 
     const handleSubmit = async () => {
+        // Phase 1: route to live Binance when a credential is selected.
+        if (selectedCredId !== 'paper') {
+            // The signal card's `id` is the execution id (signal_executions.id).
+            // The underlying event id lives in `signalEventId` (signals.id) — that's
+            // what the backend /api/execute-signal looks up.
+            const eventId = signal.signalEventId;
+            if (!eventId) {
+                alert('This signal has no backing event row — paper-only.');
+                return;
+            }
+            try {
+                const notional = amountType === 'USDT' ? Number(quantity) : Number(quantity) * entryPrice;
+                const result = await executeSignalLive({
+                    signalId: eventId,
+                    brokerCredentialId: selectedCredId,
+                    sizingMode: 'fixed_notional',
+                    sizingParams: { notional },
+                    leverage,
+                });
+                alert(`Live execution submitted: ${result.executionId}`);
+                onClose();
+            } catch (e: any) {
+                alert(`Execution failed: ${e?.message || e}`);
+            }
+            return;
+        }
+
+        // Paper path (unchanged)
         onExecute({
             id: `p${Date.now()}`,
             symbol: signal.pair,
@@ -140,6 +187,39 @@ const ExecuteTradeModal: React.FC<ExecuteTradeModalProps> = ({ signal, onClose, 
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <CloseIcon className="w-5 h-5" />
                     </button>
+                </div>
+
+                {/* Broker selector (Phase 1) */}
+                <div className="px-5 pt-4">
+                    <label htmlFor="broker-select" className="block text-xs uppercase tracking-wide text-gray-400 mb-1">Broker</label>
+                    <select
+                        id="broker-select"
+                        value={selectedCredId}
+                        onChange={(e) => setSelectedCredId(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white"
+                    >
+                        <option value="paper">Paper (default)</option>
+                        {brokerCreds.map((c) => {
+                            const brokerLabel = (c.broker || '').toString();
+                            const net = c.network === 'testnet' ? 'Testnet' : 'LIVE';
+                            const pretty = brokerLabel.charAt(0).toUpperCase() + brokerLabel.slice(1);
+                            return (
+                                <option key={c.id} value={c.id}>
+                                    {c.nickname} — {pretty} {net}
+                                </option>
+                            );
+                        })}
+                    </select>
+                    {brokerCreds.length === 0 && (
+                        <div className="mt-2 text-xs text-gray-500">
+                            No connected brokers found. Add one in Settings → Broker Connect.
+                        </div>
+                    )}
+                    {isLiveMainnet && (
+                        <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-xs text-red-300">
+                            Live mode — real money at risk
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">

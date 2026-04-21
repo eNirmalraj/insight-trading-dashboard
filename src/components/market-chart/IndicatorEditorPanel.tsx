@@ -64,6 +64,7 @@ const OpenIndicatorModal: React.FC<{
     const [tab, setTab] = useState<'my' | 'builtin'>('my');
     const [savedScripts, setSavedScripts] = useState<Strategy[]>([]);
     const [loading, setLoading] = useState(true);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -146,13 +147,37 @@ const OpenIndicatorModal: React.FC<{
                                             </div>
                                             <span className="text-xs text-[#2962FF] opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
                                         </button>
-                                        <button type="button" title="Delete"
-                                            onClick={() => { if (confirm(`Delete "${s.name}"? This cannot be undone.`)) { deleteStrategy(s.id); setSavedScripts((p) => p.filter((x) => x.id !== s.id)); } }}
-                                            className="p-2.5 ml-1 rounded-lg bg-white/[0.05] hover:bg-red-500/20 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
+                                        {pendingDeleteId === s.id ? (
+                                            <>
+                                                <button type="button" title="Confirm delete"
+                                                    onClick={async () => {
+                                                        try {
+                                                            await deleteStrategy(s.id);
+                                                            setSavedScripts((p) => p.filter((x) => x.id !== s.id));
+                                                            setPendingDeleteId(null);
+                                                        } catch (err: any) {
+                                                            alert(`Failed to delete "${s.name}": ${err?.message || err}`);
+                                                            setPendingDeleteId(null);
+                                                        }
+                                                    }}
+                                                    className="p-2.5 ml-1 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold">
+                                                    Confirm
+                                                </button>
+                                                <button type="button" title="Cancel"
+                                                    onClick={() => setPendingDeleteId(null)}
+                                                    className="p-2.5 ml-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-gray-300 text-xs font-semibold">
+                                                    Cancel
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button type="button" title="Delete"
+                                                onClick={() => setPendingDeleteId(s.id)}
+                                                className="p-2.5 ml-1 rounded-lg bg-white/[0.05] hover:bg-red-500/20 text-gray-400 hover:text-red-400 opacity-90 transition-all">
+                                                <svg className="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

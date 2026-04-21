@@ -1,0 +1,218 @@
+<h2>Phased Rollout Plan</h2>
+<p class="subtitle">Build the foundation once, then add brokers/markets incrementally. Each phase ships independently.</p>
+
+<style>
+  .phases {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  .phase {
+    background: #0f0f13;
+    border: 1px solid #2a2a35;
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: start;
+  }
+  .ph-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+  }
+  .ph-0 { background: linear-gradient(135deg,#a78bfa,#7c3aed); }
+  .ph-1 { background: linear-gradient(135deg,#f97316,#ea580c); }
+  .ph-2 { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+  .ph-3 { background: linear-gradient(135deg,#22c55e,#16a34a); }
+  .ph-4 { background: linear-gradient(135deg,#06b6d4,#0891b2); }
+  .ph-5 { background: linear-gradient(135deg,#eab308,#ca8a04); }
+  .ph-6 { background: linear-gradient(135deg,#ec4899,#db2777); }
+  .ph-7 { background: linear-gradient(135deg,#ef4444,#dc2626); }
+  .ph-body .ph-title {
+    font-weight: 700; color: #fff; font-size: 15px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 4px;
+  }
+  .ph-body .ph-what {
+    color: #cbd5e1; font-size: 12px; line-height: 1.5;
+  }
+  .ph-body .ph-outcome {
+    color: #94a3b8; font-size: 11px; font-style: italic; margin-top: 6px;
+  }
+  .ph-tags {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;
+  }
+  .ph-tag {
+    font-size: 9px; padding: 2px 8px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    color: #94a3b8;
+  }
+  .ph-est {
+    text-align: right;
+    color: #94a3b8; font-size: 11px;
+    font-family: ui-monospace, monospace;
+    white-space: nowrap;
+  }
+  .ph-est .est-num { font-size: 16px; font-weight: 700; color: #e5e7eb; }
+  .summary-box {
+    margin-top: 22px;
+    background: rgba(139,92,246,0.06);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 10px; padding: 16px 20px;
+  }
+  .summary-box h3 { color: #a78bfa; margin-bottom: 6px; }
+  .summary-box p { color: #cbd5e1; font-size: 12px; line-height: 1.6; }
+</style>
+
+<div class="phases">
+  <div class="phase">
+    <div class="ph-num ph-0">0</div>
+    <div class="ph-body">
+      <div class="ph-title">Foundation</div>
+      <div class="ph-what">
+        <strong>BrokerAdapter interface</strong> · <strong>OMS skeleton</strong> (validate → normalize → size → risk → queue → track) ·
+        <strong>Credential vault</strong> (AES-256 encryption at rest, decryption in-process only) ·
+        New DB tables: <code>broker_orders</code>, <code>positions</code>, <code>fills_log</code>, <code>user_exchange_keys_v2</code> ·
+        Re-implement paper broker through the new interface.
+      </div>
+      <div class="ph-outcome">✓ All code paths funnel through OMS. Paper trading still works identically to today.</div>
+      <div class="ph-tags"><span class="ph-tag">backend</span><span class="ph-tag">db migration</span><span class="ph-tag">no user-visible change</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~2 wk</div>8 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-1">1</div>
+    <div class="ph-body">
+      <div class="ph-title">First Live Broker — Binance Crypto + Signals Execute</div>
+      <div class="ph-what">
+        <strong>Binance broker adapter</strong> (Futures first, then Spot) · bracket order logic (market entry + STOP_MARKET SL + TAKE_PROFIT_MARKET TP) ·
+        <strong>User-data WebSocket</strong> for fill events · UI: add API keys on Settings page, test connection, toggle Live mode ·
+        Signals Execute button routes to live Binance when user opted in.
+      </div>
+      <div class="ph-outcome">✓ Users can execute live Binance trades from the Signals page. Worker outage doesn't lose SL/TP.</div>
+      <div class="ph-tags"><span class="ph-tag">binance api</span><span class="ph-tag">ws user-data</span><span class="ph-tag">settings ui</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~2 wk</div>12 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-2">2</div>
+    <div class="ph-body">
+      <div class="ph-title">My Scripts Auto-Trade</div>
+      <div class="ph-what">
+        Add <code>auto_trade</code> + <code>broker</code> + <code>broker_account_id</code> columns to <code>watchlist_strategies</code> ·
+        When assignment has auto-trade on, handleNewSignal submits via the configured broker instead of paper ·
+        Master toggle in My Scripts UI (matches the screenshot you shared earlier).
+      </div>
+      <div class="ph-outcome">✓ Trusted strategies can auto-trade without clicking Execute every time.</div>
+      <div class="ph-tags"><span class="ph-tag">backend</span><span class="ph-tag">my scripts ui</span><span class="ph-tag">db migration</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~1 wk</div>6 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-3">3</div>
+    <div class="ph-body">
+      <div class="ph-title">Market Page Order Panel</div>
+      <div class="ph-what">
+        Standalone order form on Market page — pick side, size, entry type, optional SL/TP ·
+        Submits through same OMS → creates a "manual" signal_execution row · visible on Signals page alongside strategy-generated ones.
+      </div>
+      <div class="ph-outcome">✓ Users can trade by-hand from the chart UI.</div>
+      <div class="ph-tags"><span class="ph-tag">market ui</span><span class="ph-tag">reuses oms</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~1 wk</div>5 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-4">4</div>
+    <div class="ph-body">
+      <div class="ph-title">Second Crypto Broker — Bybit (proves the abstraction)</div>
+      <div class="ph-what">
+        New broker adapter only. Zero changes outside the adapter. Validates that the interface is truly generic.
+      </div>
+      <div class="ph-outcome">✓ Multi-broker proven. Future brokers are mechanical.</div>
+      <div class="ph-tags"><span class="ph-tag">bybit api</span><span class="ph-tag">1 file</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~1 wk</div>4 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-5">5</div>
+    <div class="ph-body">
+      <div class="ph-title">Forex — OANDA</div>
+      <div class="ph-what">
+        OANDA broker adapter · market abstraction layer gets a <code>Forex</code> market type ·
+        pip-based sizing · market hours handling.
+      </div>
+      <div class="ph-outcome">✓ Forex trading enabled. Sizing and hours handled per-market.</div>
+      <div class="ph-tags"><span class="ph-tag">oanda api</span><span class="ph-tag">market hours</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~2 wk</div>8 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-6">6</div>
+    <div class="ph-body">
+      <div class="ph-title">Indian Stocks — Zerodha Kite</div>
+      <div class="ph-what">
+        Zerodha Kite Connect adapter · handle NSE/BSE symbol conventions ·
+        daily auth token dance · Indian market hours (9:15am–3:30pm IST).
+      </div>
+      <div class="ph-outcome">✓ Indian equity trading enabled.</div>
+      <div class="ph-tags"><span class="ph-tag">zerodha api</span><span class="ph-tag">daily-token</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~2 wk</div>8 tasks</div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-num ph-7">7</div>
+    <div class="ph-body">
+      <div class="ph-title">Scale Hardening (for 10K users)</div>
+      <div class="ph-what">
+        Redis-backed order queue (retries, idempotency) · user-data WebSocket pool sharded across worker processes ·
+        per-broker rate limiting · circuit breaker on broker outages · kill switch (per-user and global) ·
+        observability (Prometheus metrics, Grafana dashboards, alerts) · full fill audit trail.
+      </div>
+      <div class="ph-outcome">✓ Platform operates reliably at 10K-user scale with institutional-grade safety rails.</div>
+      <div class="ph-tags"><span class="ph-tag">redis</span><span class="ph-tag">sharding</span><span class="ph-tag">observability</span><span class="ph-tag">kill-switch</span></div>
+    </div>
+    <div class="ph-est"><div class="est-num">~3 wk</div>14 tasks</div>
+  </div>
+</div>
+
+<div class="summary-box">
+  <h3>Total: ~14 weeks to full multi-broker/multi-market at 10K scale</h3>
+  <p>
+    Phase 0 is non-negotiable — it's the foundation everything else sits on.
+    Phase 1 ships the first user-visible live trading feature.
+    Phase 7 (scale hardening) can also be done progressively as user count grows; it doesn't have to be all-at-once.
+    Each phase is its own spec → plan → implementation cycle.
+  </p>
+</div>
+
+<div class="options" style="margin-top: 20px">
+  <div class="option" data-choice="start-p0" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Looks right — start brainstorming Phase 0 now</h3>
+      <p>Foundation spec first, then each later phase gets its own spec.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="reorder" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Want to reorder or drop phases</h3>
+      <p>Tell me in the terminal.</p>
+    </div>
+  </div>
+</div>

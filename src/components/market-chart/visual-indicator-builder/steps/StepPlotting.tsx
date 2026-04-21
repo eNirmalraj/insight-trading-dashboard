@@ -23,7 +23,9 @@ const LINE_STYLES: { value: 'solid' | 'dashed' | 'dotted'; label: string }[] = [
 const DEFAULT_COLORS = ['#2962FF', '#FF6D00', '#00E676', '#E040FB', '#FFEA00', '#FF1744', '#00E5FF', '#FF9100'];
 
 const StepPlotting: React.FC<Props> = ({ model, update }) => {
-    const { plots, formulas } = model;
+    const { plots, formulas, parameters } = model;
+    const boolParams = parameters.filter((p) => p.type === 'bool');
+    const intParams = parameters.filter((p) => p.type === 'int');
 
     const setPlots = useCallback((fn: (prev: PlotDef[]) => PlotDef[]) => {
         update({ plots: fn(model.plots) });
@@ -124,17 +126,52 @@ const StepPlotting: React.FC<Props> = ({ model, update }) => {
                                         </select>
                                     )}
 
-                                    {/* Width (for line, level) */}
+                                    {/* Width (for line, level) — with Link to User Input support */}
                                     {(p.kind === 'line' || p.kind === 'level') && (
-                                        <input
-                                            type="number"
-                                            value={p.width}
-                                            title="Line width"
-                                            min={1}
-                                            max={4}
-                                            onChange={(e) => updatePlot(p.id, { width: parseInt(e.target.value) || 1 })}
-                                            className="w-12 bg-[#1e222d] border border-white/[0.08] rounded px-1.5 py-1.5 text-xs text-gray-200 text-center focus:border-[#2962FF] outline-none"
-                                        />
+                                        <div className="flex items-center gap-1">
+                                            {p.widthParam ? (
+                                                <span className="text-[10px] text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    width: {parameters.find((pp) => pp.varName === p.widthParam)?.title || p.widthParam}
+                                                </span>
+                                            ) : (
+                                                <input
+                                                    type="number"
+                                                    value={p.width}
+                                                    title="Line width"
+                                                    min={1}
+                                                    max={4}
+                                                    onChange={(e) => updatePlot(p.id, { width: parseInt(e.target.value) || 1 })}
+                                                    className="w-12 bg-[#1e222d] border border-white/[0.08] rounded px-1.5 py-1.5 text-xs text-gray-200 text-center focus:border-[#2962FF] outline-none"
+                                                />
+                                            )}
+                                            {intParams.length > 0 && (
+                                                <select value={p.widthParam || '__fixed__'} title="Link width to a User Input"
+                                                    onChange={(e) => updatePlot(p.id, { widthParam: e.target.value === '__fixed__' ? undefined : e.target.value })}
+                                                    className={`border rounded px-1 py-1 text-[10px] outline-none appearance-none ${
+                                                        p.widthParam ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' : 'bg-[#1e222d] border-white/[0.08] text-gray-500'
+                                                    }`}>
+                                                    <option value="__fixed__">Fixed</option>
+                                                    <optgroup label="Link width to">
+                                                        {intParams.map((pp) => <option key={pp.id} value={pp.varName}>{pp.title || pp.varName}</option>)}
+                                                    </optgroup>
+                                                </select>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Show-only-if (visibility linked to a bool User Input) */}
+                                    {boolParams.length > 0 && (
+                                        <select value={p.visibilityParam || '__always__'}
+                                            title="Show only when a User Input toggle is ON"
+                                            onChange={(e) => updatePlot(p.id, { visibilityParam: e.target.value === '__always__' ? undefined : e.target.value })}
+                                            className={`border rounded px-1.5 py-1 text-[10px] outline-none appearance-none ${
+                                                p.visibilityParam ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-[#1e222d] border-white/[0.08] text-gray-500'
+                                            }`}>
+                                            <option value="__always__">Always visible</option>
+                                            <optgroup label="Show only when ON">
+                                                {boolParams.map((pp) => <option key={pp.id} value={pp.varName}>{pp.title || pp.varName}</option>)}
+                                            </optgroup>
+                                        </select>
                                     )}
 
                                     {/* Marker location */}

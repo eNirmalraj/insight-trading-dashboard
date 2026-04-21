@@ -55,8 +55,19 @@ export function buildOperandOptions(
     opts.push({ value: 'math:max', label: 'Larger Of Two...', group: 'Math' });
     opts.push({ value: 'math:min', label: 'Smaller Of Two...', group: 'Math' });
 
-    // Condition (if-then-else)
-    opts.push({ value: 'cond:ternary', label: 'If...Then...Else...', group: 'Condition' });
+    // Condition — two outcomes based on one check
+    opts.push({ value: 'cond:ternary', label: 'Pick Between 2 Values (If/Else)...', group: 'Pick a Value' });
+
+    // Match — many outcomes based on one source
+    opts.push({ value: 'match:new', label: 'Pick Between Many Values (Switch)...', group: 'Pick a Value' });
+
+    // Chart State — current chart's timeframe info (used for auto-detection logic)
+    opts.push({ value: 'tf:multiplier', label: 'Chart TF Number (5, 15, 60, 240...)', group: 'Chart State' });
+    opts.push({ value: 'tf:isintraday', label: 'Is Intraday? (below 1D)', group: 'Chart State' });
+    opts.push({ value: 'tf:isdaily', label: 'Is Daily Chart?', group: 'Chart State' });
+    opts.push({ value: 'tf:isweekly', label: 'Is Weekly Chart?', group: 'Chart State' });
+    opts.push({ value: 'tf:ismonthly', label: 'Is Monthly Chart?', group: 'Chart State' });
+    opts.push({ value: 'tf:period', label: 'Chart TF String ("5", "D", "W"...)', group: 'Chart State' });
 
     // Missing value
     opts.push({ value: 'na:value', label: 'Empty / No Data (na)', group: 'Special' });
@@ -172,6 +183,7 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
                     const isCross = token.value.startsWith('cross:');
                     const isMath = token.value.startsWith('math:');
                     const isCond = token.value.startsWith('cond:');
+                    const isMatch = token.value.startsWith('match:');
                     const isNa = token.value.startsWith('na:');
 
                     // Parse current parts for inline editors
@@ -187,6 +199,7 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
                     else if (isCross) selectValue = `cross:${token.value.split(':')[1]}`;
                     else if (isMath) selectValue = `math:${token.value.split(':')[1]}`;
                     else if (isCond) selectValue = 'cond:ternary';
+                    else if (isMatch) selectValue = 'match:new';
                     else if (isNa && token.value !== 'na:value') selectValue = token.value.startsWith('na:check') ? 'na:check' : token.value.startsWith('na:replace') ? 'na:replace' : token.value;
                     else if (isFnWithPeriod) {
                         const fnKey = `fn:${fnParts[1]}:${fnParts[2] || '14'}`;
@@ -203,6 +216,17 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
                                     const val = e.target.value;
                                     if (val === 'value:0') {
                                         updateToken(idx, { value: 'value:0', valueNum: token.valueNum ?? 0 });
+                                    } else if (val === 'match:new') {
+                                        // Initialize a new match token with defaults
+                                        const firstStringParam = parameters?.find((p) => p.type === 'string');
+                                        updateToken(idx, {
+                                            value: 'match:new',
+                                            valueNum: undefined,
+                                            matchParam: firstStringParam?.varName || parameters?.[0]?.varName || '',
+                                            matchCases: firstStringParam?.options?.slice(0, -1).map((o) => ({ when: o, then: '' })) || [{ when: '', then: '' }],
+                                            matchDefault: firstStringParam?.options?.[firstStringParam.options.length - 1] || '',
+                                            matchOutputType: 'string',
+                                        });
                                     } else {
                                         updateToken(idx, { value: val, valueNum: undefined });
                                     }
@@ -482,11 +506,14 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
                                 );
                                 return (
                                     <div className="bg-[#12121a] border border-white/[0.06] rounded-lg p-2.5 space-y-2 w-full mt-1">
-                                        <p className="text-[9px] text-gray-500 italic">Choose a value based on a condition — returns THEN when true, ELSE when false.</p>
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-[9px] text-purple-400 font-semibold uppercase tracking-wider">If / Else</span>
+                                            <p className="text-[9px] text-gray-500 italic flex-1">Pick between exactly <b className="text-gray-400">2 values</b> based on one condition.<br/>Use this when: "if close is above SMA use 1, otherwise use -1".</p>
+                                        </div>
 
-                                        {/* Row 1: WHEN condition */}
+                                        {/* Row 1: Check condition */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-amber-400 w-12 flex-shrink-0">WHEN</span>
+                                            <span className="text-[10px] font-bold text-amber-400 w-12 flex-shrink-0">CHECK</span>
                                             {condSelect(condA, 'When this', (v) => updateToken(idx, { value: rebuildCond(v, condOp, condB, thenV, elseV) }))}
                                             <select value={condOp} title="Comparison" onChange={(e) => updateToken(idx, { value: rebuildCond(condA, e.target.value, condB, thenV, elseV) })}
                                                 className="bg-[#1e222d] border border-purple-500/30 rounded px-2 py-1 text-[11px] text-purple-300 outline-none appearance-none">
@@ -500,16 +527,142 @@ const ExpressionComposer: React.FC<ExpressionComposerProps> = ({
                                             {condSelect(condB, 'Compared to this', (v) => updateToken(idx, { value: rebuildCond(condA, condOp, v, thenV, elseV) }))}
                                         </div>
 
-                                        {/* Row 2: USE value */}
+                                        {/* Row 2: IF TRUE value */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-emerald-400 w-12 flex-shrink-0">USE</span>
+                                            <span className="text-[10px] font-bold text-emerald-400 w-12 flex-shrink-0">IF YES</span>
                                             {condSelect(thenV, 'Use this value when true', (v) => updateToken(idx, { value: rebuildCond(condA, condOp, condB, v, elseV) }))}
                                         </div>
 
-                                        {/* Row 3: OTHERWISE value */}
+                                        {/* Row 3: IF FALSE value */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-red-400 w-12 flex-shrink-0">OTHER</span>
+                                            <span className="text-[10px] font-bold text-red-400 w-12 flex-shrink-0">IF NO</span>
                                             {condSelect(elseV, 'Use this value when false', (v) => updateToken(idx, { value: rebuildCond(condA, condOp, condB, thenV, v) }))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Match Value — param-to-output mapping */}
+                            {isMatch && (() => {
+                                const matchParam = token.matchParam || '';
+                                const cases = token.matchCases || [];
+                                const defaultVal = token.matchDefault || '';
+                                const outputType = token.matchOutputType || 'string';
+                                const selectedParam = parameters?.find((p) => p.varName === matchParam);
+                                const choiceOptions = selectedParam?.options || [];
+
+                                const patchMatch = (patch: Partial<FormulaToken>) => updateToken(idx, patch);
+                                const updateCase = (i: number, field: 'when' | 'then', v: string) => {
+                                    patchMatch({ matchCases: cases.map((c, j) => j === i ? { ...c, [field]: v } : c) });
+                                };
+                                const addCase = () => patchMatch({ matchCases: [...cases, { op: '==', when: '', then: '' }] });
+                                const removeCase = (i: number) => patchMatch({ matchCases: cases.filter((_, j) => j !== i) });
+
+                                return (
+                                    <div className="bg-[#12121a] border border-white/[0.06] rounded-lg p-2.5 space-y-2 w-full mt-1">
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wider">Switch</span>
+                                            <p className="text-[9px] text-gray-500 italic flex-1">Pick between <b className="text-gray-400">many values</b> based on one source.<br/>Use this when: "if period = D/LTM use 60, if D/ETM use 240, if Weekly use D, otherwise use 60".</p>
+                                        </div>
+
+                                        {/* Based on which source — User Inputs + Chart State + price */}
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold text-amber-400 w-20 flex-shrink-0">LOOK AT</span>
+                                            <select value={matchParam} title="Source to match against"
+                                                onChange={(e) => {
+                                                    const p = parameters?.find((pp) => pp.varName === e.target.value);
+                                                    patchMatch({
+                                                        matchParam: e.target.value,
+                                                        matchCases: p?.options?.slice(0, -1).map((o) => ({ op: '==', when: o, then: '' })) || [{ op: '==', when: '', then: '' }],
+                                                        matchDefault: p?.options?.[p.options.length - 1] || '',
+                                                    });
+                                                }}
+                                                className="flex-1 bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
+                                                <option value="">— pick a source —</option>
+                                                {(parameters && parameters.length > 0) && (
+                                                    <optgroup label="User Inputs">
+                                                        {parameters.map((p) => (
+                                                            <option key={p.id} value={p.varName}>{p.title || p.varName}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                <optgroup label="Chart State">
+                                                    <option value="timeframe.multiplier">Chart TF Number</option>
+                                                    <option value="timeframe.period">Chart TF String</option>
+                                                    <option value="timeframe.isintraday">Is Intraday</option>
+                                                    <option value="timeframe.isdaily">Is Daily</option>
+                                                    <option value="timeframe.isweekly">Is Weekly</option>
+                                                    <option value="timeframe.ismonthly">Is Monthly</option>
+                                                </optgroup>
+                                                <optgroup label="Price">
+                                                    <option value="close">Close</option>
+                                                    <option value="open">Open</option>
+                                                    <option value="high">High</option>
+                                                    <option value="low">Low</option>
+                                                </optgroup>
+                                            </select>
+                                            <select value={outputType} title="Output value type"
+                                                onChange={(e) => patchMatch({ matchOutputType: e.target.value as 'string' | 'number' })}
+                                                className="bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
+                                                <option value="string">outputs are Text</option>
+                                                <option value="number">outputs are Numbers</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Cases */}
+                                        {cases.map((c, i) => (
+                                            <div key={i} className="flex items-center gap-1.5 pl-2">
+                                                <span className="text-[10px] font-bold text-emerald-400 w-12 flex-shrink-0">IF</span>
+                                                <select value={c.op || '=='} title="Comparison"
+                                                    onChange={(e) => patchMatch({ matchCases: cases.map((cc, j) => j === i ? { ...cc, op: e.target.value as any } : cc) })}
+                                                    className="bg-[#1e222d] border border-purple-500/30 rounded px-1 py-1 text-[10px] text-purple-300 focus:border-[#2962FF] outline-none appearance-none">
+                                                    <option value="==">==</option>
+                                                    <option value="<">&lt;</option>
+                                                    <option value="<=">&lt;=</option>
+                                                    <option value=">">&gt;</option>
+                                                    <option value=">=">&gt;=</option>
+                                                    <option value="!=">!=</option>
+                                                </select>
+                                                {choiceOptions.length > 0 ? (
+                                                    <select value={c.when} title={`Input value ${i + 1}`}
+                                                        onChange={(e) => updateCase(i, 'when', e.target.value)}
+                                                        className="flex-1 bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none appearance-none">
+                                                        <option value="">— pick —</option>
+                                                        {choiceOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                                                    </select>
+                                                ) : (
+                                                    <input value={c.when} title={`Input value ${i + 1}`}
+                                                        placeholder="value"
+                                                        onChange={(e) => updateCase(i, 'when', e.target.value)}
+                                                        className="flex-1 bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none" />
+                                                )}
+                                                <span className="text-[10px] text-gray-500">→</span>
+                                                <input value={c.then} title={`Output value ${i + 1}`}
+                                                    placeholder={outputType === 'number' ? '60' : 'output'}
+                                                    onChange={(e) => updateCase(i, 'then', e.target.value)}
+                                                    className="flex-1 bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none" />
+                                                <button type="button" onClick={() => removeCase(i)} title="Remove case"
+                                                    className="text-gray-600 hover:text-red-400 flex-shrink-0">
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        <button type="button" onClick={addCase}
+                                            className="w-full py-1 border border-dashed border-white/[0.1] rounded text-[10px] text-gray-500 hover:bg-white/[0.03] hover:text-gray-300 transition-colors">
+                                            + Add Another Case
+                                        </button>
+
+                                        {/* Default / fallback */}
+                                        <div className="flex items-center gap-2 pl-2 pt-1 border-t border-white/[0.04]">
+                                            <span className="text-[10px] font-bold text-red-400 w-16 flex-shrink-0">OTHERWISE</span>
+                                            <span className="text-[10px] text-gray-500">USE</span>
+                                            <input value={defaultVal} title="Default output value"
+                                                placeholder={outputType === 'number' ? 'e.g. 60' : 'e.g. D'}
+                                                onChange={(e) => patchMatch({ matchDefault: e.target.value })}
+                                                className="flex-1 bg-[#1e222d] border border-white/[0.08] rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#2962FF] outline-none" />
                                         </div>
                                     </div>
                                 );

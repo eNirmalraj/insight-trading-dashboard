@@ -142,7 +142,6 @@ export function normaliseStatusLineSettings(
         showIndicatorTitles: typeof raw.showIndicatorTitles === 'boolean' ? raw.showIndicatorTitles : defaults.showIndicatorTitles,
         showIndicatorValues: typeof raw.showIndicatorValues === 'boolean' ? raw.showIndicatorValues : defaults.showIndicatorValues,
         showBarChangePercent: typeof raw.showBarChangePercent === 'boolean' ? raw.showBarChangePercent : defaults.showBarChangePercent,
-        showSymbolDescription: typeof raw.showSymbolDescription === 'boolean' ? raw.showSymbolDescription : defaults.showSymbolDescription,
         showMarketStatus: typeof raw.showMarketStatus === 'boolean' ? raw.showMarketStatus : defaults.showMarketStatus,
     };
 }

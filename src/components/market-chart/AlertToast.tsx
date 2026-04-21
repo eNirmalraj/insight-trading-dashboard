@@ -20,6 +20,29 @@ interface AlertToastProps {
 const COND_OPTIONS: AlertConditionType[] = ['Crossing', 'Crossing Up', 'Crossing Down', 'Greater Than', 'Less Than'];
 const CHANNEL_OPTIONS: AlertConditionType[] = ['Entering Channel', 'Exiting Channel'];
 const TIME_OPTIONS: AlertConditionType[] = ['Time Reached'];
+
+const FIB_LEVELS = [
+    { value: 0, label: '0%' },
+    { value: 0.236, label: '23.6%' },
+    { value: 0.382, label: '38.2%' },
+    { value: 0.5, label: '50%' },
+    { value: 0.618, label: '61.8%' },
+    { value: 0.786, label: '78.6%' },
+    { value: 1, label: '100%' },
+];
+
+const GANN_LEVELS = [
+    { value: 0, label: '0% (1/1 low)' },
+    { value: 0.125, label: '12.5% (1/8)' },
+    { value: 0.25, label: '25% (1/4)' },
+    { value: 0.333, label: '33.3% (1/3)' },
+    { value: 0.5, label: '50% (1/2)' },
+    { value: 0.667, label: '66.7% (2/3)' },
+    { value: 0.75, label: '75% (3/4)' },
+    { value: 0.875, label: '87.5% (7/8)' },
+    { value: 1, label: '100% (1/1 high)' },
+];
+
 const TRIGS: { label: string; value: TriggerFreq }[] = [
     { label: 'Once', value: 'Only Once' },
     { label: 'Bar', value: 'Once Per Bar' },
@@ -52,22 +75,28 @@ const AlertToast: React.FC<AlertToastProps> = ({
     }, [onDismiss, expanded]);
 
     const drawingType = drawing?.type;
-    const conditionText = drawingType
-        ? `${alert.condition} ${drawingType}`
-        : alert.value
-            ? `${alert.condition} ${alert.value.toFixed(5)}`
-            : alert.condition;
+    const conditionText = (() => {
+        if (!drawingType) return alert.value ? `${alert.condition} ${alert.value.toFixed(5)}` : alert.condition;
+        if (drawing?.type === 'Fibonacci Retracement')
+            return `${alert.condition} Fib ${((alert.fibLevel ?? 0.618) * 100).toFixed(1)}%`;
+        if (drawing?.type === 'Gann Box')
+            return `${alert.condition} Gann ${((alert.fibLevel ?? 0.5) * 100).toFixed(1)}%`;
+        return `${alert.condition} ${drawingType}`;
+    })();
 
     const isIndicatorAlert = !!indicatorId && !!indicatorType;
     const isChannel = drawing?.type === 'Parallel Channel';
     const isVerticalLine = drawing?.type === 'Vertical Line';
-    const isDrawingAlert = !!drawing && !isChannel && !isVerticalLine;
+    const isFibonacci = drawing?.type === 'Fibonacci Retracement';
+    const isGannBox = drawing?.type === 'Gann Box';
+    const isLevelDrawing = isFibonacci || isGannBox;
+    const isDrawingAlert = !!drawing && !isChannel && !isVerticalLine && !isLevelDrawing;
     const isPriceAlert = !drawing && !isIndicatorAlert;
     const condOptions = conditionsForDrawing(drawing?.type);
 
     const [condition, setCondition] = useState<AlertConditionType>(alert.condition);
     const [value, setValue] = useState(alert.value ?? 0);
-    const [fibLevel] = useState(alert.fibLevel);
+    const [fibLevel, setFibLevel] = useState(alert.fibLevel ?? (isFibonacci ? 0.618 : isGannBox ? 0.5 : undefined));
     const [trigger, setTrigger] = useState<TriggerFreq>(alert.triggerFrequency);
     const [timeframe, setTimeframe] = useState(alert.timeframe || '1m');
     const [notifyApp, setNotifyApp] = useState(alert.notifyApp);
@@ -99,7 +128,7 @@ const AlertToast: React.FC<AlertToastProps> = ({
             ...alert,
             condition,
             value: isChannel ? undefined : value,
-            fibLevel,
+            fibLevel: isLevelDrawing ? fibLevel : alert.fibLevel,
             triggerFrequency: trigger,
             timeframe,
             notifyApp,
@@ -257,6 +286,20 @@ const AlertToast: React.FC<AlertToastProps> = ({
                                 <span className="text-[10px] text-[#c4b5f0] font-mono">
                                     {new Date(alert.value * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                 </span>
+                            )}
+                            {isLevelDrawing && (
+                                <select
+                                    title="Level"
+                                    className="flex-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-md px-2 py-1.5 text-[11px] text-[#c4b5f0] font-medium appearance-none cursor-pointer"
+                                    value={fibLevel ?? (isFibonacci ? 0.618 : 0.5)}
+                                    onChange={(e) => setFibLevel(parseFloat(e.target.value))}
+                                >
+                                    {(isFibonacci ? FIB_LEVELS : GANN_LEVELS).map((l) => (
+                                        <option key={l.value} value={l.value} style={{ background: '#1a1a1e' }}>
+                                            {l.label}
+                                        </option>
+                                    ))}
+                                </select>
                             )}
                         </>
                     )}

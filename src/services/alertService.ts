@@ -1,5 +1,5 @@
 import { db } from './supabaseClient';
-import { PriceAlert, AlertConditionType, Drawing, HorizontalLineDrawing, HorizontalRayDrawing, TrendLineDrawing, VerticalLineDrawing } from '../components/market-chart/types';
+import { PriceAlert, AlertConditionType, Drawing, HorizontalLineDrawing, HorizontalRayDrawing, TrendLineDrawing, VerticalLineDrawing, FibonacciRetracementDrawing, GannBoxDrawing } from '../components/market-chart/types';
 
 export const isMockMode = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -251,6 +251,7 @@ export const createAlertWithDefaults = async (
     let price = rawPrice || 0;
     let drawingId: string | undefined;
     let targetTime: number | undefined;
+    let fibLevel: number | undefined;
 
     if (drawing) {
         drawingId = drawing.id;
@@ -272,6 +273,18 @@ export const createAlertWithDefaults = async (
                 targetTime = (drawing as VerticalLineDrawing).time;
                 price = 0;
                 break;
+            case 'Fibonacci Retracement': {
+                const d = drawing as FibonacciRetracementDrawing;
+                fibLevel = 0.618;
+                price = d.start.price + (d.end.price - d.start.price) * fibLevel;
+                break;
+            }
+            case 'Gann Box': {
+                const d = drawing as GannBoxDrawing;
+                fibLevel = 0.5;
+                price = d.start.price + (d.end.price - d.start.price) * fibLevel;
+                break;
+            }
         }
     }
 
@@ -284,6 +297,10 @@ export const createAlertWithDefaults = async (
         message = `${symbol} Time Reached ${date}`;
     } else if (drawing?.type === 'Parallel Channel') {
         message = `${symbol} ${condition} ${drawing.type}`;
+    } else if (drawing?.type === 'Fibonacci Retracement') {
+        message = `${symbol} ${condition} Fib ${((fibLevel ?? 0.618) * 100).toFixed(1)}% (${priceStr})`;
+    } else if (drawing?.type === 'Gann Box') {
+        message = `${symbol} ${condition} Gann ${((fibLevel ?? 0.5) * 100).toFixed(1)}% (${priceStr})`;
     } else if (drawing) {
         message = `${symbol} ${condition} ${drawing.type} (${priceStr})`;
     } else {
@@ -297,6 +314,7 @@ export const createAlertWithDefaults = async (
         symbol,
         condition,
         value: alertValue,
+        fibLevel,
         drawingId,
         message,
         notifyApp: true,
