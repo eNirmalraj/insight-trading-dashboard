@@ -37,7 +37,6 @@ import {
     PathDrawing,
     BrushDrawing,
     ChartType,
-    Candle,
 } from './types';
 import {
     MIN_CANDLES,
