@@ -1,8 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 // Note: ChartHeader receives isMobile as prop from parent (CandlestickChart)
-import { Candle, ChartType } from './types';
+import { Candle, ChartType, StatusLineSettings } from './types';
 import { useOutsideAlerter } from './hooks';
+import { getSymbolDescription } from './symbolDescriptions';
+import {
+    getMarketStatus,
+    marketStatusDotColor,
+    type MarketStatus,
+} from '../../utils/marketStatus';
 import {
     ChevronDownIcon,
     UndoIcon,
@@ -108,6 +114,7 @@ interface ChartHeaderProps {
     isMobile: boolean;
     onToggleMobileSidebar: () => void;
     precision?: string;
+    statusLineSettings: StatusLineSettings;
 }
 
 const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
@@ -136,6 +143,7 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
         isMobile,
         onToggleMobileSidebar,
         precision = 'Default',
+        statusLineSettings,
     } = props;
     const ohlc = headerOhlc || { open: 0, high: 0, low: 0, close: 0, volume: 0 };
 
@@ -181,6 +189,13 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
     const [isSymbolSearchOpen, setSymbolSearchOpen] = useState(false);
     const [customInterval, setCustomInterval] = useState('');
     const [chartTypeMenuOpen, setChartTypeMenuOpen] = useState(false);
+
+    const [marketStatus, setMarketStatus] = useState<MarketStatus>(() => getMarketStatus(symbol));
+    useEffect(() => {
+        setMarketStatus(getMarketStatus(symbol));
+        const id = setInterval(() => setMarketStatus(getMarketStatus(symbol)), 60_000);
+        return () => clearInterval(id);
+    }, [symbol]);
 
     const handleSymbolSelect = (newSymbol: string) => {
         onSymbolChange(newSymbol);
@@ -253,6 +268,12 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                             onSymbolSelect={handleSymbolSelect}
                         />
                     </div>
+
+                    {statusLineSettings.showSymbolDescription && getSymbolDescription(symbol) && (
+                        <span className="text-xs text-gray-500 hidden md:inline px-1">
+                            {getSymbolDescription(symbol)}
+                        </span>
+                    )}
 
                     <div className="flex items-center gap-1">
                         {favoriteTimeframes.map((tf) => (
@@ -346,23 +367,39 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                     <div
                         className={`hidden md:flex items-center gap-3 ml-4 text-xs font-mono font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}
                     >
-                        <span>
-                            <span className="text-gray-500 mr-1">O</span>
-                            {format(ohlc.open)}
-                        </span>
-                        <span>
-                            <span className="text-gray-500 mr-1">H</span>
-                            {format(ohlc.high)}
-                        </span>
-                        <span>
-                            <span className="text-gray-500 mr-1">L</span>
-                            {format(ohlc.low)}
-                        </span>
-                        <span>
-                            <span className="text-gray-500 mr-1">C</span>
-                            {format(ohlc.close)}
-                        </span>
-                        {ohlc.volume !== undefined && (
+                        {statusLineSettings.showOhlc && (
+                            <>
+                                <span>
+                                    <span className="text-gray-500 mr-1">O</span>
+                                    {format(ohlc.open)}
+                                </span>
+                                <span>
+                                    <span className="text-gray-500 mr-1">H</span>
+                                    {format(ohlc.high)}
+                                </span>
+                                <span>
+                                    <span className="text-gray-500 mr-1">L</span>
+                                    {format(ohlc.low)}
+                                </span>
+                                <span>
+                                    <span className="text-gray-500 mr-1">C</span>
+                                    {format(ohlc.close)}
+                                </span>
+                            </>
+                        )}
+                        {statusLineSettings.showBarChange && (
+                            <span>
+                                {ohlc.close - ohlc.open >= 0 ? '+' : ''}
+                                {format(ohlc.close - ohlc.open)}
+                            </span>
+                        )}
+                        {statusLineSettings.showBarChangePercent && ohlc.open > 0 && (
+                            <span>
+                                {((ohlc.close - ohlc.open) / ohlc.open) * 100 >= 0 ? '+' : ''}
+                                {(((ohlc.close - ohlc.open) / ohlc.open) * 100).toFixed(2)}%
+                            </span>
+                        )}
+                        {statusLineSettings.showVolume && ohlc.volume !== undefined && (
                             <span className="text-gray-400 ml-1">
                                 <span className="text-gray-500 mr-1">Vol</span>
                                 {formatVolume(ohlc.volume)}
@@ -372,6 +409,15 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
                 )}
             </div>
             <div className="flex items-center gap-2">
+                {statusLineSettings.showMarketStatus && (
+                    <div
+                        className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium"
+                        title={`Market status: ${marketStatus.label}`}
+                    >
+                        <span className={`w-2 h-2 rounded-full ${marketStatusDotColor(marketStatus.state)}`} />
+                        <span className="text-gray-400">{marketStatus.label}</span>
+                    </div>
+                )}
                 <div className="bg-gray-800 p-1 rounded-lg">
                     <div className="hidden md:flex items-center gap-1">
                         <HeaderButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">

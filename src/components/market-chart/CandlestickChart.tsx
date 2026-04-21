@@ -9778,6 +9778,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     onAddCustomTimeframe={onAddCustomTimeframe}
                     onLogout={props.onLogout}
                     headerOhlc={headerOhlc}
+                    statusLineSettings={chartSettings.statusLine}
                     onUndo={handleUndo}
                     onRedo={handleRedo}
                     canUndo={undoStack.length > 0}
