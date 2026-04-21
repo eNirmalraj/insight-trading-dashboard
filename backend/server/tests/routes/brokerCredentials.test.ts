@@ -103,3 +103,65 @@ describe('POST /api/broker-credentials/test-batch', () => {
         expect(r.status).toBe(401);
     });
 });
+
+describe('POST /api/broker-credentials (create)', () => {
+    const mockHealth = require('../../src/services/credentialHealth').testCredential as jest.Mock;
+    const mockSupa = require('../../src/services/supabaseAdmin').supabaseAdmin;
+
+    beforeEach(() => {
+        mockHealth.mockReset();
+        // Default the credentialVault.store mock to return a fake id.
+        jest.doMock('../../src/services/credentialVault', () => ({
+            credentialVault: {
+                store: jest.fn(async () => ({ id: 'new-cred-id' })),
+                retrieveById: jest.fn(async () => null),
+                remove: jest.fn(async () => {}),
+                markVerified: jest.fn(async () => {}),
+            },
+        }));
+        // Reset supabase from() to return chainable update with no error, and delete too.
+        mockSupa.from = jest.fn(() => ({
+            update: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
+            delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
+        }));
+    });
+
+    it('rejects missing broker', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials')
+            .set('Authorization', 'Bearer x')
+            .send({ nickname: 'X', environment: 'testnet' });
+        expect(r.status).toBe(400);
+        expect(r.body.code).toBe('validation');
+        expect(r.body.field).toBe('broker');
+    });
+
+    it('rejects MT5 missing server', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials')
+            .set('Authorization', 'Bearer x')
+            .send({ broker: 'mt5', nickname: 'X', environment: 'demo',
+                mt5Login: '1', mt5Password: 'pw' });
+        expect(r.status).toBe(400);
+        expect(r.body.field).toBe('mt5Server');
+    });
+
+    it('rejects Bitget without passphrase', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials')
+            .set('Authorization', 'Bearer x')
+            .send({ broker: 'bitget', nickname: 'X', environment: 'mainnet',
+                apiKey: 'k', apiSecret: 's' });
+        expect(r.status).toBe(400);
+        expect(r.body.field).toBe('passphrase');
+    });
+
+    it('rejects unsupported broker', async () => {
+        const r = await request(app)
+            .post('/api/broker-credentials')
+            .set('Authorization', 'Bearer x')
+            .send({ broker: 'robinhood', nickname: 'X', environment: 'live', apiKey: 'k', apiSecret: 's' });
+        expect(r.status).toBe(400);
+        expect(r.body.field).toBe('broker');
+    });
+});
