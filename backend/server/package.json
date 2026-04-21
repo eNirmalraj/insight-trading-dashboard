@@ -7,7 +7,8 @@
         "start": "ts-node src/index.ts",
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
         "worker": "ts-node src/worker.ts",
-        "build": "tsc"
+        "build": "tsc",
+        "test": "jest"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.39.0",
@@ -23,9 +24,14 @@
     },
     "devDependencies": {
         "@types/express": "^4.17.21",
+        "@types/jest": "^30.0.0",
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^20.10.0",
+        "@types/supertest": "^7.2.0",
+        "jest": "^30.3.0",
         "nodemon": "^3.0.1",
+        "supertest": "^7.2.2",
+        "ts-jest": "^29.4.9",
         "ts-node": "^10.9.1",
         "ts-node-dev": "^2.0.0",
         "typescript": "^5.3.2"
