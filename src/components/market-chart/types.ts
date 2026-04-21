@@ -439,6 +439,9 @@ export interface StatusLineSettings {
     showVolume: boolean;
     showIndicatorTitles: boolean;
     showIndicatorValues: boolean;
+    showBarChangePercent: boolean;
+    showSymbolDescription: boolean;
+    showMarketStatus: boolean;
 }
 
 export type ScaleType = 'Linear' | 'Logarithmic' | 'Percent';

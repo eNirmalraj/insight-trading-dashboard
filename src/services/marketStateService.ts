@@ -1,6 +1,11 @@
 // src/services/marketStateService.ts
 import { db, isSupabaseConfigured } from './supabaseClient';
-import type { ChartSettings, SymbolSettings, ScalesAndLinesSettings } from '../components/market-chart/types';
+import type {
+    ChartSettings,
+    SymbolSettings,
+    ScalesAndLinesSettings,
+    StatusLineSettings,
+} from '../components/market-chart/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 
@@ -123,6 +128,25 @@ export function normaliseScalesAndLinesSettings(
     };
 }
 
+export function normaliseStatusLineSettings(
+    raw: any,
+    defaults: StatusLineSettings
+): StatusLineSettings {
+    if (!raw || typeof raw !== 'object') return { ...defaults };
+    return {
+        ...defaults,
+        ...raw,
+        showOhlc: typeof raw.showOhlc === 'boolean' ? raw.showOhlc : defaults.showOhlc,
+        showBarChange: typeof raw.showBarChange === 'boolean' ? raw.showBarChange : defaults.showBarChange,
+        showVolume: typeof raw.showVolume === 'boolean' ? raw.showVolume : defaults.showVolume,
+        showIndicatorTitles: typeof raw.showIndicatorTitles === 'boolean' ? raw.showIndicatorTitles : defaults.showIndicatorTitles,
+        showIndicatorValues: typeof raw.showIndicatorValues === 'boolean' ? raw.showIndicatorValues : defaults.showIndicatorValues,
+        showBarChangePercent: typeof raw.showBarChangePercent === 'boolean' ? raw.showBarChangePercent : defaults.showBarChangePercent,
+        showSymbolDescription: typeof raw.showSymbolDescription === 'boolean' ? raw.showSymbolDescription : defaults.showSymbolDescription,
+        showMarketStatus: typeof raw.showMarketStatus === 'boolean' ? raw.showMarketStatus : defaults.showMarketStatus,
+    };
+}
+
 /**
  * Normalise a full ChartSettings payload by running the sub-normalisers.
  * Future sub-projects can extend this with more sub-shape normalisers.
@@ -137,6 +161,7 @@ export function normaliseChartSettings(
         ...raw,
         symbol: normaliseSymbolSettings(raw.symbol, defaults.symbol),
         scalesAndLines: normaliseScalesAndLinesSettings(raw.scalesAndLines, defaults.scalesAndLines),
+        statusLine: normaliseStatusLineSettings(raw.statusLine, defaults.statusLine),
     };
 }
 

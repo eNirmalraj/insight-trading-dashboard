@@ -158,6 +158,9 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showVolume: true,
         showIndicatorTitles: true,
         showIndicatorValues: true,
+        showBarChangePercent: false,
+        showSymbolDescription: true,
+        showMarketStatus: true,
     },
     scalesAndLines: {
         showLastPriceLabel: true,
