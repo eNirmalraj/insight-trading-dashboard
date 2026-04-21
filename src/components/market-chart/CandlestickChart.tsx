@@ -131,6 +131,7 @@ interface HistoryState {
     priceRange: { min: number; max: number } | null;
     isAutoScaling: boolean;
     chartType: ChartType;
+    lockedRatio: number | null;
 }
 
 export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
@@ -386,6 +387,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     const activePointers = useRef(new Map<number, { x: number; y: number }>());
     const fullscreenContainerRef = useRef<HTMLDivElement>(null);
     const viewInteractionStartState = useRef<HistoryState | null>(null);
+    const lockedRatio = useRef<number | null>(null);
     const isAimingRef = useRef(false);
     const tapDetectionRef = useRef<{
         x: number;
@@ -1262,6 +1264,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             priceRange: priceRange ? { ...priceRange } : null,
             isAutoScaling,
             chartType,
+            lockedRatio: lockedRatio.current,
         };
         setUndoStack((prev) => [...prev.slice(-49), currentState]); // Limit to 50
         setRedoStack([]);
@@ -1284,6 +1287,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             priceRange,
             isAutoScaling,
             chartType,
+            lockedRatio: lockedRatio.current,
         };
         const newState = updater(currentState);
 
@@ -1293,6 +1297,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setPriceRange(newState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(newState.isAutoScaling);
         setChartType(newState.chartType);
+        lockedRatio.current = newState.lockedRatio;
     };
 
     const handleUndo = () => {
@@ -1304,6 +1309,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             priceRange: priceRange ? { ...priceRange } : null,
             isAutoScaling,
             chartType,
+            lockedRatio: lockedRatio.current,
         };
         const previousState = undoStack[undoStack.length - 1];
 
@@ -1316,6 +1322,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setPriceRange(previousState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(previousState.isAutoScaling);
         setChartType(previousState.chartType);
+        lockedRatio.current = previousState.lockedRatio;
     };
 
     const handleRedo = () => {
@@ -1327,6 +1334,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
             priceRange: priceRange ? { ...priceRange } : null,
             isAutoScaling,
             chartType,
+            lockedRatio: lockedRatio.current,
         };
         const nextState = redoStack[0];
 
@@ -1339,6 +1347,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         setPriceRange(nextState.priceRange ?? { min: 0, max: 0 });
         setIsAutoScaling(nextState.isAutoScaling);
         setChartType(nextState.chartType);
+        lockedRatio.current = nextState.lockedRatio;
     };
 
     const commitDrawingChange = (updater: (prev: Drawing[]) => Drawing[]) => {
@@ -2050,6 +2059,30 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 : 0,
         [chartDimensions.width, view.visibleCandles]
     );
+
+    // Lock price-to-bar ratio: when time-zoom changes xStep, adjust priceRange to hold the ratio constant.
+    useEffect(() => {
+        if (!chartSettings.scalesAndLines.lockPriceToBarRatio) {
+            lockedRatio.current = null;
+            return;
+        }
+        if (chartDimensions.height <= 0 || xStep <= 0) return;
+        const currentRatio = ((priceRange.max - priceRange.min) / chartDimensions.height) * xStep;
+        if (lockedRatio.current === null) {
+            // First observation after lock turned on — capture the current ratio and exit.
+            lockedRatio.current = currentRatio;
+            return;
+        }
+        // If xStep changed, adjust priceRange so the ratio stays equal to lockedRatio.
+        const targetRangeHeight = (lockedRatio.current / xStep) * chartDimensions.height;
+        const currentRangeHeight = priceRange.max - priceRange.min;
+        if (Math.abs(targetRangeHeight - currentRangeHeight) < 1e-6) return; // no-op
+        const center = (priceRange.min + priceRange.max) / 2;
+        setPriceRange({
+            min: center - targetRangeHeight / 2,
+            max: center + targetRangeHeight / 2,
+        });
+    }, [xStep, chartDimensions.height, chartSettings.scalesAndLines.lockPriceToBarRatio]);
     const { firstIndexToRender, lastIndexToRender } = useMemo(() => {
         const start = Math.floor(view.startIndex);
         const end = Math.ceil(view.startIndex + view.visibleCandles);
@@ -5699,6 +5732,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     priceRange: priceRange ? { ...priceRange } : null,
                     isAutoScaling,
                     chartType,
+                    lockedRatio: lockedRatio.current,
                 };
                 setUndoStack((prev) => [...prev.slice(-49), stateBeforeDrag]);
                 setRedoStack([]);
