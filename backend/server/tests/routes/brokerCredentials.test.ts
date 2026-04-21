@@ -165,3 +165,82 @@ describe('POST /api/broker-credentials (create)', () => {
         expect(r.body.field).toBe('broker');
     });
 });
+
+describe('PATCH /api/broker-credentials/:id', () => {
+    const mockSupa = require('../../src/services/supabaseAdmin').supabaseAdmin;
+
+    beforeEach(() => {
+        mockSupa.from = jest.fn(() => ({
+            update: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
+        }));
+    });
+
+    it('updates nickname only and returns 200 with id', async () => {
+        const r = await request(app)
+            .patch('/api/broker-credentials/abc')
+            .set('Authorization', 'Bearer x')
+            .send({ nickname: 'Renamed' });
+        expect(r.status).toBe(200);
+        expect(r.body.id).toBe('abc');
+    });
+
+    it('rejects invalid environment', async () => {
+        const r = await request(app)
+            .patch('/api/broker-credentials/abc')
+            .set('Authorization', 'Bearer x')
+            .send({ environment: 'oopsnope' });
+        expect(r.status).toBe(400);
+        expect(r.body.code).toBe('validation');
+        expect(r.body.field).toBe('environment');
+    });
+
+    it('401 without bearer', async () => {
+        const r = await request(app).patch('/api/broker-credentials/abc').send({ nickname: 'x' });
+        expect(r.status).toBe(401);
+    });
+});
+
+describe('DELETE /api/broker-credentials/:id — active execution guard', () => {
+    const mockSupa = require('../../src/services/supabaseAdmin').supabaseAdmin;
+
+    it('blocks delete when active executions exist', async () => {
+        mockSupa.from = jest.fn((table: string) => {
+            if (table === 'signal_executions') {
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            eq: async () => ({ data: [{ id: 'e1' }, { id: 'e2' }], error: null }),
+                        }),
+                    }),
+                };
+            }
+            return { delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) };
+        });
+
+        const r = await request(app)
+            .delete('/api/broker-credentials/abc')
+            .set('Authorization', 'Bearer x');
+        expect(r.status).toBe(409);
+        expect(r.body.code).toBe('active_executions');
+        expect(r.body.count).toBe(2);
+    });
+
+    it('allows delete when no active executions', async () => {
+        mockSupa.from = jest.fn((table: string) => {
+            if (table === 'signal_executions') {
+                return {
+                    select: () => ({
+                        eq: () => ({ eq: async () => ({ data: [], error: null }) }),
+                    }),
+                };
+            }
+            return { delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) };
+        });
+
+        const r = await request(app)
+            .delete('/api/broker-credentials/abc')
+            .set('Authorization', 'Bearer x');
+        expect(r.status).toBe(200);
+        expect(r.body.ok).toBe(true);
+    });
+});

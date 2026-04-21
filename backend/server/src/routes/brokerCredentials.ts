@@ -243,30 +243,77 @@ router.post('/:id/test', async (req: Request, res: Response) => {
     return res.json(result);
 });
 
-// DELETE /api/broker-credentials/:id — removes from whichever table owns the id.
+// PATCH /api/broker-credentials/:id
+// Edit nickname/environment. Sensitive-key rotation goes through credential
+// re-encryption + re-test (so a fat-fingered key update doesn't leave a
+// broken connection quietly marked Connected). Skip rotation here if the
+// client sent only nickname/environment fields.
+router.patch('/:id', async (req: Request, res: Response) => {
+    const userId = await resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { id } = req.params;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const patch: Record<string, unknown> = {};
+    if (typeof body.nickname === 'string') patch.nickname = body.nickname;
+    if (typeof body.environment === 'string') {
+        if (!['testnet', 'live', 'mainnet', 'demo'].includes(body.environment)) {
+            return res.status(400).json({
+                error: 'environment must be testnet|live|mainnet|demo',
+                code: 'validation',
+                field: 'environment',
+            });
+        }
+        patch.environment = body.environment;
+    }
+
+    if (Object.keys(patch).length > 0) {
+        const { error } = await supabaseAdmin
+            .from('user_exchange_keys_v2')
+            .update(patch)
+            .eq('id', id)
+            .eq('user_id', userId);
+        if (error) return res.status(500).json({ error: error.message });
+    }
+
+    // Key rotation is a post-MVP enhancement — route supports nickname/env
+    // edits today. Rotating keys should delete + recreate via the add wizard.
+    return res.json({ id });
+});
+
+// DELETE /api/broker-credentials/:id
+// Hard-deletes from user_exchange_keys_v2. Blocked with HTTP 409 if any
+// signal_executions.status='Active' still reference this credential — the
+// frontend surfaces this as "Close the execution first" rather than orphaning
+// a live trade.
 router.delete('/:id', async (req: Request, res: Response) => {
     const userId = await resolveUserId(req);
     if (!userId) return res.status(401).json({ error: 'unauthorized' });
 
     const { id } = req.params;
-    try {
-        const meta = await credentialBridge.getBrokerAndNetwork(id, userId);
-        if (!meta) return res.status(404).json({ error: 'credential not found' });
 
-        if (meta.source === 'v2') {
-            await credentialVault.remove(id, userId);
-        } else {
-            const { error } = await supabaseAdmin
-                .from('user_exchange_keys')
-                .delete()
-                .eq('id', id)
-                .eq('user_id', userId);
-            if (error) throw new Error(error.message);
-        }
-        return res.json({ ok: true });
-    } catch (err: any) {
-        return res.status(500).json({ error: err?.message || 'delete failed' });
+    const { data: active, error: activeErr } = await supabaseAdmin
+        .from('signal_executions')
+        .select('id')
+        .eq('broker_credential_id', id)
+        .eq('status', 'Active');
+    if (activeErr) return res.status(500).json({ error: activeErr.message });
+    if (active && active.length > 0) {
+        return res.status(409).json({
+            error: `${active.length} active execution${active.length === 1 ? '' : 's'} still use this credential`,
+            code: 'active_executions',
+            count: active.length,
+        });
     }
+
+    const { error } = await supabaseAdmin
+        .from('user_exchange_keys_v2')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
 });
 
 export default router;
