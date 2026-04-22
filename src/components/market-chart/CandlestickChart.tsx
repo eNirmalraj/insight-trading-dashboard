@@ -164,10 +164,8 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
     scalesAndLines: {
         showLastPriceLabel: true,
         showPriceLabels: true,
-        gridColorVertical: 'rgba(47, 47, 47, 0.5)',
-        gridColorHorizontal: 'rgba(47, 47, 47, 0.5)',
-        gridStyleVertical: 'solid',
-        gridStyleHorizontal: 'solid',
+        gridColor: 'rgba(47, 47, 47, 0.5)',
+        gridStyle: 'solid',
         crosshairColorVertical: '#A9A9A9',
         crosshairColorHorizontal: '#A9A9A9',
         crosshairStyleVertical: 'dashed',
@@ -2826,27 +2824,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
 
                 if (chartSettings.scalesAndLines.showGrid) {
                     chartContext.lineWidth = 0.5;
-
-                    // Horizontal grid lines (along the price axis)
-                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColorHorizontal;
-                    applyLineStyle(chartContext, chartSettings.scalesAndLines.gridStyleHorizontal);
+                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColor;
+                    applyLineStyle(chartContext, chartSettings.scalesAndLines.gridStyle);
                     yAxisLabels.forEach((label) => {
                         chartContext.beginPath();
                         chartContext.moveTo(0, label.y);
                         chartContext.lineTo(chartDimensions.width, label.y);
                         chartContext.stroke();
                     });
-
-                    // Vertical grid lines (along the time axis)
-                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColorVertical;
-                    applyLineStyle(chartContext, chartSettings.scalesAndLines.gridStyleVertical);
                     xAxisLabels.forEach((label) => {
                         chartContext.beginPath();
                         chartContext.moveTo(label.x, 0);
                         chartContext.lineTo(label.x, chartDimensions.height);
                         chartContext.stroke();
                     });
-
                     chartContext.setLineDash([]);
                 }
 
@@ -3549,8 +3540,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 yAxisCtx.fillText(val.toFixed(2), 6, y + 3);
 
                 // Grid line on indicator panel — horizontal price lines only
-                ctx.strokeStyle = chartSettings.scalesAndLines.gridColorHorizontal;
-                applyLineStyle(ctx, chartSettings.scalesAndLines.gridStyleHorizontal);
+                ctx.strokeStyle = chartSettings.scalesAndLines.gridColor;
+                applyLineStyle(ctx, chartSettings.scalesAndLines.gridStyle);
                 ctx.globalAlpha = 0.5;
                 ctx.beginPath();
                 ctx.moveTo(0, y);

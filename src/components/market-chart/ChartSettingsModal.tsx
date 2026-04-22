@@ -408,42 +408,19 @@ const ScalesAndLinesSettingsComponent: React.FC<{
                     isChecked={settings.showGrid}
                     onToggle={(checked) => onChange('showGrid', checked)}
                 />
-                <div className={settings.showGrid ? '' : 'opacity-50 pointer-events-none'}>
-                    <div className="text-xs text-gray-400 uppercase tracking-wide mt-2 mb-2">
-                        Vertical lines
-                    </div>
-                    <div className="space-y-2">
-                        <ColorRow
-                            label="Color"
-                            color={settings.gridColorVertical}
-                            onChange={(color) => onChange('gridColorVertical', color)}
+                <div className={`space-y-2 ${settings.showGrid ? '' : 'opacity-50 pointer-events-none'}`}>
+                    <ColorRow
+                        label="Color"
+                        color={settings.gridColor}
+                        onChange={(color) => onChange('gridColor', color)}
+                    />
+                    <div className="flex items-center justify-between">
+                        <label className="text-gray-300">Style</label>
+                        <LineStyleSelect
+                            value={settings.gridStyle}
+                            onChange={(v) => onChange('gridStyle', v)}
+                            disabled={!settings.showGrid}
                         />
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Style</label>
-                            <LineStyleSelect
-                                value={settings.gridStyleVertical}
-                                onChange={(v) => onChange('gridStyleVertical', v)}
-                                disabled={!settings.showGrid}
-                            />
-                        </div>
-                    </div>
-                    <div className="text-xs text-gray-400 uppercase tracking-wide mt-4 mb-2">
-                        Horizontal lines
-                    </div>
-                    <div className="space-y-2">
-                        <ColorRow
-                            label="Color"
-                            color={settings.gridColorHorizontal}
-                            onChange={(color) => onChange('gridColorHorizontal', color)}
-                        />
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Style</label>
-                            <LineStyleSelect
-                                value={settings.gridStyleHorizontal}
-                                onChange={(v) => onChange('gridStyleHorizontal', v)}
-                                disabled={!settings.showGrid}
-                            />
-                        </div>
                     </div>
                 </div>
             </div>

@@ -452,10 +452,8 @@ export interface ScalesAndLinesSettings {
     showGrid: boolean;
     showCrosshair: boolean;
 
-    gridColorVertical: string;
-    gridColorHorizontal: string;
-    gridStyleVertical: 'solid' | 'dashed' | 'dotted';
-    gridStyleHorizontal: 'solid' | 'dashed' | 'dotted';
+    gridColor: string;
+    gridStyle: 'solid' | 'dashed' | 'dotted';
 
     crosshairColorVertical: string;
     crosshairColorHorizontal: string;

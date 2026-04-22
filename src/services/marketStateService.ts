@@ -112,11 +112,23 @@ export function normaliseScalesAndLinesSettings(
 ): ScalesAndLinesSettings {
     if (!raw || typeof raw !== 'object') return { ...defaults };
 
-    // One-shot migration for rows written before the grid/crosshair V/H split.
+    // One-shot migration for the crosshair V/H split (legacy pre-rebuild crosshairColor).
     // Safe to delete once persisted rows have re-saved under the new shape.
-    const legacyGrid = typeof raw.gridColor === 'string' ? raw.gridColor : null;
     const legacyCross = typeof raw.crosshairColor === 'string' ? raw.crosshairColor : null;
-    const { gridColor: _g, crosshairColor: _c, ...rest } = raw;
+    // One-shot migration for the short-lived grid V/H split: if a row was saved with
+    // gridColorVertical/Horizontal (and no gridColor yet), collapse Vertical back.
+    const legacyGridV = typeof raw.gridColorVertical === 'string' ? raw.gridColorVertical : null;
+    const legacyGridStyleV = raw.gridStyleVertical === 'solid' || raw.gridStyleVertical === 'dashed' || raw.gridStyleVertical === 'dotted'
+        ? raw.gridStyleVertical
+        : null;
+    const {
+        crosshairColor: _c,
+        gridColorVertical: _gv,
+        gridColorHorizontal: _gh,
+        gridStyleVertical: _gsv,
+        gridStyleHorizontal: _gsh,
+        ...rest
+    } = raw;
 
     const isLineStyle = (v: unknown): v is 'solid' | 'dashed' | 'dotted' =>
         v === 'solid' || v === 'dashed' || v === 'dotted';
@@ -151,20 +163,13 @@ export function normaliseScalesAndLinesSettings(
                 ? rest.showHighLowMarkers
                 : defaults.showHighLowMarkers,
 
-        gridColorVertical:
-            typeof rest.gridColorVertical === 'string'
-                ? rest.gridColorVertical
-                : (legacyGrid ?? defaults.gridColorVertical),
-        gridColorHorizontal:
-            typeof rest.gridColorHorizontal === 'string'
-                ? rest.gridColorHorizontal
-                : (legacyGrid ?? defaults.gridColorHorizontal),
-        gridStyleVertical: isLineStyle(rest.gridStyleVertical)
-            ? rest.gridStyleVertical
-            : defaults.gridStyleVertical,
-        gridStyleHorizontal: isLineStyle(rest.gridStyleHorizontal)
-            ? rest.gridStyleHorizontal
-            : defaults.gridStyleHorizontal,
+        gridColor:
+            typeof rest.gridColor === 'string'
+                ? rest.gridColor
+                : (legacyGridV ?? defaults.gridColor),
+        gridStyle: isLineStyle(rest.gridStyle)
+            ? rest.gridStyle
+            : (legacyGridStyleV ?? defaults.gridStyle),
 
         crosshairColorVertical:
             typeof rest.crosshairColorVertical === 'string'
