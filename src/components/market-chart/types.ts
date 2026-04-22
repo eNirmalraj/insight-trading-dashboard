@@ -455,12 +455,9 @@ export interface ScalesAndLinesSettings {
     gridColor: string;
     gridStyle: 'solid' | 'dashed' | 'dotted';
 
-    crosshairColorVertical: string;
-    crosshairColorHorizontal: string;
-    crosshairStyleVertical: 'solid' | 'dashed' | 'dotted';
-    crosshairStyleHorizontal: 'solid' | 'dashed' | 'dotted';
-    crosshairWidthVertical: number;
-    crosshairWidthHorizontal: number;
+    crosshairColor: string;
+    crosshairStyle: 'solid' | 'dashed' | 'dotted';
+    crosshairWidth: number;
 
     dateFormat: string;
     timeFormat: string;

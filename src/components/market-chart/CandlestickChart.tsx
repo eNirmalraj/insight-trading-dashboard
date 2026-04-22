@@ -166,12 +166,9 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showPriceLabels: true,
         gridColor: 'rgba(47, 47, 47, 0.5)',
         gridStyle: 'solid',
-        crosshairColorVertical: '#A9A9A9',
-        crosshairColorHorizontal: '#A9A9A9',
-        crosshairStyleVertical: 'dashed',
-        crosshairStyleHorizontal: 'dashed',
-        crosshairWidthVertical: 1,
-        crosshairWidthHorizontal: 1,
+        crosshairColor: '#A9A9A9',
+        crosshairStyle: 'dashed',
+        crosshairWidth: 1,
         showCountdown: true,
         showGrid: true,
         showCrosshair: true,
@@ -4067,24 +4064,16 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     yAxisCtx.fillStyle = '#fff';
                     yAxisCtx.fillText(valToShow.toFixed(2), 6, y + 4);
 
-                    // Vertical crosshair line on panel
+                    // Crosshair lines on panel (shared color/style/width)
                     ctx.beginPath();
-                    ctx.strokeStyle = chartSettings.scalesAndLines.crosshairColorVertical;
-                    ctx.lineWidth = chartSettings.scalesAndLines.crosshairWidthVertical;
-                    applyLineStyle(ctx, chartSettings.scalesAndLines.crosshairStyleVertical);
+                    ctx.strokeStyle = chartSettings.scalesAndLines.crosshairColor;
+                    ctx.lineWidth = chartSettings.scalesAndLines.crosshairWidth;
+                    applyLineStyle(ctx, chartSettings.scalesAndLines.crosshairStyle);
                     ctx.moveTo(timeX, 0);
                     ctx.lineTo(timeX, height);
-                    ctx.stroke();
-
-                    // Horizontal crosshair line on panel
-                    ctx.beginPath();
-                    ctx.strokeStyle = chartSettings.scalesAndLines.crosshairColorHorizontal;
-                    ctx.lineWidth = chartSettings.scalesAndLines.crosshairWidthHorizontal;
-                    applyLineStyle(ctx, chartSettings.scalesAndLines.crosshairStyleHorizontal);
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
                     ctx.stroke();
-
                     ctx.setLineDash([]);
                     ctx.lineWidth = 1;
 
@@ -10070,15 +10059,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                         y2={tooltip.y}
                                                         stroke={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairColorHorizontal
+                                                                .crosshairColor
                                                         }
                                                         strokeWidth={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairWidthHorizontal
+                                                                .crosshairWidth
                                                         }
                                                         strokeDasharray={lineStyleToDashArray(
                                                             chartSettings.scalesAndLines
-                                                                .crosshairStyleHorizontal
+                                                                .crosshairStyle
                                                         )}
                                                     />
                                                     <line
@@ -10088,15 +10077,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                         y2={chartDimensions.height}
                                                         stroke={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairColorVertical
+                                                                .crosshairColor
                                                         }
                                                         strokeWidth={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairWidthVertical
+                                                                .crosshairWidth
                                                         }
                                                         strokeDasharray={lineStyleToDashArray(
                                                             chartSettings.scalesAndLines
-                                                                .crosshairStyleVertical
+                                                                .crosshairStyle
                                                         )}
                                                     />
                                                 </g>

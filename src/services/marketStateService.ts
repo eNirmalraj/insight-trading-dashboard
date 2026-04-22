@@ -112,21 +112,30 @@ export function normaliseScalesAndLinesSettings(
 ): ScalesAndLinesSettings {
     if (!raw || typeof raw !== 'object') return { ...defaults };
 
-    // One-shot migration for the crosshair V/H split (legacy pre-rebuild crosshairColor).
-    // Safe to delete once persisted rows have re-saved under the new shape.
-    const legacyCross = typeof raw.crosshairColor === 'string' ? raw.crosshairColor : null;
-    // One-shot migration for the short-lived grid V/H split: if a row was saved with
-    // gridColorVertical/Horizontal (and no gridColor yet), collapse Vertical back.
+    // One-shot migrations for the short-lived V/H shapes. Safe to delete once persisted
+    // rows have re-saved under the merged shape.
     const legacyGridV = typeof raw.gridColorVertical === 'string' ? raw.gridColorVertical : null;
     const legacyGridStyleV = raw.gridStyleVertical === 'solid' || raw.gridStyleVertical === 'dashed' || raw.gridStyleVertical === 'dotted'
         ? raw.gridStyleVertical
         : null;
+    const legacyCrossV = typeof raw.crosshairColorVertical === 'string' ? raw.crosshairColorVertical : null;
+    const legacyCrossStyleV = raw.crosshairStyleVertical === 'solid' || raw.crosshairStyleVertical === 'dashed' || raw.crosshairStyleVertical === 'dotted'
+        ? raw.crosshairStyleVertical
+        : null;
+    const legacyCrossWidthV = typeof raw.crosshairWidthVertical === 'number' && raw.crosshairWidthVertical >= 1 && raw.crosshairWidthVertical <= 3
+        ? raw.crosshairWidthVertical
+        : null;
     const {
-        crosshairColor: _c,
         gridColorVertical: _gv,
         gridColorHorizontal: _gh,
         gridStyleVertical: _gsv,
         gridStyleHorizontal: _gsh,
+        crosshairColorVertical: _cv,
+        crosshairColorHorizontal: _ch,
+        crosshairStyleVertical: _csv,
+        crosshairStyleHorizontal: _csh,
+        crosshairWidthVertical: _cwv,
+        crosshairWidthHorizontal: _cwh,
         ...rest
     } = raw;
 
@@ -171,26 +180,16 @@ export function normaliseScalesAndLinesSettings(
             ? rest.gridStyle
             : (legacyGridStyleV ?? defaults.gridStyle),
 
-        crosshairColorVertical:
-            typeof rest.crosshairColorVertical === 'string'
-                ? rest.crosshairColorVertical
-                : (legacyCross ?? defaults.crosshairColorVertical),
-        crosshairColorHorizontal:
-            typeof rest.crosshairColorHorizontal === 'string'
-                ? rest.crosshairColorHorizontal
-                : (legacyCross ?? defaults.crosshairColorHorizontal),
-        crosshairStyleVertical: isLineStyle(rest.crosshairStyleVertical)
-            ? rest.crosshairStyleVertical
-            : defaults.crosshairStyleVertical,
-        crosshairStyleHorizontal: isLineStyle(rest.crosshairStyleHorizontal)
-            ? rest.crosshairStyleHorizontal
-            : defaults.crosshairStyleHorizontal,
-        crosshairWidthVertical: isWidth(rest.crosshairWidthVertical)
-            ? rest.crosshairWidthVertical
-            : defaults.crosshairWidthVertical,
-        crosshairWidthHorizontal: isWidth(rest.crosshairWidthHorizontal)
-            ? rest.crosshairWidthHorizontal
-            : defaults.crosshairWidthHorizontal,
+        crosshairColor:
+            typeof rest.crosshairColor === 'string'
+                ? rest.crosshairColor
+                : (legacyCrossV ?? defaults.crosshairColor),
+        crosshairStyle: isLineStyle(rest.crosshairStyle)
+            ? rest.crosshairStyle
+            : (legacyCrossStyleV ?? defaults.crosshairStyle),
+        crosshairWidth: isWidth(rest.crosshairWidth)
+            ? rest.crosshairWidth
+            : (legacyCrossWidthV ?? defaults.crosshairWidth),
     };
 }
 

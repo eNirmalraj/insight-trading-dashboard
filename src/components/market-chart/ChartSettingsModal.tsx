@@ -433,81 +433,39 @@ const ScalesAndLinesSettingsComponent: React.FC<{
                     isChecked={settings.showCrosshair}
                     onToggle={(checked) => onChange('showCrosshair', checked)}
                 />
-                <div className={settings.showCrosshair ? '' : 'opacity-50 pointer-events-none'}>
-                    <div className="text-xs text-gray-400 uppercase tracking-wide mt-2 mb-2">
-                        Vertical line
-                    </div>
-                    <div className="space-y-2">
-                        <ColorRow
-                            label="Color"
-                            color={settings.crosshairColorVertical}
-                            onChange={(color) => onChange('crosshairColorVertical', color)}
+                <div className={`space-y-2 ${settings.showCrosshair ? '' : 'opacity-50 pointer-events-none'}`}>
+                    <ColorRow
+                        label="Color"
+                        color={settings.crosshairColor}
+                        onChange={(color) => onChange('crosshairColor', color)}
+                    />
+                    <div className="flex items-center justify-between">
+                        <label className="text-gray-300">Style</label>
+                        <LineStyleSelect
+                            value={settings.crosshairStyle}
+                            onChange={(v) => onChange('crosshairStyle', v)}
+                            disabled={!settings.showCrosshair}
                         />
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Style</label>
-                            <LineStyleSelect
-                                value={settings.crosshairStyleVertical}
-                                onChange={(v) => onChange('crosshairStyleVertical', v)}
-                                disabled={!settings.showCrosshair}
-                            />
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Width</label>
-                            <div className="flex gap-1">
-                                {[1, 2, 3].map((w) => (
-                                    <button
-                                        key={w}
-                                        type="button"
-                                        disabled={!settings.showCrosshair}
-                                        onClick={() => onChange('crosshairWidthVertical', w)}
-                                        className={`px-3 py-1 text-sm rounded-md border ${
-                                            settings.crosshairWidthVertical === w
-                                                ? 'bg-blue-600 border-blue-500 text-white'
-                                                : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    >
-                                        {w}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
                     </div>
-                    <div className="text-xs text-gray-400 uppercase tracking-wide mt-4 mb-2">
-                        Horizontal line
-                    </div>
-                    <div className="space-y-2">
-                        <ColorRow
-                            label="Color"
-                            color={settings.crosshairColorHorizontal}
-                            onChange={(color) => onChange('crosshairColorHorizontal', color)}
-                        />
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Style</label>
-                            <LineStyleSelect
-                                value={settings.crosshairStyleHorizontal}
-                                onChange={(v) => onChange('crosshairStyleHorizontal', v)}
-                                disabled={!settings.showCrosshair}
-                            />
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <label className="text-gray-300">Width</label>
-                            <div className="flex gap-1">
-                                {[1, 2, 3].map((w) => (
-                                    <button
-                                        key={w}
-                                        type="button"
-                                        disabled={!settings.showCrosshair}
-                                        onClick={() => onChange('crosshairWidthHorizontal', w)}
-                                        className={`px-3 py-1 text-sm rounded-md border ${
-                                            settings.crosshairWidthHorizontal === w
-                                                ? 'bg-blue-600 border-blue-500 text-white'
-                                                : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    >
-                                        {w}
-                                    </button>
-                                ))}
-                            </div>
+                    <div className="flex items-center justify-between">
+                        <label className="text-gray-300">Width</label>
+                        <div className="flex gap-1">
+                            {[1, 2, 3].map((w) => (
+                                <button
+                                    key={w}
+                                    type="button"
+                                    aria-label={`Crosshair width ${w}`}
+                                    disabled={!settings.showCrosshair}
+                                    onClick={() => onChange('crosshairWidth', w)}
+                                    className={`px-3 py-1 text-sm rounded-md border ${
+                                        settings.crosshairWidth === w
+                                            ? 'bg-blue-600 border-blue-500 text-white'
+                                            : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    {w}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
