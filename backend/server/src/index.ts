@@ -2,11 +2,6 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { syncToDatabase as syncStrategies } from './engine/strategyLoader';
 import {
-    prepareExecutionEngine,
-    startExecutionEngine,
-    getExecutionEngineStatus,
-} from './engine/executionEngine';
-import {
     startSignalEngine,
     getSignalEngineStatus,
 } from './engine/signalEngine';
@@ -28,7 +23,6 @@ app.get('/', (req, res) => {
 app.get('/engine/status', (req, res) => {
     res.json({
         engine: getSignalEngineStatus(),
-        execution: getExecutionEngineStatus(),
     });
 });
 
@@ -40,13 +34,7 @@ app.listen(PORT, async () => {
     // 1. Sync .kuri files into scripts table
     await syncStrategies();
 
-    // 2. Prepare Execution Engine (replay missed candles)
-    await prepareExecutionEngine();
-
-    // 3. Start Execution Engine (listeners)
-    await startExecutionEngine();
-
-    // 4. Start Signal Engine (scanner)
+    // 2. Start Signal Engine (scanner) — signals are notifications only, no auto-execution
     console.log('');
     console.log('═══════════════════════════════════════════');
     console.log('       SIGNAL ENGINE STARTING              ');
