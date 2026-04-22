@@ -199,6 +199,34 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
     },
 });
 
+const applyLineStyle = (
+    ctx: CanvasRenderingContext2D,
+    style: 'solid' | 'dashed' | 'dotted'
+) => {
+    switch (style) {
+        case 'solid':
+            ctx.setLineDash([]);
+            break;
+        case 'dashed':
+            ctx.setLineDash([6, 4]);
+            break;
+        case 'dotted':
+            ctx.setLineDash([2, 3]);
+            break;
+    }
+};
+
+const lineStyleToDashArray = (style: 'solid' | 'dashed' | 'dotted'): string => {
+    switch (style) {
+        case 'solid':
+            return '0';
+        case 'dashed':
+            return '6 4';
+        case 'dotted':
+            return '2 3';
+    }
+};
+
 const getTextColorForBackground = (hexColor: string): string => {
     if (!hexColor || !hexColor.startsWith('#')) return '#FFFFFF';
     const hex = hexColor.slice(1);
@@ -2784,7 +2812,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 chartContext.fillRect(0, 0, chartDimensions.width, chartDimensions.height);
 
                 if (chartSettings.canvas.showWatermark) {
-                    chartContext.font = 'bold 48px Inter, sans-serif';
+                    chartContext.font = `bold ${chartSettings.canvas.watermarkFontSize}px Inter, sans-serif`;
                     chartContext.fillStyle = chartSettings.canvas.watermarkColor;
                     chartContext.textAlign = 'center';
                     chartContext.textBaseline = 'middle';
@@ -2797,20 +2825,29 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 }
 
                 if (chartSettings.scalesAndLines.showGrid) {
-                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColor;
                     chartContext.lineWidth = 0.5;
+
+                    // Horizontal grid lines (along the price axis)
+                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColorHorizontal;
+                    applyLineStyle(chartContext, chartSettings.scalesAndLines.gridStyleHorizontal);
                     yAxisLabels.forEach((label) => {
                         chartContext.beginPath();
                         chartContext.moveTo(0, label.y);
                         chartContext.lineTo(chartDimensions.width, label.y);
                         chartContext.stroke();
                     });
+
+                    // Vertical grid lines (along the time axis)
+                    chartContext.strokeStyle = chartSettings.scalesAndLines.gridColorVertical;
+                    applyLineStyle(chartContext, chartSettings.scalesAndLines.gridStyleVertical);
                     xAxisLabels.forEach((label) => {
                         chartContext.beginPath();
                         chartContext.moveTo(label.x, 0);
                         chartContext.lineTo(label.x, chartDimensions.height);
                         chartContext.stroke();
                     });
+
+                    chartContext.setLineDash([]);
                 }
 
                 const renderCandlesLikePass = (renderData: Candle[], hollow: boolean) => {
@@ -3511,14 +3548,16 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                 const y = height * t;
                 yAxisCtx.fillText(val.toFixed(2), 6, y + 3);
 
-                // Grid line on main chart
-                ctx.strokeStyle = chartSettings.scalesAndLines.gridColor;
+                // Grid line on indicator panel — horizontal price lines only
+                ctx.strokeStyle = chartSettings.scalesAndLines.gridColorHorizontal;
+                applyLineStyle(ctx, chartSettings.scalesAndLines.gridStyleHorizontal);
                 ctx.globalAlpha = 0.5;
                 ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(width, y);
                 ctx.stroke();
                 ctx.globalAlpha = 1;
+                ctx.setLineDash([]);
             }
 
             // Draw Logic based on Type
@@ -4037,16 +4076,26 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     yAxisCtx.fillStyle = '#fff';
                     yAxisCtx.fillText(valToShow.toFixed(2), 6, y + 4);
 
-                    // Crosshair line on panel
+                    // Vertical crosshair line on panel
                     ctx.beginPath();
-                    ctx.strokeStyle = '#E0E0E0';
-                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = chartSettings.scalesAndLines.crosshairColorVertical;
+                    ctx.lineWidth = chartSettings.scalesAndLines.crosshairWidthVertical;
+                    applyLineStyle(ctx, chartSettings.scalesAndLines.crosshairStyleVertical);
                     ctx.moveTo(timeX, 0);
                     ctx.lineTo(timeX, height);
+                    ctx.stroke();
+
+                    // Horizontal crosshair line on panel
+                    ctx.beginPath();
+                    ctx.strokeStyle = chartSettings.scalesAndLines.crosshairColorHorizontal;
+                    ctx.lineWidth = chartSettings.scalesAndLines.crosshairWidthHorizontal;
+                    applyLineStyle(ctx, chartSettings.scalesAndLines.crosshairStyleHorizontal);
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
                     ctx.stroke();
+
                     ctx.setLineDash([]);
+                    ctx.lineWidth = 1;
 
                     // Dot
                     const pointX = indexToX(safeIndex - view.startIndex);
@@ -10030,10 +10079,16 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                         y2={tooltip.y}
                                                         stroke={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairColor
+                                                                .crosshairColorHorizontal
                                                         }
-                                                        strokeWidth="1"
-                                                        strokeDasharray="4 4"
+                                                        strokeWidth={
+                                                            chartSettings.scalesAndLines
+                                                                .crosshairWidthHorizontal
+                                                        }
+                                                        strokeDasharray={lineStyleToDashArray(
+                                                            chartSettings.scalesAndLines
+                                                                .crosshairStyleHorizontal
+                                                        )}
                                                     />
                                                     <line
                                                         x1={tooltip.x}
@@ -10042,10 +10097,16 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                                                         y2={chartDimensions.height}
                                                         stroke={
                                                             chartSettings.scalesAndLines
-                                                                .crosshairColor
+                                                                .crosshairColorVertical
                                                         }
-                                                        strokeWidth="1"
-                                                        strokeDasharray="4 4"
+                                                        strokeWidth={
+                                                            chartSettings.scalesAndLines
+                                                                .crosshairWidthVertical
+                                                        }
+                                                        strokeDasharray={lineStyleToDashArray(
+                                                            chartSettings.scalesAndLines
+                                                                .crosshairStyleVertical
+                                                        )}
                                                     />
                                                 </g>
                                             )}
