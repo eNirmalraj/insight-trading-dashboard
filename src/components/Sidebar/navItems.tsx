@@ -5,6 +5,7 @@ import {
     FilterIcon,
     UsersIcon,
     ScriptIcon,
+    PositionMonitoringIcon,
 } from '../IconComponents';
 import { NavItem } from './types';
 
@@ -17,6 +18,11 @@ export const getNavItems = (): NavItem[] => [
         to: '/my-scripts',
         icon: <FilterIcon className="w-5 h-5 flex-shrink-0" />,
         label: 'My Scripts',
+    },
+    {
+        to: '/positions',
+        icon: <PositionMonitoringIcon className="w-5 h-5 flex-shrink-0" />,
+        label: 'Position Monitoring',
     },
     { to: '/community', icon: <UsersIcon className="w-5 h-5 flex-shrink-0" />, label: 'Community' },
     {

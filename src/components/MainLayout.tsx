@@ -10,6 +10,7 @@ import Screener from '../pages/MarketScreener';
 // Fix: Import 'Signals' correctly now that it has a default export.
 import Signals from '../pages/Signals';
 import WatchlistPage from '../pages/My Scripts';
+import PositionMonitoring from '../pages/PositionMonitoring';
 import Settings from '../pages/Settings';
 import StrategyStudio from '../pages/StrategyStudio';
 import Community from '../pages/Community';
@@ -65,6 +66,8 @@ const MainLayout: React.FC = () => {
                 return 'Trading Signals';
             case '/my-scripts':
                 return 'My Scripts';
+            case '/positions':
+                return 'Position Monitoring';
             case '/settings':
                 return 'Settings';
             default:
@@ -128,6 +131,7 @@ const MainLayout: React.FC = () => {
                         <ReactRouterDOM.Route path="/screener" element={<Screener />} />
                         <ReactRouterDOM.Route path="/signals" element={<Signals />} />
                         <ReactRouterDOM.Route path="/my-scripts" element={<WatchlistPage />} />
+                        <ReactRouterDOM.Route path="/positions" element={<PositionMonitoring />} />
                         <ReactRouterDOM.Route path="/settings" element={<Settings />} />
                         <ReactRouterDOM.Route path="/community" element={<Community />} />
                         <ReactRouterDOM.Route path="/subscription" element={<Subscription />} />

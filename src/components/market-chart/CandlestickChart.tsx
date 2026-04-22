@@ -164,8 +164,16 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
     scalesAndLines: {
         showLastPriceLabel: true,
         showPriceLabels: true,
-        gridColor: 'rgba(47, 47, 47, 0.5)',
-        crosshairColor: '#A9A9A9',
+        gridColorVertical: 'rgba(47, 47, 47, 0.5)',
+        gridColorHorizontal: 'rgba(47, 47, 47, 0.5)',
+        gridStyleVertical: 'solid',
+        gridStyleHorizontal: 'solid',
+        crosshairColorVertical: '#A9A9A9',
+        crosshairColorHorizontal: '#A9A9A9',
+        crosshairStyleVertical: 'dashed',
+        crosshairStyleHorizontal: 'dashed',
+        crosshairWidthVertical: 1,
+        crosshairWidthHorizontal: 1,
         showCountdown: true,
         showGrid: true,
         showCrosshair: true,
@@ -187,6 +195,7 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showWatermark: false,
         watermarkText: symbol,
         watermarkColor: 'rgba(156, 163, 175, 0.1)',
+        watermarkFontSize: 48,
     },
 });
 

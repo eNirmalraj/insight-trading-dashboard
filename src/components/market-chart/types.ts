@@ -448,11 +448,22 @@ export type ScaleType = 'Linear' | 'Logarithmic' | 'Percent';
 export interface ScalesAndLinesSettings {
     showLastPriceLabel: boolean;
     showPriceLabels: boolean;
-    gridColor: string;
-    crosshairColor: string;
     showCountdown: boolean;
     showGrid: boolean;
     showCrosshair: boolean;
+
+    gridColorVertical: string;
+    gridColorHorizontal: string;
+    gridStyleVertical: 'solid' | 'dashed' | 'dotted';
+    gridStyleHorizontal: 'solid' | 'dashed' | 'dotted';
+
+    crosshairColorVertical: string;
+    crosshairColorHorizontal: string;
+    crosshairStyleVertical: 'solid' | 'dashed' | 'dotted';
+    crosshairStyleHorizontal: 'solid' | 'dashed' | 'dotted';
+    crosshairWidthVertical: number;
+    crosshairWidthHorizontal: number;
+
     dateFormat: string;
     timeFormat: string;
     scaleType: ScaleType;
@@ -472,6 +483,7 @@ export interface CanvasSettings {
     showWatermark: boolean;
     watermarkText: string;
     watermarkColor: string;
+    watermarkFontSize: number;
 }
 
 export interface ChartSettings {
