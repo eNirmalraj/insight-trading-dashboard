@@ -3041,6 +3041,55 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                         break;
                 }
 
+                // Sub-project 5: High/low markers
+                if (
+                    chartSettings.scalesAndLines.showHighLowMarkers &&
+                    visibleHighLow !== null &&
+                    visibleData.length > 0
+                ) {
+                    const { highIdx, lowIdx, high, low } = visibleHighLow;
+                    const highCandleIndexInData = startIdx + highIdx;
+                    const lowCandleIndexInData = startIdx + lowIdx;
+                    const highX = indexToX(highCandleIndexInData - view.startIndex);
+                    const lowX = indexToX(lowCandleIndexInData - view.startIndex);
+                    const highY = Math.round(yScale(high));
+                    const lowY = Math.round(yScale(low));
+                    const upColor = chartSettings.symbol.bodyUpColor;
+                    const downColor = chartSettings.symbol.bodyDownColor;
+
+                    // ▲ above the high
+                    chartContext.fillStyle = upColor;
+                    chartContext.beginPath();
+                    chartContext.moveTo(highX, highY - 12);
+                    chartContext.lineTo(highX - 5, highY - 4);
+                    chartContext.lineTo(highX + 5, highY - 4);
+                    chartContext.closePath();
+                    chartContext.fill();
+
+                    // ▼ below the low
+                    chartContext.fillStyle = downColor;
+                    chartContext.beginPath();
+                    chartContext.moveTo(lowX, lowY + 12);
+                    chartContext.lineTo(lowX - 5, lowY + 4);
+                    chartContext.lineTo(lowX + 5, lowY + 4);
+                    chartContext.closePath();
+                    chartContext.fill();
+
+                    // Numeric labels (suppressed near canvas edges)
+                    const PAD = 4;
+                    chartContext.save();
+                    chartContext.fillStyle = '#D1D4DC';
+                    chartContext.font = '10px "Geist", "Inter", sans-serif';
+                    chartContext.textAlign = 'center';
+                    if (highY - 18 >= PAD) {
+                        chartContext.fillText(formatPrice(high), highX, highY - 16);
+                    }
+                    if (lowY + 22 <= chartDimensions.height - PAD) {
+                        chartContext.fillText(formatPrice(low), lowX, lowY + 22);
+                    }
+                    chartContext.restore();
+                }
+
                 if (chartSettings.symbol.showLastPriceLine && data.length > 0) {
                     const lastCandle = data[data.length - 1];
                     const prevCandle = data.length > 1 ? data[data.length - 2] : null;
@@ -3057,6 +3106,33 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                     chartContext.lineTo(chartDimensions.width, y);
                     chartContext.stroke();
                     chartContext.setLineDash([]);
+                }
+
+                // Sub-project 5: Prev-day close dashed horizontal line
+                if (chartSettings.scalesAndLines.showPrevDayCloseLine && prevDayClose !== null) {
+                    const y = Math.round(yScale(prevDayClose)) + 0.5;
+                    chartContext.save();
+                    chartContext.setLineDash([4, 4]);
+                    chartContext.strokeStyle = '#787B86';
+                    chartContext.lineWidth = 1;
+                    chartContext.beginPath();
+                    chartContext.moveTo(0, y);
+                    chartContext.lineTo(chartDimensions.width, y);
+                    chartContext.stroke();
+                    chartContext.restore();
+                }
+
+                // Sub-project 5: Average-close solid horizontal line
+                if (chartSettings.scalesAndLines.showAverageCloseLine && visibleAverageClose !== null) {
+                    const y = Math.round(yScale(visibleAverageClose)) + 0.5;
+                    chartContext.save();
+                    chartContext.strokeStyle = '#A78BFA';
+                    chartContext.lineWidth = 1;
+                    chartContext.beginPath();
+                    chartContext.moveTo(0, y);
+                    chartContext.lineTo(chartDimensions.width, y);
+                    chartContext.stroke();
+                    chartContext.restore();
                 }
             }
 
@@ -3115,6 +3191,36 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             yAxisContext.fillText(formatPrice(lastPrice), 6, labelY + 14);
                         }
                     }
+                }
+                // Sub-project 5: Y-axis badges for prev-day close and average-close with stack-avoidance
+                const lastLabelY =
+                    data.length > 0 && chartSettings.scalesAndLines.showLastPriceLabel
+                        ? yScale(data[data.length - 1].close)
+                        : null;
+
+                const drawAxisBadge = (price: number, text: string, textColor: string) => {
+                    let y = yScale(price);
+                    if (lastLabelY !== null && Math.abs(y - lastLabelY) < 12) {
+                        y = lastLabelY + Math.sign(y - lastLabelY || 1) * 14;
+                    }
+                    y = Math.max(9, Math.min(yAxisDimensions.height - 11, y));
+                    yAxisContext.fillStyle = '#2A2E39';
+                    yAxisContext.fillRect(0, y - 9, yAxisDimensions.width, 18);
+                    yAxisContext.fillStyle = textColor;
+                    yAxisContext.textAlign = 'left';
+                    yAxisContext.font = 'bold 11px "Geist", "Inter", sans-serif';
+                    yAxisContext.fillText(text, 4, y + 3);
+                };
+
+                if (chartSettings.scalesAndLines.showPrevDayCloseLine && prevDayClose !== null) {
+                    drawAxisBadge(prevDayClose, `PD ${formatPrice(prevDayClose)}`, '#D1D4DC');
+                }
+                if (chartSettings.scalesAndLines.showAverageCloseLine && visibleAverageClose !== null) {
+                    drawAxisBadge(
+                        visibleAverageClose,
+                        `Avg ${formatPrice(visibleAverageClose)}`,
+                        '#C4B5F0'
+                    );
                 }
                 if (chartSettings.scalesAndLines.showPriceLabels) {
                     const labels: LabelInfo[] = [];
