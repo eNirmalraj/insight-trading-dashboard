@@ -13,14 +13,6 @@ export default defineConfig(({ mode }) => {
                     target: 'http://localhost:4000',
                     changeOrigin: true,
                 },
-                '/api/broker-credentials': {
-                    target: 'http://localhost:4000',
-                    changeOrigin: true,
-                },
-                '/api/execute-signal': {
-                    target: 'http://localhost:4000',
-                    changeOrigin: true,
-                },
                 '/api/binance': {
                     target: 'https://api.binance.com',
                     changeOrigin: true,

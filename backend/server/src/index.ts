@@ -11,8 +11,6 @@ import {
     getSignalEngineStatus,
 } from './engine/signalEngine';
 import { supabaseAdmin } from './services/supabaseAdmin';
-import brokerCredentialsRouter from './routes/brokerCredentials';
-import executeSignalRouter from './routes/executeSignal';
 
 dotenv.config();
 
@@ -20,10 +18,6 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
-
-// Phase 1 broker credential + execute-signal routes
-app.use('/api/broker-credentials', brokerCredentialsRouter);
-app.use('/api/execute-signal', executeSignalRouter);
 
 // Health Check
 app.get('/', (req, res) => {
