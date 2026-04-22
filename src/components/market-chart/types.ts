@@ -458,6 +458,9 @@ export interface ScalesAndLinesSettings {
     scaleType: ScaleType;
     reverseScale: boolean;
     lockPriceToBarRatio: boolean;
+    showPrevDayCloseLine: boolean;
+    showAverageCloseLine: boolean;
+    showHighLowMarkers: boolean;
 }
 
 export interface CanvasSettings {

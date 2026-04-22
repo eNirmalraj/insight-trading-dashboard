@@ -125,6 +125,15 @@ export function normaliseScalesAndLinesSettings(
             typeof raw.lockPriceToBarRatio === 'boolean'
                 ? raw.lockPriceToBarRatio
                 : defaults.lockPriceToBarRatio,
+        showPrevDayCloseLine: typeof raw.showPrevDayCloseLine === 'boolean'
+            ? raw.showPrevDayCloseLine
+            : defaults.showPrevDayCloseLine,
+        showAverageCloseLine: typeof raw.showAverageCloseLine === 'boolean'
+            ? raw.showAverageCloseLine
+            : defaults.showAverageCloseLine,
+        showHighLowMarkers: typeof raw.showHighLowMarkers === 'boolean'
+            ? raw.showHighLowMarkers
+            : defaults.showHighLowMarkers,
     };
 }
 

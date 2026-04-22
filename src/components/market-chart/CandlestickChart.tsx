@@ -174,6 +174,9 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         scaleType: 'Linear',
         reverseScale: false,
         lockPriceToBarRatio: false,
+        showPrevDayCloseLine: false,
+        showAverageCloseLine: false,
+        showHighLowMarkers: false,
     },
     canvas: {
         backgroundType: 'solid',
