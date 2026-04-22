@@ -627,6 +627,31 @@ const CanvasSettingsComponent: React.FC<{
                             color={settings.watermarkColor}
                             onChange={(color) => onChange('watermarkColor', color)}
                         />
+                        <div className="flex items-center justify-between">
+                            <label htmlFor="watermarkFontSize" className="text-gray-300">
+                                Font size
+                            </label>
+                            <div className="flex items-center gap-3 w-1/2">
+                                <input
+                                    id="watermarkFontSize"
+                                    type="range"
+                                    min={12}
+                                    max={96}
+                                    step={1}
+                                    value={settings.watermarkFontSize}
+                                    onChange={(e) =>
+                                        onChange(
+                                            'watermarkFontSize',
+                                            Number.parseInt(e.target.value, 10)
+                                        )
+                                    }
+                                    className="flex-1 accent-blue-500"
+                                />
+                                <span className="text-gray-400 text-sm tabular-nums w-10 text-right">
+                                    {settings.watermarkFontSize}px
+                                </span>
+                            </div>
+                        </div>
                     </>
                 )}
             </div>
