@@ -2208,6 +2208,56 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         const end = Math.min(data.length, lastIndexToRender);
         return data.slice(start, end);
     }, [data, firstIndexToRender, lastIndexToRender]);
+    // Sub-project 5: Scale annotations — computed values gated on their render flags.
+
+    const prevDayClose = useMemo<number | null>(() => {
+        if (data.length === 0) return null;
+        const latest = new Date(data[data.length - 1].time * 1000);
+        const todayUtcMidnightSec =
+            Math.floor(
+                Date.UTC(
+                    latest.getUTCFullYear(),
+                    latest.getUTCMonth(),
+                    latest.getUTCDate()
+                ) / 1000
+            );
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (data[i].time < todayUtcMidnightSec) return data[i].close;
+        }
+        return null;
+    }, [data]);
+
+    const visibleAverageClose = useMemo<number | null>(() => {
+        if (visibleData.length === 0) return null;
+        let sum = 0;
+        for (const c of visibleData) sum += c.close;
+        return sum / visibleData.length;
+    }, [visibleData]);
+
+    const visibleHighLow = useMemo<{
+        highIdx: number;
+        lowIdx: number;
+        high: number;
+        low: number;
+    } | null>(() => {
+        if (visibleData.length === 0) return null;
+        let highIdx = 0;
+        let lowIdx = 0;
+        let high = visibleData[0].high;
+        let low = visibleData[0].low;
+        for (let i = 1; i < visibleData.length; i++) {
+            if (visibleData[i].high > high) {
+                high = visibleData[i].high;
+                highIdx = i;
+            }
+            if (visibleData[i].low < low) {
+                low = visibleData[i].low;
+                lowIdx = i;
+            }
+        }
+        return { highIdx, lowIdx, high, low };
+    }, [visibleData]);
+
     const heikinAshiData = useMemo<Candle[]>(() => {
         if (data.length === 0) return [];
         const out: Candle[] = new Array(data.length);
