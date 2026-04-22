@@ -2,6 +2,7 @@
 import { db, isSupabaseConfigured } from './supabaseClient';
 import type {
     ChartSettings,
+    CanvasSettings,
     SymbolSettings,
     ScalesAndLinesSettings,
     StatusLineSettings,
@@ -110,30 +111,81 @@ export function normaliseScalesAndLinesSettings(
     defaults: ScalesAndLinesSettings
 ): ScalesAndLinesSettings {
     if (!raw || typeof raw !== 'object') return { ...defaults };
+
+    // One-shot migration for rows written before the grid/crosshair V/H split.
+    // Safe to delete once persisted rows have re-saved under the new shape.
+    const legacyGrid = typeof raw.gridColor === 'string' ? raw.gridColor : null;
+    const legacyCross = typeof raw.crosshairColor === 'string' ? raw.crosshairColor : null;
+    const { gridColor: _g, crosshairColor: _c, ...rest } = raw;
+
+    const isLineStyle = (v: unknown): v is 'solid' | 'dashed' | 'dotted' =>
+        v === 'solid' || v === 'dashed' || v === 'dotted';
+    const isWidth = (v: unknown): v is number =>
+        typeof v === 'number' && v >= 1 && v <= 3;
+
     return {
         ...defaults,
-        ...raw,
+        ...rest,
         scaleType:
-            raw.scaleType === 'Linear' ||
-            raw.scaleType === 'Logarithmic' ||
-            raw.scaleType === 'Percent'
-                ? raw.scaleType
+            rest.scaleType === 'Linear' ||
+            rest.scaleType === 'Logarithmic' ||
+            rest.scaleType === 'Percent'
+                ? rest.scaleType
                 : defaults.scaleType,
         reverseScale:
-            typeof raw.reverseScale === 'boolean' ? raw.reverseScale : defaults.reverseScale,
+            typeof rest.reverseScale === 'boolean' ? rest.reverseScale : defaults.reverseScale,
         lockPriceToBarRatio:
-            typeof raw.lockPriceToBarRatio === 'boolean'
-                ? raw.lockPriceToBarRatio
+            typeof rest.lockPriceToBarRatio === 'boolean'
+                ? rest.lockPriceToBarRatio
                 : defaults.lockPriceToBarRatio,
-        showPrevDayCloseLine: typeof raw.showPrevDayCloseLine === 'boolean'
-            ? raw.showPrevDayCloseLine
-            : defaults.showPrevDayCloseLine,
-        showAverageCloseLine: typeof raw.showAverageCloseLine === 'boolean'
-            ? raw.showAverageCloseLine
-            : defaults.showAverageCloseLine,
-        showHighLowMarkers: typeof raw.showHighLowMarkers === 'boolean'
-            ? raw.showHighLowMarkers
-            : defaults.showHighLowMarkers,
+        showPrevDayCloseLine:
+            typeof rest.showPrevDayCloseLine === 'boolean'
+                ? rest.showPrevDayCloseLine
+                : defaults.showPrevDayCloseLine,
+        showAverageCloseLine:
+            typeof rest.showAverageCloseLine === 'boolean'
+                ? rest.showAverageCloseLine
+                : defaults.showAverageCloseLine,
+        showHighLowMarkers:
+            typeof rest.showHighLowMarkers === 'boolean'
+                ? rest.showHighLowMarkers
+                : defaults.showHighLowMarkers,
+
+        gridColorVertical:
+            typeof rest.gridColorVertical === 'string'
+                ? rest.gridColorVertical
+                : (legacyGrid ?? defaults.gridColorVertical),
+        gridColorHorizontal:
+            typeof rest.gridColorHorizontal === 'string'
+                ? rest.gridColorHorizontal
+                : (legacyGrid ?? defaults.gridColorHorizontal),
+        gridStyleVertical: isLineStyle(rest.gridStyleVertical)
+            ? rest.gridStyleVertical
+            : defaults.gridStyleVertical,
+        gridStyleHorizontal: isLineStyle(rest.gridStyleHorizontal)
+            ? rest.gridStyleHorizontal
+            : defaults.gridStyleHorizontal,
+
+        crosshairColorVertical:
+            typeof rest.crosshairColorVertical === 'string'
+                ? rest.crosshairColorVertical
+                : (legacyCross ?? defaults.crosshairColorVertical),
+        crosshairColorHorizontal:
+            typeof rest.crosshairColorHorizontal === 'string'
+                ? rest.crosshairColorHorizontal
+                : (legacyCross ?? defaults.crosshairColorHorizontal),
+        crosshairStyleVertical: isLineStyle(rest.crosshairStyleVertical)
+            ? rest.crosshairStyleVertical
+            : defaults.crosshairStyleVertical,
+        crosshairStyleHorizontal: isLineStyle(rest.crosshairStyleHorizontal)
+            ? rest.crosshairStyleHorizontal
+            : defaults.crosshairStyleHorizontal,
+        crosshairWidthVertical: isWidth(rest.crosshairWidthVertical)
+            ? rest.crosshairWidthVertical
+            : defaults.crosshairWidthVertical,
+        crosshairWidthHorizontal: isWidth(rest.crosshairWidthHorizontal)
+            ? rest.crosshairWidthHorizontal
+            : defaults.crosshairWidthHorizontal,
     };
 }
 
@@ -155,6 +207,29 @@ export function normaliseStatusLineSettings(
     };
 }
 
+export function normaliseCanvasSettings(
+    raw: any,
+    defaults: CanvasSettings
+): CanvasSettings {
+    if (!raw || typeof raw !== 'object') return { ...defaults };
+    return {
+        ...defaults,
+        ...raw,
+        backgroundType:
+            raw.backgroundType === 'solid' || raw.backgroundType === 'gradient'
+                ? raw.backgroundType
+                : defaults.backgroundType,
+        showWatermark:
+            typeof raw.showWatermark === 'boolean' ? raw.showWatermark : defaults.showWatermark,
+        watermarkFontSize:
+            typeof raw.watermarkFontSize === 'number' &&
+            raw.watermarkFontSize >= 12 &&
+            raw.watermarkFontSize <= 96
+                ? raw.watermarkFontSize
+                : defaults.watermarkFontSize,
+    };
+}
+
 /**
  * Normalise a full ChartSettings payload by running the sub-normalisers.
  * Future sub-projects can extend this with more sub-shape normalisers.
@@ -170,6 +245,7 @@ export function normaliseChartSettings(
         symbol: normaliseSymbolSettings(raw.symbol, defaults.symbol),
         scalesAndLines: normaliseScalesAndLinesSettings(raw.scalesAndLines, defaults.scalesAndLines),
         statusLine: normaliseStatusLineSettings(raw.statusLine, defaults.statusLine),
+        canvas: normaliseCanvasSettings(raw.canvas, defaults.canvas),
     };
 }
 
