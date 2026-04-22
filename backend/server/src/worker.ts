@@ -15,6 +15,7 @@ import {
     getExecutionEngineStatus,
 } from './engine/executionEngine';
 import { startPriceAlertMonitor, stopPriceAlertMonitor } from './services/priceAlertMonitor';
+import { startFillStreams, stopFillStreams } from './services/fillReconciler';
 
 const HEARTBEAT_INTERVAL = 300_000; // 5 minutes
 
@@ -54,6 +55,17 @@ async function startWorker() {
     // 4b. Start Price Alert Monitor
     startPriceAlertMonitor();
 
+    // 4c. Open user-data WebSocket fill streams for every active Binance
+    //     credential. ORDER_TRADE_UPDATE events now flow into fillReconciler
+    //     which persists them to broker_orders + fills_log + closes executions
+    //     on SL/TP fill. Non-fatal if streams fail to open — system keeps
+    //     running, we just lose live fill persistence until restart.
+    try {
+        await startFillStreams();
+    } catch (e: any) {
+        console.warn('[Worker] startFillStreams failed (non-fatal):', e?.message);
+    }
+
     // 5. Start Signal Engine (scanner): loads assignments, fills buffers, runs
     //    cold-start scan (which may emit dozens of SIGNAL_CREATED events), then
     //    subscribes to Binance kline streams for ongoing candles.
@@ -73,6 +85,7 @@ async function startWorker() {
     // Graceful shutdown
     const shutdown = () => {
         console.log('[Worker] Received shutdown signal. Stopping engines...');
+        stopFillStreams();
         stopPriceAlertMonitor();
         stopExecutionEngine();
         stopSignalEngine();
