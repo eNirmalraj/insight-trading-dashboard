@@ -7,8 +7,8 @@
 // Returns a uniform TestResult: ok + latency + permissions + balancePreview.
 
 import ccxt from 'ccxt';
-import type { BrokerCredentialsFull } from '../../../services/credentialVault';
-import type { TestResult } from '../../../services/credentialHealth';
+import type { BrokerCredentialsFull } from '../credentialVault';
+import type { TestResult } from '../credentialHealth';
 
 const DEMO_FAPI_BASE = 'https://demo-fapi.binance.com';
 

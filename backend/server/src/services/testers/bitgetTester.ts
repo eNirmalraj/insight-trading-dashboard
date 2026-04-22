@@ -4,8 +4,8 @@
 // via ccxt's setSandboxMode (Bitget's sandbox is still live, unlike Binance's).
 
 import ccxt from 'ccxt';
-import type { BrokerCredentialsFull } from '../../../services/credentialVault';
-import type { TestResult } from '../../../services/credentialHealth';
+import type { BrokerCredentialsFull } from '../credentialVault';
+import type { TestResult } from '../credentialHealth';
 
 export async function testBitget(cred: BrokerCredentialsFull): Promise<TestResult> {
     const start = performance.now();

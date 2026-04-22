@@ -4,8 +4,8 @@
 // where the broker exposes them, else ['Read','Trade'] as a sane default).
 // 401 is surfaced distinctly so the frontend can show "Re-authorize".
 
-import type { BrokerCredentialsFull } from '../../../services/credentialVault';
-import type { TestResult } from '../../../services/credentialHealth';
+import type { BrokerCredentialsFull } from '../credentialVault';
+import type { TestResult } from '../credentialHealth';
 
 interface Probe { url: string; headers: Record<string, string>; }
 

@@ -19,15 +19,15 @@ type Tester = (cred: BrokerCredentialsFull) => Promise<TestResult>;
 // Lazy imports keep tests fast and let callers mock individual testers.
 async function dispatcher(broker: string): Promise<Tester> {
     switch (broker) {
-        case 'binance': return (await import('../engine/brokerAdapters/testers/binanceTester')).testBinance;
-        case 'bitget':  return (await import('../engine/brokerAdapters/testers/bitgetTester')).testBitget;
-        case 'mt5':     return (await import('../engine/brokerAdapters/testers/mt5Tester')).testMT5;
+        case 'binance': return (await import('./testers/binanceTester')).testBinance;
+        case 'bitget':  return (await import('./testers/bitgetTester')).testBitget;
+        case 'mt5':     return (await import('./testers/mt5Tester')).testMT5;
         case 'zerodha':
         case 'angelone':
         case 'upstox':
         case 'dhan':
         case 'fyers':
-            return (await import('../engine/brokerAdapters/testers/indianBrokerTester')).testIndianBroker;
+            return (await import('./testers/indianBrokerTester')).testIndianBroker;
         default:
             throw new Error(`Unsupported broker: ${broker}`);
     }

@@ -1,4 +1,4 @@
-import { testMT5 } from '../../src/engine/brokerAdapters/testers/mt5Tester';
+import { testMT5 } from '../../src/services/testers/mt5Tester';
 
 jest.mock('metaapi.cloud-sdk', () => {
     return {

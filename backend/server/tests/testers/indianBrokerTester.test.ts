@@ -1,4 +1,4 @@
-import { testIndianBroker } from '../../src/engine/brokerAdapters/testers/indianBrokerTester';
+import { testIndianBroker } from '../../src/services/testers/indianBrokerTester';
 
 const fakeFetch = jest.fn();
 beforeEach(() => {

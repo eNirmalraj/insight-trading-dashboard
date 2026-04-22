@@ -4,8 +4,8 @@
 // account info, and removes the record. METAAPI_TOKEN env var is required.
 
 import MetaApi from 'metaapi.cloud-sdk';
-import type { BrokerCredentialsFull } from '../../../services/credentialVault';
-import type { TestResult } from '../../../services/credentialHealth';
+import type { BrokerCredentialsFull } from '../credentialVault';
+import type { TestResult } from '../credentialHealth';
 
 export async function testMT5(cred: BrokerCredentialsFull): Promise<TestResult> {
     const start = performance.now();

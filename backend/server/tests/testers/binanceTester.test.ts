@@ -1,4 +1,4 @@
-import { testBinance } from '../../src/engine/brokerAdapters/testers/binanceTester';
+import { testBinance } from '../../src/services/testers/binanceTester';
 
 jest.mock('ccxt', () => ({
     __esModule: true,

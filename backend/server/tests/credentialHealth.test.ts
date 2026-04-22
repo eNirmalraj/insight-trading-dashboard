@@ -11,7 +11,7 @@ jest.mock('../src/services/credentialVault', () => ({
     },
 }));
 
-jest.mock('../src/engine/brokerAdapters/testers/binanceTester', () => ({
+jest.mock('../src/services/testers/binanceTester', () => ({
     testBinance: jest.fn(async () => ({ ok: true, latencyMs: 100, permissions: ['Futures'] })),
 }));
 

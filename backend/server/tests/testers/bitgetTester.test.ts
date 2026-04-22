@@ -1,4 +1,4 @@
-import { testBitget } from '../../src/engine/brokerAdapters/testers/bitgetTester';
+import { testBitget } from '../../src/services/testers/bitgetTester';
 
 jest.mock('ccxt', () => ({
     __esModule: true,
