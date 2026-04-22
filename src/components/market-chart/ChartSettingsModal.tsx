@@ -382,6 +382,21 @@ const ScalesAndLinesSettingsComponent: React.FC<{
                     isChecked={settings.showCountdown}
                     onToggle={(checked) => onChange('showCountdown', checked)}
                 />
+                <CheckboxSettingRow
+                    label="Prev day close line"
+                    isChecked={settings.showPrevDayCloseLine}
+                    onToggle={(v) => onChange('showPrevDayCloseLine', v)}
+                />
+                <CheckboxSettingRow
+                    label="Average close line"
+                    isChecked={settings.showAverageCloseLine}
+                    onToggle={(v) => onChange('showAverageCloseLine', v)}
+                />
+                <CheckboxSettingRow
+                    label="High/low markers"
+                    isChecked={settings.showHighLowMarkers}
+                    onToggle={(v) => onChange('showHighLowMarkers', v)}
+                />
             </div>
         </div>
         <div>
