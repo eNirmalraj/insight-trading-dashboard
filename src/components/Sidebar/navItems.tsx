@@ -2,10 +2,7 @@ import {
     OverviewIcon,
     MarketIcon,
     SignalIcon,
-    PositionMonitoringIcon,
     FilterIcon,
-    MetricsIcon,
-    AlertIcon,
     UsersIcon,
     ScriptIcon,
 } from '../IconComponents';
@@ -20,21 +17,6 @@ export const getNavItems = (): NavItem[] => [
         to: '/my-scripts',
         icon: <FilterIcon className="w-5 h-5 flex-shrink-0" />,
         label: 'My Scripts',
-    },
-    {
-        to: '/positions',
-        icon: <PositionMonitoringIcon className="w-5 h-5 flex-shrink-0" />,
-        label: 'Position Monitoring',
-    },
-    {
-        to: '/metrics',
-        icon: <MetricsIcon className="w-5 h-5 flex-shrink-0" />,
-        label: 'Account Metrics',
-    },
-    {
-        to: '/journal',
-        icon: <AlertIcon className="w-5 h-5 flex-shrink-0" />,
-        label: 'Trading Journal',
     },
     { to: '/community', icon: <UsersIcon className="w-5 h-5 flex-shrink-0" />, label: 'Community' },
     {

@@ -6,13 +6,11 @@ import SignalCard from '../components/SignalCard';
 import SignalTable from '../components/SignalTable';
 import ViewModeToggle from '../components/ViewModeToggle';
 import { useSignalViewMode } from '../hooks/useSignalViewMode';
-import { Signal, SignalStatus, Watchlist, Position, Timeframe, TradeDirection } from '../types';
+import { Signal, SignalStatus, Watchlist, Timeframe, TradeDirection } from '../types';
 import { SignalIcon, CloseIcon, SearchIcon } from '../components/IconComponents';
 import SignalChartModal from '../components/SignalChartModal';
-import ExecuteTradeModal from '../components/ExecuteTradeModal';
 import AssignStrategiesModal from '../components/AssignStrategiesModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
-import { createPaperTrade } from '../services/paperTradingService';
 import { db } from '../services/supabaseClient';
 import * as api from '../api';
 import { subscribeToTicker, unsubscribeFromTicker } from '../services/marketRealtimeService';
@@ -98,11 +96,9 @@ const Signals: React.FC = () => {
     const [customDateEnd, setCustomDateEnd] = useState<string>('');
     const [showAssignModal, setShowAssignModal] = useState(false);
 
-    const [executingSignal, setExecutingSignal] = useState<Signal | null>(null);
     const [openChartSignal, setOpenChartSignal] = useState<Signal | null>(null);
     const [addToWatchlistPair, setAddToWatchlistPair] = useState<string | null>(null);
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
-    const [positions, setPositions] = useState<Position[]>([]);
     const [currentPrices, setCurrentPrices] = useState<Record<string, number>>({});
 
     const navigate = ReactRouterDOM.useNavigate();
@@ -110,14 +106,12 @@ const Signals: React.FC = () => {
     const fetchData = useCallback(async (isBackground = false) => {
         try {
             if (!isBackground) setIsLoading(true);
-            const [signalsData, watchlistsData, positionsData] = await Promise.all([
+            const [signalsData, watchlistsData] = await Promise.all([
                 api.getSignals(),
                 api.getWatchlists(),
-                api.getPositions(),
             ]);
             setSignals(signalsData);
             setWatchlists(watchlistsData);
-            setPositions(positionsData);
             setError(null);
         } catch (err) {
             setError('Failed to load data. Please try again later.');
@@ -159,14 +153,12 @@ const Signals: React.FC = () => {
     // Supabase Realtime subscription for instant signal updates
     // The backend now generates signals, frontend just listens
     // Supabase Realtime subscription for instant signal updates.
-    // - Filtered to this user's executions (RLS enforces this anyway but
-    //   adding the filter reduces wasted network chatter).
-    // - Debounces bursts of INSERTs into a single refetch.
-    // - Reconnects on disconnect instead of relying solely on the 60s poll.
+    // Listens to the `signals` table (immutable event rows written by the Signal Engine).
+    // Debounces bursts of INSERTs into a single refetch. Reconnects on disconnect.
     useEffect(() => {
         if (!user?.id) return;
 
-        console.log('[Signals] 🔌 Setting up Supabase Realtime subscription...');
+        console.log('[Signals] Setting up Supabase Realtime subscription...');
 
         let insertDebounce: ReturnType<typeof setTimeout> | null = null;
         const scheduleRefetch = () => {
@@ -182,39 +174,16 @@ const Signals: React.FC = () => {
 
         const connect = () => {
             channel = db()
-                .channel(`signal-executions-realtime-${user.id}`)
+                .channel(`signals-realtime`)
                 .on(
                     'postgres_changes',
                     {
-                        event: '*',
+                        event: 'INSERT',
                         schema: 'public',
-                        table: 'signal_executions',
-                        filter: `user_id=eq.${user.id}`,
+                        table: 'signals',
                     },
-                    (payload) => {
-                        if (payload.eventType === 'INSERT') {
-                            scheduleRefetch();
-                        } else if (payload.eventType === 'UPDATE') {
-                            const updatedRow = payload.new;
-                            setSignals((prev) =>
-                                prev.map((s) =>
-                                    s.id === updatedRow.id
-                                        ? {
-                                              ...s,
-                                              status: updatedRow.status,
-                                              isPinned:
-                                                  updatedRow.is_pinned !== undefined
-                                                      ? updatedRow.is_pinned
-                                                      : s.isPinned,
-                                              profitLoss: updatedRow.profit_loss,
-                                              closePrice: updatedRow.close_price,
-                                              closeReason: updatedRow.close_reason,
-                                              closedAt: updatedRow.closed_at,
-                                          }
-                                        : s
-                                )
-                            );
-                        }
+                    () => {
+                        scheduleRefetch();
                     }
                 )
                 .subscribe((status) => {
@@ -222,7 +191,6 @@ const Signals: React.FC = () => {
                     setIsConnected(isSubscribed);
                     console.log(`[Signals] Realtime status: ${status}`);
 
-                    // Auto-reconnect on disconnect/error/timed-out.
                     if (
                         status === 'CLOSED' ||
                         status === 'CHANNEL_ERROR' ||
@@ -431,48 +399,6 @@ const Signals: React.FC = () => {
         setOpenChartSignal(signal);
     };
 
-    const handleExecuteTrade = async (newPosition: Position) => {
-        if (!executingSignal || !user?.id) return;
-
-        try {
-            console.log('Executing paper trade for signal:', executingSignal.id, 'User:', user.id);
-
-            // 1. Call Service to persist in DB
-            const tradeId = await createPaperTrade(
-                executingSignal,
-                user.id,
-                {
-                    stopLoss: newPosition.stopLoss,
-                    takeProfit: newPosition.takeProfit,
-                },
-                newPosition.quantity,
-                newPosition.leverage || 1
-            );
-
-            if (!tradeId) {
-                console.error('Failed to create paper trade in DB.');
-                alert('Execution Failed: Could not save trade to paper trading account.');
-                return;
-            }
-
-            // 2. Update local state
-            setPositions((prev) => [{ ...newPosition, id: tradeId }, ...prev]);
-
-            // 3. Update the signal status locally
-            setSignals((prev) =>
-                prev.map((s) =>
-                    s.id === executingSignal.id ? { ...s, status: SignalStatus.ACTIVE } : s
-                )
-            );
-
-            alert(`Trade for ${newPosition.symbol} executed successfully! Trade ID: ${tradeId}`);
-            setExecutingSignal(null);
-        } catch (err: any) {
-            console.error('Error executing manual trade:', err);
-            alert(`Execution Error: ${err.message || 'Unknown error'}`);
-        }
-    };
-
     const handleAddToWatchlist = async (watchlistId: string) => {
         if (!addToWatchlistPair) return;
         try {
@@ -515,7 +441,7 @@ const Signals: React.FC = () => {
                     signals={filteredSignals}
                     currentPrices={currentPrices}
                     onShowChart={handleShowChart}
-                    onExecute={setExecutingSignal}
+                    onExecute={() => {}}
                     strategyStats={strategyStats}
                 />
             );
@@ -528,7 +454,7 @@ const Signals: React.FC = () => {
                         key={signal.id}
                         signal={signal}
                         onShowChart={handleShowChart}
-                        onExecute={setExecutingSignal}
+                        onExecute={() => {}}
                         onAddToWatchlist={setAddToWatchlistPair}
                         isAddedToWatchlist={addedToWatchlistPairs.has(signal.pair)}
                         currentPrice={currentPrices[signal.pair]}
@@ -821,15 +747,6 @@ const Signals: React.FC = () => {
                 <SignalChartModal
                     signal={openChartSignal}
                     onClose={() => setOpenChartSignal(null)}
-                />
-            )}
-
-            {/* Execute Trade Modal */}
-            {executingSignal && (
-                <ExecuteTradeModal
-                    signal={executingSignal}
-                    onClose={() => setExecutingSignal(null)}
-                    onExecute={handleExecuteTrade}
                 />
             )}
 

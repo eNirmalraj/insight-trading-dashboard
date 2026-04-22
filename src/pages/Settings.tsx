@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
     UserIcon,
-    LinkIcon,
     BellIcon,
     SubscriptionIcon,
     PaperIcon,
 } from '../components/IconComponents';
 import Subscription from './Subscription';
-import BrokerConnectPage from './broker-connect/BrokerConnectPage';
 import PaperTradingAccounts from './PaperTradingAccounts';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -60,7 +58,6 @@ const initialSettings: SettingsData = {
 
 type SettingsTab =
     | 'Profile & Security'
-    | 'Broker Connect'
     | 'Paper Trading'
     | 'Notifications'
     | 'Subscription';
@@ -881,12 +878,6 @@ const SecuritySettings: React.FC = () => {
     );
 };
 
-const BrokerConnectSettings: React.FC = () => (
-    <div className="h-full">
-        <BrokerConnectPage />
-    </div>
-);
-
 const NotificationSettings: React.FC<{
     settings: SettingsData['notifications'];
     onChange: (field: keyof SettingsData['notifications'], value: any) => void;
@@ -1001,7 +992,6 @@ const Settings: React.FC = () => {
 
     const tabs: { name: SettingsTab; icon: React.ReactNode }[] = [
         { name: 'Profile & Security', icon: <UserIcon className="w-5 h-5" /> },
-        { name: 'Broker Connect', icon: <LinkIcon className="w-5 h-5" /> },
         { name: 'Paper Trading', icon: <PaperIcon className="w-5 h-5" /> },
         { name: 'Notifications', icon: <BellIcon className="w-5 h-5" /> },
         { name: 'Subscription', icon: <SubscriptionIcon className="w-5 h-5" /> },
@@ -1060,7 +1050,6 @@ const Settings: React.FC = () => {
                         <SecuritySettings />
                     </>
                 )}
-                {activeTab === 'Broker Connect' && <BrokerConnectSettings />}
                 {activeTab === 'Paper Trading' && <PaperTradingAccounts />}
                 {activeTab === 'Notifications' && (
                     <NotificationSettings
@@ -1071,7 +1060,6 @@ const Settings: React.FC = () => {
                 {activeTab === 'Subscription' && <Subscription />}
 
                 {activeTab !== 'Subscription' &&
-                    activeTab !== 'Broker Connect' &&
                     activeTab !== 'Paper Trading' && (
                         <div className="flex justify-end pt-4">
                             <button
