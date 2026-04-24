@@ -50,8 +50,11 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const [cryptoSymbols, setCryptoSymbols] = useState<SearchSymbol[]>([]);
     const [displayLimit, setDisplayLimit] = useState(50);
     const [loading, setLoading] = useState(false);
+    const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+    const [enterError, setEnterError] = useState<string | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const resultsListRef = useRef<HTMLDivElement>(null);
 
     useOutsideAlerter(modalRef, () => {
         if (isOpen) onClose();
@@ -184,11 +187,21 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     // Reset limit when filters change
     useEffect(() => {
         setDisplayLimit(50);
+        setFocusedIndex(-1);
+        setEnterError(null);
     }, [searchTerm, activeTab, marketFilter, rankFilter]);
 
     const visibleSymbols = useMemo(() => {
         return filteredSymbols.slice(0, displayLimit);
     }, [filteredSymbols, displayLimit]);
+
+    useEffect(() => {
+        if (focusedIndex < 0 || !resultsListRef.current) return;
+        const row = resultsListRef.current.querySelector<HTMLElement>(
+            `[data-focused="true"]`
+        );
+        row?.scrollIntoView({ block: 'nearest' });
+    }, [focusedIndex]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -301,8 +314,43 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' && searchTerm) {
-                                    onSymbolSelect(searchTerm.toUpperCase().replace('/', ''));
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    setFocusedIndex((prev) => {
+                                        if (visibleSymbols.length === 0) return -1;
+                                        return (prev + 1) % visibleSymbols.length;
+                                    });
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setFocusedIndex((prev) => {
+                                        if (visibleSymbols.length === 0) return -1;
+                                        return (prev - 1 + visibleSymbols.length) % visibleSymbols.length;
+                                    });
+                                } else if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    // Smart Enter: prefer focused row; fall back to exact match.
+                                    if (focusedIndex >= 0 && focusedIndex < visibleSymbols.length) {
+                                        const item = visibleSymbols[focusedIndex];
+                                        const normalised = item.symbol.replace('/', '');
+                                        if (!existingSymbols.includes(normalised)) {
+                                            onSymbolSelect(normalised);
+                                        }
+                                    } else if (searchTerm) {
+                                        const needle = searchTerm.toUpperCase().replace('/', '');
+                                        const exact = visibleSymbols.find(
+                                            (s) => s.symbol.replace('/', '').toUpperCase() === needle
+                                        );
+                                        if (exact) {
+                                            const normalised = exact.symbol.replace('/', '');
+                                            if (!existingSymbols.includes(normalised)) {
+                                                onSymbolSelect(normalised);
+                                            }
+                                        } else {
+                                            setEnterError(`No symbol matches "${searchTerm}"`);
+                                        }
+                                    }
+                                } else if (e.key === 'Escape') {
+                                    onClose();
                                 }
                             }}
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-12 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
@@ -352,6 +400,12 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             </div>
                         )}
                     </div>
+                    {enterError && (
+                        <div className="mt-2 text-xs text-red-400 flex items-center gap-1.5">
+                            <span>⚠</span>
+                            <span>{enterError}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Tabs */}
@@ -446,6 +500,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
 
                 {/* Results List */}
                 <div
+                    ref={resultsListRef}
                     className="flex-1 overflow-y-auto custom-scrollbar bg-gray-800/90"
                     onScroll={handleScroll}
                 >
@@ -492,18 +547,23 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                 const tags = deriveTags(item.symbol);
                                 const favorited = isFavorite(normalised);
                                 const alreadyAdded = existingSymbols.includes(normalised);
+                                const isFocused = idx === focusedIndex;
                                 return (
                                     <div
                                         key={item.symbol + idx}
+                                        data-focused={isFocused ? 'true' : undefined}
                                         onClick={() => {
                                             if (alreadyAdded) return;
                                             onSymbolSelect(normalised);
                                         }}
+                                        onMouseEnter={() => setFocusedIndex(idx)}
                                         className={`flex items-center gap-3.5 px-4 py-3 transition-colors ${
-                                            alreadyAdded
-                                                ? 'opacity-50 cursor-default'
-                                                : 'hover:bg-gray-700/50 cursor-pointer'
-                                        }`}
+                                            isFocused
+                                                ? 'bg-indigo-500/10 shadow-[inset_3px_0_0_0_#6366f1]'
+                                                : alreadyAdded
+                                                  ? 'opacity-50'
+                                                  : 'hover:bg-gray-700/50'
+                                        } ${alreadyAdded ? 'cursor-default' : 'cursor-pointer'}`}
                                     >
                                         <CoinAvatar symbol={item.symbol} size={32} />
                                         <div className="flex-none w-[180px] min-w-0">
@@ -555,6 +615,11 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                             </span>
                                             <div className="w-3.5 h-3.5 rounded-sm bg-[#f3ba2f] flex-shrink-0" />
                                         </div>
+                                        {isFocused && (
+                                            <div className="text-indigo-400 text-xs pl-1 border-l border-gray-700 ml-1">
+                                                ↵
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
