@@ -136,6 +136,9 @@ export function normaliseScalesAndLinesSettings(
         crosshairStyleHorizontal: _csh,
         crosshairWidthVertical: _cwv,
         crosshairWidthHorizontal: _cwh,
+        // dateFormat / timeFormat moved to SymbolSettings; strip from scalesAndLines spread.
+        dateFormat: _df,
+        timeFormat: _tf,
         ...rest
     } = raw;
 
@@ -243,10 +246,25 @@ export function normaliseChartSettings(
     defaults: ChartSettings
 ): ChartSettings {
     if (!raw || typeof raw !== 'object') return { ...defaults };
+
+    // One-shot migration: dateFormat and timeFormat moved from scalesAndLines to symbol.
+    // Safe to delete once persisted rows have re-saved under the new shape.
+    const symbolRaw = {
+        ...(raw.symbol ?? {}),
+        dateFormat:
+            typeof raw.symbol?.dateFormat === 'string'
+                ? raw.symbol.dateFormat
+                : raw.scalesAndLines?.dateFormat,
+        timeFormat:
+            typeof raw.symbol?.timeFormat === 'string'
+                ? raw.symbol.timeFormat
+                : raw.scalesAndLines?.timeFormat,
+    };
+
     return {
         ...defaults,
         ...raw,
-        symbol: normaliseSymbolSettings(raw.symbol, defaults.symbol),
+        symbol: normaliseSymbolSettings(symbolRaw, defaults.symbol),
         scalesAndLines: normaliseScalesAndLinesSettings(raw.scalesAndLines, defaults.scalesAndLines),
         statusLine: normaliseStatusLineSettings(raw.statusLine, defaults.statusLine),
         canvas: normaliseCanvasSettings(raw.canvas, defaults.canvas),

@@ -149,6 +149,8 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         colorBarsOnPrevClose: false,
         precision: 'Default',
         timezone: 'Etc/UTC',
+        dateFormat: 'DD-MM-YYYY',
+        timeFormat: 'hh:mm',
         candleBodyWidth: 1.0,
         showLastPriceLine: true,
     },
@@ -172,8 +174,6 @@ export const getDefaultChartSettings = (symbol: string): ChartSettings => ({
         showCountdown: true,
         showGrid: true,
         showCrosshair: true,
-        dateFormat: 'DD-MM-YYYY',
-        timeFormat: 'hh:mm',
         scaleType: 'Linear',
         reverseScale: false,
         lockPriceToBarRatio: false,
@@ -2486,33 +2486,64 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
         const sign = pct >= 0 ? '+' : '';
         return `${sign}${pct.toFixed(2)}%`;
     };
+    const tz = chartSettings.symbol.timezone || 'Etc/UTC';
+    // Break a Date into calendar parts in the user-configured timezone.
+    // Uses Intl.DateTimeFormat formatToParts so the output is unambiguous
+    // and independent of the browser's local timezone.
+    const partsInTz = (date: Date) => {
+        const fmt = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        });
+        const out: Record<string, string> = {};
+        for (const p of fmt.formatToParts(date)) out[p.type] = p.value;
+        const monthShort = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz,
+            month: 'short',
+        }).format(date);
+        // Intl returns "24" for midnight when hour12=false; normalise to "00".
+        const hour = out.hour === '24' ? '00' : out.hour;
+        return {
+            year: out.year,
+            month: out.month,
+            day: out.day,
+            monthShort,
+            hour,
+            minute: out.minute,
+            second: out.second,
+        };
+    };
     const formatDate = (date: Date, format: string) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const monthShort = date.toLocaleString('default', { month: 'short' });
+        const p = partsInTz(date);
         return format
-            .replace('YYYY', String(year))
-            .replace('MM', month)
-            .replace('DD', day)
-            .replace('MMM', monthShort);
+            .replace('YYYY', p.year)
+            .replace('MMM', p.monthShort)
+            .replace('MM', p.month)
+            .replace('DD', p.day);
     };
     const formatTime = (date: Date, format: string) => {
-        let hours = date.getHours();
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
+        const p = partsInTz(date);
+        let hoursNum = Number.parseInt(p.hour, 10);
+        const minutes = p.minute;
+        const seconds = p.second;
         if (format.includes('AM/PM')) {
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const hoursStr = String(hours);
+            const ampm = hoursNum >= 12 ? 'PM' : 'AM';
+            hoursNum = hoursNum % 12;
+            hoursNum = hoursNum ? hoursNum : 12;
+            const hoursStr = String(hoursNum);
             let result = format.replace('hh', hoursStr).replace('mm', minutes);
             if (format.includes('ss')) {
                 result = result.replace('ss', seconds);
             }
             return result.replace(' AM/PM', ` ${ampm}`);
         } else {
-            const hoursStr = String(hours).padStart(2, '0');
+            const hoursStr = String(hoursNum).padStart(2, '0');
             let result = format.replace('hh', hoursStr).replace('mm', minutes);
             if (format.includes('ss')) {
                 result = result.replace('ss', seconds);
@@ -2522,7 +2553,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
     };
     const formatTimeLabel = (timestamp: number, timeframe: string) => {
         const date = new Date(timestamp * 1000);
-        const { dateFormat, timeFormat } = chartSettings.scalesAndLines;
+        const { dateFormat, timeFormat } = chartSettings.symbol;
         const formattedDate = formatDate(date, dateFormat);
         const formattedTime = formatTime(date, timeFormat);
         const intervalSeconds = candleInterval;
@@ -6777,11 +6808,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = (props) => {
                             const timeAtLevel = (level: number) => leftTime + (rightTime - leftTime) * level;
                             const formatGannDate = (unixSecs: number) => {
                                 const dt = new Date(unixSecs * 1000);
-                                const month = dt.toLocaleString('en-US', { month: 'short' });
-                                const day = String(dt.getDate()).padStart(2, '0');
-                                const hh = String(dt.getHours()).padStart(2, '0');
-                                const mm = String(dt.getMinutes()).padStart(2, '0');
-                                return `${month} ${day} ${hh}:${mm}`;
+                                const p = partsInTz(dt);
+                                return `${p.monthShort} ${p.day} ${p.hour}:${p.minute}`;
                             };
 
                             // 8 handle positions

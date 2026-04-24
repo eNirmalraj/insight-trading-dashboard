@@ -250,23 +250,8 @@ const SymbolSettingsComponent: React.FC<{
             </div>
         </div>
         <div>
-            <SectionTitle>Data Modification</SectionTitle>
+            <SectionTitle>Date &amp; Time</SectionTitle>
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <label htmlFor="precision" className="text-gray-300">
-                        Precision
-                    </label>
-                    <select
-                        id="precision"
-                        value={settings.precision}
-                        onChange={(e) => onChange('precision', e.target.value)}
-                        className="bg-gray-700 border border-gray-600 rounded-md py-1 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                        <option>Default</option>
-                        <option>1/10</option>
-                        <option>1/100</option>
-                    </select>
-                </div>
                 <div className="flex items-center justify-between">
                     <label htmlFor="timezone" className="text-gray-300">
                         Timezone
@@ -282,6 +267,45 @@ const SymbolSettingsComponent: React.FC<{
                         <option value="Europe/London">(UTC+1) London</option>
                         <option value="Asia/Kolkata">(UTC+5:30) Kolkata</option>
                         <option value="Asia/Tokyo">(UTC+9) Tokyo</option>
+                    </select>
+                </div>
+                <SelectSettingRow
+                    label="Date Format"
+                    value={settings.dateFormat}
+                    onChange={(value) => onChange('dateFormat', value)}
+                >
+                    <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    <option value="DD MMM YYYY">DD MMM YYYY</option>
+                </SelectSettingRow>
+                <SelectSettingRow
+                    label="Time Format"
+                    value={settings.timeFormat}
+                    onChange={(value) => onChange('timeFormat', value)}
+                >
+                    <option value="hh:mm">24-hour</option>
+                    <option value="hh:mm:ss">24-hour with seconds</option>
+                    <option value="hh:mm AM/PM">12-hour</option>
+                </SelectSettingRow>
+            </div>
+        </div>
+        <div>
+            <SectionTitle>Data Modification</SectionTitle>
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="precision" className="text-gray-300">
+                        Precision
+                    </label>
+                    <select
+                        id="precision"
+                        value={settings.precision}
+                        onChange={(e) => onChange('precision', e.target.value)}
+                        className="bg-gray-700 border border-gray-600 rounded-md py-1 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option>Default</option>
+                        <option>1/10</option>
+                        <option>1/100</option>
                     </select>
                 </div>
             </div>
@@ -469,30 +493,6 @@ const ScalesAndLinesSettingsComponent: React.FC<{
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div>
-            <SectionTitle>Appearance</SectionTitle>
-            <div className="space-y-4">
-                <SelectSettingRow
-                    label="Date Format"
-                    value={settings.dateFormat}
-                    onChange={(value) => onChange('dateFormat', value)}
-                >
-                    <option value="DD-MM-YYYY">DD-MM-YYYY</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    <option value="DD MMM YYYY">DD MMM YYYY</option>
-                </SelectSettingRow>
-                <SelectSettingRow
-                    label="Time Format"
-                    value={settings.timeFormat}
-                    onChange={(value) => onChange('timeFormat', value)}
-                >
-                    <option value="hh:mm">24-hour</option>
-                    <option value="hh:mm:ss">24-hour with seconds</option>
-                    <option value="hh:mm AM/PM">12-hour</option>
-                </SelectSettingRow>
             </div>
         </div>
     </div>

@@ -429,6 +429,8 @@ export interface SymbolSettings {
     colorBarsOnPrevClose: boolean;
     precision: string;
     timezone: string;
+    dateFormat: string;
+    timeFormat: string;
     candleBodyWidth: number;     // 0.5–2.0 multiplier on default 0.7 body-to-slot ratio
     showLastPriceLine: boolean;  // dashed horizontal line at last close
 }
@@ -459,8 +461,6 @@ export interface ScalesAndLinesSettings {
     crosshairStyle: 'solid' | 'dashed' | 'dotted';
     crosshairWidth: number;
 
-    dateFormat: string;
-    timeFormat: string;
     scaleType: ScaleType;
     reverseScale: boolean;
     lockPriceToBarRatio: boolean;
