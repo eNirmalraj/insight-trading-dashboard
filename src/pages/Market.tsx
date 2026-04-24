@@ -48,7 +48,7 @@ interface MarketProps {
 }
 
 import { useAuth } from '../context/AuthContext';
-import { FavoritesProvider } from '../contexts/FavoritesContext';
+import { FavoritesProvider } from '../context/FavoritesContext';
 
 class ChartErrorBoundary extends React.Component<
     { children: React.ReactNode },

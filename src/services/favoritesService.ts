@@ -1,6 +1,13 @@
 // src/services/favoritesService.ts
 import { db, isSupabaseConfigured } from './supabaseClient';
 
+// NOTE on error handling:
+//   - loadFavorites swallows errors and returns [] — a missed read is
+//     recoverable (the favorites set starts empty, worst case).
+//   - addFavorite / removeFavorite RE-THROW so FavoritesContext can
+//     revert its optimistic update. Do NOT change these to silent
+//     swallow — the UI would desync from Supabase on any transient error.
+
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 
 // In-memory mock storage
