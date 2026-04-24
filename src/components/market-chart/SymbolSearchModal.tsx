@@ -50,11 +50,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const [cryptoSymbols, setCryptoSymbols] = useState<SearchSymbol[]>([]);
     const [displayLimit, setDisplayLimit] = useState(50);
     const [loading, setLoading] = useState(false);
-    const [focusedIndex, setFocusedIndex] = useState<number>(-1);
-    const [enterError, setEnterError] = useState<string | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const resultsListRef = useRef<HTMLDivElement>(null);
 
     useOutsideAlerter(modalRef, () => {
         if (isOpen) onClose();
@@ -188,21 +185,11 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     // Reset limit when filters change
     useEffect(() => {
         setDisplayLimit(50);
-        setFocusedIndex(-1);
-        setEnterError(null);
     }, [searchTerm, activeTab, marketFilter, rankFilter]);
 
     const visibleSymbols = useMemo(() => {
         return filteredSymbols.slice(0, displayLimit);
     }, [filteredSymbols, displayLimit]);
-
-    useEffect(() => {
-        if (focusedIndex < 0 || !resultsListRef.current) return;
-        const row = resultsListRef.current.querySelector<HTMLElement>(
-            `[data-focused="true"]`
-        );
-        row?.scrollIntoView({ block: 'nearest' });
-    }, [focusedIndex]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -213,48 +200,10 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         }
     };
 
-    const handleResizePointerDown = (e: React.PointerEvent) => {
-        if (!modalRef.current) return;
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('button'))
-            return;
-
-        e.preventDefault();
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const startRect = modalRef.current.getBoundingClientRect();
-
-        modalRef.current.style.transform = 'none';
-        modalRef.current.style.left = `${startRect.left}px`;
-        modalRef.current.style.top = `${startRect.top}px`;
-
-        let top = startRect.top;
-        let left = startRect.left;
-
-        const handlePointerMove = (moveEvent: PointerEvent) => {
-            const dx = moveEvent.clientX - startX;
-            const dy = moveEvent.clientY - startY;
-            top = startRect.top + dy;
-            left = startRect.left + dx;
-            if (modalRef.current) {
-                modalRef.current.style.top = `${top}px`;
-                modalRef.current.style.left = `${left}px`;
-            }
-        };
-
-        const handlePointerUp = () => {
-            document.removeEventListener('pointermove', handlePointerMove);
-            document.removeEventListener('pointerup', handlePointerUp);
-        };
-
-        document.addEventListener('pointermove', handlePointerMove);
-        document.addEventListener('pointerup', handlePointerUp);
-    };
-
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 pt-20 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar {
                     width: 6px;
@@ -272,31 +221,16 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
             `}</style>
             <div
                 ref={modalRef}
-                className="bg-gray-800/90 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl w-full max-w-[800px] flex flex-col h-[600px] absolute overflow-hidden text-[#D1D4DC]"
-                style={{ top: '15%', left: '50%', transform: 'translateX(-50%)' }}
-                onPointerDown={(e) => e.stopPropagation()}
+                className="bg-gray-800/90 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl w-full max-w-[800px] flex flex-col h-[600px] overflow-hidden text-[#D1D4DC]"
             >
-                {/* Drag handle / title bar (ONLY drag surface) */}
-                <div
-                    className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-gray-700/50 cursor-move select-none"
-                    onPointerDown={handleResizePointerDown}
-                >
-                    <div className="flex items-center gap-2">
-                        <div className="flex gap-[3px]">
-                            <div className="w-[3px] h-3 bg-gray-600 rounded-sm" />
-                            <div className="w-[3px] h-3 bg-gray-600 rounded-sm" />
-                        </div>
-                        <h2 className="text-sm font-semibold text-white pl-1">
-                            {title || 'Symbol Search'}
-                        </h2>
-                    </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-gray-700/50">
+                    <h2 className="text-sm font-semibold text-white">
+                        {title || 'Symbol Search'}
+                    </h2>
                     <button
                         type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onClose();
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={onClose}
                         className="text-gray-400 hover:text-white transition-colors"
                         aria-label="Close"
                     >
@@ -304,7 +238,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                     </button>
                 </div>
 
-                {/* Search input (NOT a drag surface) */}
+                {/* Search input */}
                 <div className="p-4 border-b border-gray-700/50">
                     <div className="relative group">
                         <SearchIcon className="w-5 h-5 absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
@@ -314,46 +248,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             placeholder="Symbol, ISIN, or CUSIP"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'ArrowDown') {
-                                    e.preventDefault();
-                                    setFocusedIndex((prev) => {
-                                        if (visibleSymbols.length === 0) return -1;
-                                        return (prev + 1) % visibleSymbols.length;
-                                    });
-                                } else if (e.key === 'ArrowUp') {
-                                    e.preventDefault();
-                                    setFocusedIndex((prev) => {
-                                        if (visibleSymbols.length === 0) return -1;
-                                        return (prev - 1 + visibleSymbols.length) % visibleSymbols.length;
-                                    });
-                                } else if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    // Smart Enter: prefer focused row; fall back to exact match.
-                                    if (focusedIndex >= 0 && focusedIndex < visibleSymbols.length) {
-                                        const item = visibleSymbols[focusedIndex];
-                                        const normalised = item.symbol.replace('/', '');
-                                        if (!existingSymbols.includes(normalised)) {
-                                            onSymbolSelect(normalised);
-                                        }
-                                    } else if (searchTerm) {
-                                        const needle = searchTerm.toUpperCase().replace('/', '');
-                                        const exact = visibleSymbols.find(
-                                            (s) => s.symbol.replace('/', '').toUpperCase() === needle
-                                        );
-                                        if (exact) {
-                                            const normalised = exact.symbol.replace('/', '');
-                                            if (!existingSymbols.includes(normalised)) {
-                                                onSymbolSelect(normalised);
-                                            }
-                                        } else {
-                                            setEnterError(`No symbol matches "${searchTerm}"`);
-                                        }
-                                    }
-                                } else if (e.key === 'Escape') {
-                                    onClose();
-                                }
-                            }}
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-12 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                         />
                         <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-1">
@@ -395,18 +289,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                     );
                                 })()}
                         </div>
-                        {!searchTerm && (
-                            <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-gray-600 border border-gray-700 rounded px-1.5 py-0.5 font-mono pointer-events-none">
-                                ↑↓ ↵
-                            </div>
-                        )}
                     </div>
-                    {enterError && (
-                        <div className="mt-2 text-xs text-red-400 flex items-center gap-1.5">
-                            <span>⚠</span>
-                            <span>{enterError}</span>
-                        </div>
-                    )}
                 </div>
 
                 {/* Tabs */}
@@ -501,7 +384,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
 
                 {/* Results List */}
                 <div
-                    ref={resultsListRef}
                     className="flex-1 overflow-y-auto custom-scrollbar bg-gray-800/90"
                     onScroll={handleScroll}
                 >
@@ -560,23 +442,18 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                 const tags = deriveTags(item.symbol);
                                 const favorited = isFavorite(normalised);
                                 const alreadyAdded = existingSymbols.includes(normalised);
-                                const isFocused = idx === focusedIndex;
                                 return (
                                     <div
                                         key={item.symbol + idx}
-                                        data-focused={isFocused ? 'true' : undefined}
                                         onClick={() => {
                                             if (alreadyAdded) return;
                                             onSymbolSelect(normalised);
                                         }}
-                                        onMouseEnter={() => setFocusedIndex(idx)}
                                         className={`flex items-center gap-3.5 px-4 py-3 transition-colors ${
-                                            isFocused
-                                                ? 'bg-indigo-500/10 shadow-[inset_3px_0_0_0_#6366f1]'
-                                                : alreadyAdded
-                                                  ? 'opacity-50'
-                                                  : 'hover:bg-gray-700/50'
-                                        } ${alreadyAdded ? 'cursor-default' : 'cursor-pointer'}`}
+                                            alreadyAdded
+                                                ? 'opacity-50 cursor-default'
+                                                : 'hover:bg-gray-700/50 cursor-pointer'
+                                        }`}
                                     >
                                         <CoinAvatar symbol={item.symbol} size={32} />
                                         <div className="flex-none w-[180px] min-w-0">
@@ -628,11 +505,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                             </span>
                                             <div className="w-3.5 h-3.5 rounded-sm bg-[#f3ba2f] flex-shrink-0" />
                                         </div>
-                                        {isFocused && (
-                                            <div className="text-indigo-400 text-xs pl-1 border-l border-gray-700 ml-1">
-                                                ↵
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
@@ -641,14 +513,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="px-4 py-2 border-t border-gray-700/50 bg-black/30 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>
-                        {filteredSymbols.length.toLocaleString()} symbols · powered by Binance
-                    </span>
-                    <span className="flex items-center gap-1">
-                        <kbd className="border border-gray-700 rounded px-1.5 py-0.5 font-mono text-[9px]">esc</kbd>
-                        <span>to close</span>
-                    </span>
+                <div className="px-4 py-2 border-t border-gray-700/50 bg-black/30 text-[11px] text-gray-500 text-center">
+                    {filteredSymbols.length.toLocaleString()} symbols · powered by Binance
                 </div>
             </div>
         </div>

@@ -196,23 +196,6 @@ const ChartHeader: React.FC<ChartHeaderProps> = (props) => {
         return () => clearInterval(id);
     }, [symbol]);
 
-    // Global Ctrl/⌘+K opens the symbol search from anywhere on the Market page.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-                // Don't hijack if focus is in an input/textarea/contenteditable (e.g., drawing text tool).
-                const el = document.activeElement as HTMLElement | null;
-                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
-                    return;
-                }
-                e.preventDefault();
-                setSymbolSearchOpen(true);
-            }
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, []);
-
     const handleSymbolSelect = (newSymbol: string) => {
         onSymbolChange(newSymbol);
         setSymbolSearchOpen(false);
