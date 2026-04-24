@@ -8,6 +8,9 @@ import {
     CheckCircleIcon,
 } from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
+import { useFavorites } from '../../context/FavoritesContext';
+
+type SymbolTab = 'All' | 'Stocks' | 'Forex' | 'Crypto' | 'Indian' | 'Favorites';
 
 interface SymbolSearchModalProps {
     isOpen: boolean;
@@ -31,7 +34,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     marketType,
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState(defaultTab);
+    const [activeTab, setActiveTab] = useState<SymbolTab>(defaultTab as SymbolTab);
 
     // Initialize filter based on prop (capitalize first letter)
     const initialMarketFilter = marketType
@@ -51,6 +54,8 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     useOutsideAlerter(modalRef, () => {
         if (isOpen) onClose();
     });
+
+    const { favorites, isFavorite, toggleFavorite } = useFavorites();
 
     // Ensure filter updates if prop changes
     useEffect(() => {
@@ -79,7 +84,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         if (isOpen) {
             setTimeout(() => inputRef.current?.focus(), 50);
             if (defaultTab) {
-                setActiveTab(defaultTab);
+                setActiveTab(defaultTab as SymbolTab);
             }
         } else {
             setSearchTerm('');
@@ -128,7 +133,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         Indices: [],
     };
 
-    const allTabs = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian'];
+    const allTabs: SymbolTab[] = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian', 'Favorites'];
     const tabs = allowedTabs ? allTabs.filter((tab) => allowedTabs.includes(tab)) : allTabs;
 
     const filteredSymbols = useMemo(() => {
@@ -253,23 +258,36 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                 style={{ top: '15%', left: '50%', transform: 'translateX(-50%)' }}
                 onPointerDown={(e) => e.stopPropagation()}
             >
-                {/* Header / Search Area */}
+                {/* Drag handle / title bar (ONLY drag surface) */}
                 <div
-                    className="p-4 border-b border-gray-700/50"
+                    className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-gray-700/50 cursor-move select-none"
                     onPointerDown={handleResizePointerDown}
                 >
-                    <div className="flex justify-between items-center mb-4 cursor-move">
-                        <h2 className="text-lg font-medium text-white">
+                    <div className="flex items-center gap-2">
+                        <div className="flex gap-[3px]">
+                            <div className="w-[3px] h-3 bg-gray-600 rounded-sm" />
+                            <div className="w-[3px] h-3 bg-gray-600 rounded-sm" />
+                        </div>
+                        <h2 className="text-sm font-semibold text-white pl-1">
                             {title || 'Symbol Search'}
                         </h2>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-white transition-colors"
-                        >
-                            <CloseIcon className="w-5 h-5" />
-                        </button>
                     </div>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="text-gray-400 hover:text-white transition-colors"
+                        aria-label="Close"
+                    >
+                        <CloseIcon className="w-5 h-5" />
+                    </button>
+                </div>
 
+                {/* Search input (NOT a drag surface) */}
+                <div className="p-4 border-b border-gray-700/50">
                     <div className="relative group">
                         <SearchIcon className="w-5 h-5 absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                         <input
@@ -324,69 +342,103 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                     );
                                 })()}
                         </div>
+                        {!searchTerm && (
+                            <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-gray-600 border border-gray-700 rounded px-1.5 py-0.5 font-mono pointer-events-none">
+                                ↑↓ ↵
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Tabs & Filters */}
-                <div className="flex flex-col border-b border-gray-700/50 bg-gray-800/90">
-                    <div className="flex items-center overflow-x-auto scrollbar-hide px-2">
-                        {tabs.map((tab) => (
+                {/* Tabs */}
+                <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-700/50 bg-gray-800/90 overflow-x-auto scrollbar-hide">
+                    {tabs.filter((t) => t !== 'Favorites').map((tab) => (
+                        <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setActiveTab(tab as SymbolTab)}
+                            className={`whitespace-nowrap px-3.5 py-1.5 text-sm rounded-full transition-colors ${
+                                activeTab === tab
+                                    ? 'bg-gray-700 text-white font-medium'
+                                    : 'text-gray-400 hover:text-gray-200'
+                            }`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                    {tabs.includes('Favorites') && (
+                        <>
+                            <div className="flex-1" />
                             <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-400 hover:text-gray-300'}`}
+                                type="button"
+                                onClick={() => setActiveTab('Favorites')}
+                                className={`whitespace-nowrap px-3.5 py-1.5 text-sm rounded-full transition-colors flex items-center gap-1.5 ${
+                                    activeTab === 'Favorites'
+                                        ? 'bg-amber-500/15 text-amber-400 font-medium'
+                                        : 'text-amber-500/80 hover:text-amber-400'
+                                }`}
                             >
-                                {tab}
+                                <span>★</span>
+                                <span>Favorites</span>
+                                {favorites.size > 0 && (
+                                    <span className="text-[10px] text-gray-500 font-mono">
+                                        {favorites.size}
+                                    </span>
+                                )}
                             </button>
-                        ))}
-                    </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Filters */}
-                <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-800/90 flex items-center gap-6 text-xs overflow-x-auto">
-                    {/* Market Filter (Spot/Futures) - Only show buttons if marketType NOT enforced */}
-                    {activeTab === 'Crypto' && !marketType && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-gray-500 mr-1">Market:</span>
-                            {(['All', 'Spot', 'Futures'] as const).map((m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => setMarketFilter(m)}
-                                    className={`px-2 py-1 rounded transition-colors ${marketFilter === m ? 'bg-gray-700 text-blue-400 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+                {(activeTab === 'Crypto' || activeTab === 'All') && (
+                    <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-800/90 flex items-center gap-6 text-xs overflow-x-auto">
+                        {/* Market Filter (Spot/Futures) - Only show buttons if marketType NOT enforced */}
+                        {activeTab === 'Crypto' && !marketType && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-500 mr-1">Market:</span>
+                                {(['All', 'Spot', 'Futures'] as const).map((m) => (
+                                    <button
+                                        key={m}
+                                        type="button"
+                                        onClick={() => setMarketFilter(m)}
+                                        className={`px-2 py-1 rounded transition-colors ${marketFilter === m ? 'bg-gray-700 text-blue-400 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+                                    >
+                                        {m === 'Futures' ? 'USDT.P' : m}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Show Active Market Type Label if Enforced */}
+                        {activeTab === 'Crypto' && marketType && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-500 mr-1">Market:</span>
+                                <span className="px-2 py-1 rounded bg-gray-700 text-blue-400 font-medium border border-blue-500/30">
+                                    {marketType === 'futures' ? 'USDT.P (Futures)' : 'Spot'}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Rank Filter - NEW */}
+                        {activeTab === 'Crypto' && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-500 mr-1">Rank:</span>
+                                <select
+                                    value={rankFilter}
+                                    onChange={(e) => setRankFilter(e.target.value as any)}
+                                    aria-label="Rank filter"
+                                    className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border-none outline-none cursor-pointer hover:bg-gray-600 transition-colors"
                                 >
-                                    {m === 'Futures' ? 'USDT.P' : m}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Show Active Market Type Label if Enforced */}
-                    {activeTab === 'Crypto' && marketType && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-gray-500 mr-1">Market:</span>
-                            <span className="px-2 py-1 rounded bg-gray-700 text-blue-400 font-medium border border-blue-500/30">
-                                {marketType === 'futures' ? 'USDT.P (Futures)' : 'Spot'}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Rank Filter - NEW */}
-                    {activeTab === 'Crypto' && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-gray-500 mr-1">Rank:</span>
-                            <select
-                                value={rankFilter}
-                                onChange={(e) => setRankFilter(e.target.value as any)}
-                                className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border-none outline-none cursor-pointer hover:bg-gray-600 transition-colors"
-                            >
-                                <option value="All">All Items</option>
-                                <option value="Top 10">Top 10 Monthly</option>
-                                <option value="Top 50">Top 50 Monthly</option>
-                                <option value="Top 100">Top 100 Monthly</option>
-                            </select>
-                        </div>
-                    )}
-                </div>
+                                    <option value="All">All Items</option>
+                                    <option value="Top 10">Top 10 Monthly</option>
+                                    <option value="Top 50">Top 50 Monthly</option>
+                                    <option value="Top 100">Top 100 Monthly</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Results List */}
                 <div
@@ -503,8 +555,14 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="p-2 border-t border-gray-700/50 bg-gray-800/90 text-[10px] text-center text-gray-500">
-                    Search powered by Binance API
+                <div className="px-4 py-2 border-t border-gray-700/50 bg-black/30 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>
+                        {filteredSymbols.length.toLocaleString()} symbols · powered by Binance
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <kbd className="border border-gray-700 rounded px-1.5 py-0.5 font-mono text-[9px]">esc</kbd>
+                        <span>to close</span>
+                    </span>
                 </div>
             </div>
         </div>
