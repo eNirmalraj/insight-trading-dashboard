@@ -238,7 +238,7 @@ export interface ExchangeKey {
     access_token?: string;
     totp_secret?: string;
     is_active: boolean;
-    environment: 'live' | 'testnet';
+    environment: 'live' | 'demo';
     permissions: string[];
     last_tested_at: string | null;
     last_test_status: 'success' | 'failed' | null;
@@ -260,5 +260,5 @@ export interface CreateExchangeKeyPayload {
     access_token?: string;
     totp_secret?: string;
     password?: string;
-    environment: 'live' | 'testnet';
+    environment: 'live' | 'demo';
 }
