@@ -148,8 +148,9 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         let source: SearchSymbol[] = [];
 
         if (activeTab === 'Favorites') {
-            // Favorites branch — populated in Task 6. For now, empty source.
-            source = [];
+            source = cryptoSymbols.filter((s) =>
+                favorites.has(s.symbol.replace('/', ''))
+            );
         } else if (isComingSoonTab(activeTab)) {
             source = [];
         } else if (activeTab === 'All' || activeTab === 'Crypto') {
@@ -536,10 +537,22 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             </p>
                         </div>
                     ) : filteredSymbols.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                            <MarketIcon className="w-16 h-16 opacity-20 mb-4" />
-                            <p>No symbols match your criteria</p>
-                        </div>
+                        activeTab === 'Favorites' ? (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500 px-6 text-center">
+                                <div className="text-5xl opacity-30 mb-3">☆</div>
+                                <p className="text-sm font-medium text-gray-300 mb-1">
+                                    No favorites yet
+                                </p>
+                                <p className="text-xs">
+                                    Click the ☆ next to any symbol on other tabs to pin it here.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                <MarketIcon className="w-16 h-16 opacity-20 mb-4" />
+                                <p>No symbols match your criteria</p>
+                            </div>
+                        )
                     ) : (
                         <div className="divide-y divide-gray-800/60">
                             {visibleSymbols.map((item, idx) => {
