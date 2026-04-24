@@ -9,6 +9,7 @@ import {
 } from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
 import CoinAvatar from './CoinAvatar';
+import ExchangeAvatar from './ExchangeAvatar';
 import { deriveTags } from './symbolSearchTags';
 
 type SymbolTab = 'All' | 'Stocks' | 'Forex' | 'Crypto' | 'Indian';
@@ -399,22 +400,22 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                             if (alreadyAdded) return;
                                             onSymbolSelect(normalised);
                                         }}
-                                        className={`flex items-center gap-3.5 px-4 py-3 transition-colors ${
+                                        className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
                                             alreadyAdded
                                                 ? 'opacity-50 cursor-default'
                                                 : 'hover:bg-gray-700/50 cursor-pointer'
                                         }`}
                                     >
-                                        <CoinAvatar symbol={item.symbol} size={32} />
-                                        <div className="flex-none w-[180px] min-w-0">
-                                            <div className="font-semibold text-white text-sm truncate">
-                                                {item.symbol}
-                                            </div>
-                                            <div className="text-xs text-gray-500 truncate">
-                                                {item.description}
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 flex gap-1.5 flex-wrap">
+                                        <CoinAvatar symbol={item.symbol} size={28} />
+                                        <span className="font-semibold text-white whitespace-nowrap">
+                                            {item.symbol}
+                                        </span>
+                                        <span className="text-gray-600">·</span>
+                                        <span className="text-gray-400 truncate min-w-0">
+                                            {item.description}
+                                        </span>
+                                        <span className="text-gray-600 hidden md:inline">·</span>
+                                        <div className="hidden md:flex gap-1 flex-shrink-0">
                                             {tags.map((t) => (
                                                 <span
                                                     key={t}
@@ -424,16 +425,17 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                                 </span>
                                             ))}
                                         </div>
+                                        <div className="flex-1" />
                                         {alreadyAdded && (
-                                            <span className="text-[10px] uppercase tracking-wider text-green-500 bg-green-500/10 border border-green-500/30 rounded px-2 py-1">
+                                            <span className="text-[10px] uppercase tracking-wider text-green-500 bg-green-500/10 border border-green-500/30 rounded px-2 py-0.5 flex-shrink-0">
                                                 ✓ added
                                             </span>
                                         )}
-                                        <div className="flex items-center gap-1.5 min-w-[80px] justify-end">
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
                                             <span className="text-[11px] text-gray-400 font-medium">
                                                 {item.exchange === 'BINANCE' ? 'Binance' : item.exchange}
                                             </span>
-                                            <div className="w-3.5 h-3.5 rounded-sm bg-[#f3ba2f] flex-shrink-0" />
+                                            <ExchangeAvatar exchange={item.exchange} size={14} />
                                         </div>
                                     </div>
                                 );
