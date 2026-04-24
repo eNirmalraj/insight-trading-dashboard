@@ -9,6 +9,8 @@ import {
 } from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
 import { useFavorites } from '../../context/FavoritesContext';
+import CoinAvatar from './CoinAvatar';
+import { deriveTags } from './symbolSearchTags';
 
 type SymbolTab = 'All' | 'Stocks' | 'Forex' | 'Crypto' | 'Indian' | 'Favorites';
 
@@ -136,17 +138,19 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const allTabs: SymbolTab[] = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian', 'Favorites'];
     const tabs = allowedTabs ? allTabs.filter((tab) => allowedTabs.includes(tab)) : allTabs;
 
+    const COMING_SOON_TABS: SymbolTab[] = ['Stocks', 'Forex', 'Indian'];
+    const isComingSoonTab = (t: SymbolTab) => COMING_SOON_TABS.includes(t);
+
     const filteredSymbols = useMemo(() => {
         let source: SearchSymbol[] = [];
 
-        if (activeTab === 'All') {
-            source = [...cryptoSymbols, ...mockSymbols['Forex']];
-        } else if (activeTab === 'Crypto') {
-            source = cryptoSymbols;
-        } else if (activeTab === 'Forex') {
-            source = mockSymbols['Forex'];
-        } else {
+        if (activeTab === 'Favorites') {
+            // Favorites branch — populated in Task 6. For now, empty source.
             source = [];
+        } else if (isComingSoonTab(activeTab)) {
+            source = [];
+        } else if (activeTab === 'All' || activeTab === 'Crypto') {
+            source = cryptoSymbols;
         }
 
         // Filter by Market (Spot/Futures)
@@ -175,7 +179,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         }
 
         return result;
-    }, [searchTerm, activeTab, cryptoSymbols, marketFilter, rankFilter]);
+    }, [searchTerm, activeTab, cryptoSymbols, marketFilter, rankFilter, favorites]);
 
     // Reset limit when filters change
     useEffect(() => {
@@ -450,107 +454,111 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                             Loading items...
                         </div>
+                    ) : isComingSoonTab(activeTab) ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500 px-6 text-center">
+                            <div className="text-5xl opacity-30 mb-3">🔜</div>
+                            <p className="text-sm font-medium text-gray-300 mb-1">
+                                {activeTab} coming soon
+                            </p>
+                            <p className="text-xs">
+                                For now, browse{' '}
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('Crypto')}
+                                    className="text-indigo-400 hover:text-indigo-300 underline-offset-2 hover:underline"
+                                >
+                                    Crypto
+                                </button>
+                                {' '}or your{' '}
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('Favorites')}
+                                    className="text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline"
+                                >
+                                    Favorites
+                                </button>
+                                .
+                            </p>
+                        </div>
                     ) : filteredSymbols.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-500">
                             <MarketIcon className="w-16 h-16 opacity-20 mb-4" />
                             <p>No symbols match your criteria</p>
                         </div>
                     ) : (
-                        <table className="w-full text-left border-collapse">
-                            <tbody>
-                                {visibleSymbols.map((item, idx) => (
-                                    <tr
+                        <div className="divide-y divide-gray-800/60">
+                            {visibleSymbols.map((item, idx) => {
+                                const normalised = item.symbol.replace('/', '');
+                                const tags = deriveTags(item.symbol);
+                                const favorited = isFavorite(normalised);
+                                const alreadyAdded = existingSymbols.includes(normalised);
+                                return (
+                                    <div
                                         key={item.symbol + idx}
-                                        onClick={() => onSymbolSelect(item.symbol.replace('/', ''))}
-                                        className="group hover:bg-gray-700/50 cursor-pointer transition-colors border-b border-gray-800/50 last:border-b-0"
+                                        onClick={() => {
+                                            if (alreadyAdded) return;
+                                            onSymbolSelect(normalised);
+                                        }}
+                                        className={`flex items-center gap-3.5 px-4 py-3 transition-colors ${
+                                            alreadyAdded
+                                                ? 'opacity-50 cursor-default'
+                                                : 'hover:bg-gray-700/50 cursor-pointer'
+                                        }`}
                                     >
-                                        <td className="p-3 pl-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-gray-700/30 flex items-center justify-center text-[10px] font-bold text-gray-400 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                                                    {item.symbol.substring(0, 1)}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-white text-sm flex items-center gap-2">
-                                                        {item.symbol}
-                                                        {/* Optional badges could go here */}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 group-hover:text-gray-400">
-                                                        {item.description}
-                                                    </div>
-                                                </div>
+                                        <CoinAvatar symbol={item.symbol} size={32} />
+                                        <div className="flex-none w-[180px] min-w-0">
+                                            <div className="font-semibold text-white text-sm truncate">
+                                                {item.symbol}
                                             </div>
-                                        </td>
-
-                                        {/* Price Info (Hidden on very small screens if needed, but keeping for utility) */}
-                                        <td className="p-3 text-right hidden sm:table-cell">
-                                            <div
-                                                className={`text-sm font-mono ${item.changePercent >= 0 ? 'text-[#00C076]' : 'text-[#FF6838]'}`}
-                                            >
-                                                {item.price > 100
-                                                    ? item.price.toFixed(2)
-                                                    : item.price.toFixed(5)}
+                                            <div className="text-xs text-gray-500 truncate">
+                                                {item.description}
                                             </div>
-                                            <div className="text-xs text-gray-500">
-                                                {item.changePercent >= 0 ? '+' : ''}
-                                                {item.changePercent.toFixed(2)}%
-                                            </div>
-                                        </td>
-
-                                        {/* Exchange Badge */}
-                                        <td className="p-3 text-right w-24">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider group-hover:text-gray-300">
-                                                    {item.type}
+                                        </div>
+                                        <div className="flex-1 flex gap-1.5 flex-wrap">
+                                            {tags.map((t) => (
+                                                <span
+                                                    key={t}
+                                                    className="text-[10px] uppercase tracking-wider text-gray-400 bg-gray-800/80 border border-gray-700/50 rounded px-1.5 py-0.5"
+                                                >
+                                                    {t}
                                                 </span>
-                                                <div className="flex items-center gap-1 mt-0.5">
-                                                    <img
-                                                        src="https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=026"
-                                                        className="w-3 h-3 opacity-50 group-hover:opacity-100"
-                                                        alt=""
-                                                    />
-                                                    <span className="text-[10px] text-gray-400 font-medium group-hover:text-white uppercase">
-                                                        {item.exchange}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        {/* Add Action */}
-                                        <td className="p-3 pr-6 text-right w-12">
-                                            {(() => {
-                                                const isAlreadyAdded = existingSymbols.includes(
-                                                    item.symbol.replace('/', '')
-                                                );
-                                                return (
-                                                    <button
-                                                        className={`p-2 rounded-full transition-all ${isAlreadyAdded ? 'text-green-500 cursor-default' : 'text-gray-500 hover:text-blue-500 bg-gray-700/0 hover:bg-blue-500/10'}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!isAlreadyAdded)
-                                                                onSymbolSelect(
-                                                                    item.symbol.replace('/', '')
-                                                                );
-                                                        }}
-                                                        disabled={isAlreadyAdded}
-                                                        title={
-                                                            isAlreadyAdded
-                                                                ? 'Already Added'
-                                                                : 'Add to list'
-                                                        }
-                                                    >
-                                                        {isAlreadyAdded ? (
-                                                            <CheckCircleIcon className="w-5 h-5" />
-                                                        ) : (
-                                                            <PlusCircleIcon className="w-5 h-5" />
-                                                        )}
-                                                    </button>
-                                                );
-                                            })()}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            ))}
+                                        </div>
+                                        {alreadyAdded ? (
+                                            <span className="text-[10px] uppercase tracking-wider text-green-500 bg-green-500/10 border border-green-500/30 rounded px-2 py-1">
+                                                ✓ added
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleFavorite(normalised);
+                                                }}
+                                                className={`p-1.5 rounded transition-colors ${
+                                                    favorited
+                                                        ? 'text-amber-400 hover:text-amber-300'
+                                                        : 'text-gray-600 hover:text-gray-400'
+                                                }`}
+                                                aria-label={
+                                                    favorited ? 'Remove from favorites' : 'Add to favorites'
+                                                }
+                                            >
+                                                <span className="text-base">
+                                                    {favorited ? '★' : '☆'}
+                                                </span>
+                                            </button>
+                                        )}
+                                        <div className="flex items-center gap-1.5 min-w-[80px] justify-end">
+                                            <span className="text-[11px] text-gray-400 font-medium">
+                                                {item.exchange === 'BINANCE' ? 'Binance' : item.exchange}
+                                            </span>
+                                            <div className="w-3.5 h-3.5 rounded-sm bg-[#f3ba2f] flex-shrink-0" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
 
