@@ -48,6 +48,7 @@ interface MarketProps {
 }
 
 import { useAuth } from '../context/AuthContext';
+import { FavoritesProvider } from '../contexts/FavoritesContext';
 
 class ChartErrorBoundary extends React.Component<
     { children: React.ReactNode },
@@ -567,6 +568,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
     };
 
     return (
+        <FavoritesProvider>
         <div className="h-full flex flex-col relative market-bg">
             {(isLoading || isAuthLoading || !symbol || !activeTimeframe) && (
                 <div className="absolute inset-0 backdrop-blur-sm z-50 flex items-center justify-center market-loader-overlay">
@@ -628,6 +630,7 @@ const Market: React.FC<MarketProps> = ({ onLogout, onToggleMobileSidebar }) => {
                 </ChartErrorBoundary>
             )}
         </div>
+        </FavoritesProvider>
     );
 };
 
