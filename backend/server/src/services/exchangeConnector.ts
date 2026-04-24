@@ -58,12 +58,13 @@ export const buildBinanceFutures = (
         options: { defaultType: 'future' },
     });
     if (env === 'demo') {
-        const urls = ex.urls['api'] as Record<string, string>;
-        urls['fapiPrivate']   = 'https://demo-fapi.binance.com/fapi/v1';
-        urls['fapiPublic']    = 'https://demo-fapi.binance.com/fapi/v1';
-        urls['fapiPrivateV2'] = 'https://demo-fapi.binance.com/fapi/v2';
-        urls['fapiPublicV2']  = 'https://demo-fapi.binance.com/fapi/v2';
-        urls['fapiData']      = 'https://demo-fapi.binance.com/futures/data';
+        // ccxt ships urls.demo with the canonical demo-fapi/demo-dapi/demo-api
+        // URL set (including V3 endpoints). Swap the whole block so future ccxt
+        // upgrades pick up new URL keys automatically. This mirrors how ccxt's
+        // own setSandboxMode swaps urls.api with urls.test.
+        const demo = (ex.urls as any)['demo'];
+        if (!demo) throw new Error('ccxt binance: urls.demo missing — check ccxt version');
+        (ex.urls as any)['api'] = demo;
     }
     return ex;
 };
@@ -76,6 +77,8 @@ const createExchange = (row: StoredKey): Exchange => {
 
     switch (row.exchange) {
         case 'binance': {
+            // Any non-'live' value (including legacy 'testnet' rows pre migration 071)
+            // is treated as 'demo'. The DB constraint will catch invalid values.
             const env: 'demo' | 'live' = row.environment === 'live' ? 'live' : 'demo';
             return buildBinanceFutures(apiKey, secret, env);
         }
@@ -129,12 +132,14 @@ export const testConnection = async (exchangeKeyId: string): Promise<TestResult>
                     if (spotInfo?.canTrade) permissions.push('Spot Trading');
                     if (spotInfo?.permissions?.includes('MARGIN')) permissions.push('Margin');
                     if (spotInfo?.canWithdraw) permissions.push('Withdraw');
-                } catch { /* no spot perm — informational only */ }
+                } catch (err) {
+                    console.warn('[testConnection] spot permission probe failed (informational only):', (err as Error).message);
+                }
             } else if (row.exchange === 'bitget') {
                 permissions.push('Spot Trading');
             }
-        } catch {
-            /* futures probe failed; permissions stays at ['Read'] */
+        } catch (err) {
+            console.warn('[testConnection] futures permission probe failed:', (err as Error).message);
         }
 
         const nonZero = Object.entries(balance.free || {})

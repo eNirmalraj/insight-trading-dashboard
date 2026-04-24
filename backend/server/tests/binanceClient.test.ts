@@ -15,7 +15,9 @@ describe('buildBinanceFutures', () => {
         expect(urls['fapiPublic']).toBe('https://demo-fapi.binance.com/fapi/v1');
         expect(urls['fapiPrivateV2']).toBe('https://demo-fapi.binance.com/fapi/v2');
         expect(urls['fapiPublicV2']).toBe('https://demo-fapi.binance.com/fapi/v2');
-        expect(urls['fapiData']).toBe('https://demo-fapi.binance.com/futures/data');
+        // V3 endpoints come for free from ccxt's canonical urls.demo block.
+        expect(urls['fapiPrivateV3']).toBe('https://demo-fapi.binance.com/fapi/v3');
+        expect(urls['fapiPublicV3']).toBe('https://demo-fapi.binance.com/fapi/v3');
     });
 
     it('configures futures as the default type', () => {
