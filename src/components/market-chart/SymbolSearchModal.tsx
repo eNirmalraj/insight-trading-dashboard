@@ -8,11 +8,10 @@ import {
     CheckCircleIcon,
 } from '../IconComponents';
 import { fetchAllCryptoSymbols, SearchSymbol } from '../../services/marketDataService';
-import { useFavorites } from '../../context/FavoritesContext';
 import CoinAvatar from './CoinAvatar';
 import { deriveTags } from './symbolSearchTags';
 
-type SymbolTab = 'All' | 'Stocks' | 'Forex' | 'Crypto' | 'Indian' | 'Favorites';
+type SymbolTab = 'All' | 'Stocks' | 'Forex' | 'Crypto' | 'Indian';
 
 interface SymbolSearchModalProps {
     isOpen: boolean;
@@ -56,8 +55,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     useOutsideAlerter(modalRef, () => {
         if (isOpen) onClose();
     });
-
-    const { favorites, isFavorite, toggleFavorite } = useFavorites();
 
     // Ensure filter updates if prop changes
     useEffect(() => {
@@ -135,7 +132,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         Indices: [],
     };
 
-    const allTabs: SymbolTab[] = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian', 'Favorites'];
+    const allTabs: SymbolTab[] = ['All', 'Stocks', 'Forex', 'Crypto', 'Indian'];
     const tabs = allowedTabs ? allTabs.filter((tab) => allowedTabs.includes(tab)) : allTabs;
 
     const COMING_SOON_TABS: SymbolTab[] = ['Stocks', 'Forex', 'Indian'];
@@ -144,11 +141,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
     const filteredSymbols = useMemo(() => {
         let source: SearchSymbol[] = [];
 
-        if (activeTab === 'Favorites') {
-            source = cryptoSymbols.filter((s) =>
-                favorites.has(s.symbol.replace('/', ''))
-            );
-        } else if (isComingSoonTab(activeTab)) {
+        if (isComingSoonTab(activeTab)) {
             source = [];
         } else if (activeTab === 'All' || activeTab === 'Crypto') {
             source = cryptoSymbols;
@@ -180,7 +173,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
         }
 
         return result;
-    }, [searchTerm, activeTab, cryptoSymbols, marketFilter, rankFilter, favorites]);
+    }, [searchTerm, activeTab, cryptoSymbols, marketFilter, rankFilter]);
 
     // Reset limit when filters change
     useEffect(() => {
@@ -294,7 +287,7 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
 
                 {/* Tabs */}
                 <div className="flex items-center gap-1 px-3 py-2 border-b border-gray-700/50 bg-gray-800/90 overflow-x-auto scrollbar-hide">
-                    {tabs.filter((t) => t !== 'Favorites').map((tab) => (
+                    {tabs.map((tab) => (
                         <button
                             key={tab}
                             type="button"
@@ -308,28 +301,6 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                             {tab}
                         </button>
                     ))}
-                    {tabs.includes('Favorites') && (
-                        <>
-                            <div className="flex-1" />
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('Favorites')}
-                                className={`whitespace-nowrap px-3.5 py-1.5 text-sm rounded-full transition-colors flex items-center gap-1.5 ${
-                                    activeTab === 'Favorites'
-                                        ? 'bg-amber-500/15 text-amber-400 font-medium'
-                                        : 'text-amber-500/80 hover:text-amber-400'
-                                }`}
-                            >
-                                <span>★</span>
-                                <span>Favorites</span>
-                                {favorites.size > 0 && (
-                                    <span className="text-[10px] text-gray-500 font-mono">
-                                        {favorites.size}
-                                    </span>
-                                )}
-                            </button>
-                        </>
-                    )}
                 </div>
 
                 {/* Filters */}
@@ -407,40 +378,19 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                 >
                                     Crypto
                                 </button>
-                                {' '}or your{' '}
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('Favorites')}
-                                    className="text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline"
-                                >
-                                    Favorites
-                                </button>
                                 .
                             </p>
                         </div>
                     ) : filteredSymbols.length === 0 ? (
-                        activeTab === 'Favorites' ? (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-500 px-6 text-center">
-                                <div className="text-5xl opacity-30 mb-3">☆</div>
-                                <p className="text-sm font-medium text-gray-300 mb-1">
-                                    No favorites yet
-                                </p>
-                                <p className="text-xs">
-                                    Click the ☆ next to any symbol on other tabs to pin it here.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                <MarketIcon className="w-16 h-16 opacity-20 mb-4" />
-                                <p>No symbols match your criteria</p>
-                            </div>
-                        )
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <MarketIcon className="w-16 h-16 opacity-20 mb-4" />
+                            <p>No symbols match your criteria</p>
+                        </div>
                     ) : (
                         <div className="divide-y divide-gray-800/60">
                             {visibleSymbols.map((item, idx) => {
                                 const normalised = item.symbol.replace('/', '');
                                 const tags = deriveTags(item.symbol);
-                                const favorited = isFavorite(normalised);
                                 const alreadyAdded = existingSymbols.includes(normalised);
                                 return (
                                     <div
@@ -474,30 +424,10 @@ const SymbolSearchModal: React.FC<SymbolSearchModalProps> = ({
                                                 </span>
                                             ))}
                                         </div>
-                                        {alreadyAdded ? (
+                                        {alreadyAdded && (
                                             <span className="text-[10px] uppercase tracking-wider text-green-500 bg-green-500/10 border border-green-500/30 rounded px-2 py-1">
                                                 ✓ added
                                             </span>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleFavorite(normalised);
-                                                }}
-                                                className={`p-1.5 rounded transition-colors ${
-                                                    favorited
-                                                        ? 'text-amber-400 hover:text-amber-300'
-                                                        : 'text-gray-600 hover:text-gray-400'
-                                                }`}
-                                                aria-label={
-                                                    favorited ? 'Remove from favorites' : 'Add to favorites'
-                                                }
-                                            >
-                                                <span className="text-base">
-                                                    {favorited ? '★' : '☆'}
-                                                </span>
-                                            </button>
                                         )}
                                         <div className="flex items-center gap-1.5 min-w-[80px] justify-end">
                                             <span className="text-[11px] text-gray-400 font-medium">
